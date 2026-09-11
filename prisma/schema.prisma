@@ -1,0 +1,56 @@
+// Portfolio dashboard schema.
+//
+// Design note: only two tables hold real data — Transaction and
+// Contribution. Everything else your Google Sheet showed as
+// "[View-Only]" (Open Positions US/SG-HK, Completed Trades, portfolio
+// totals/percentages) is DERIVED from these by replaying transactions
+// in date order — see lib/portfolio-engine.ts. This mirrors how the
+// sheet's formulas worked, and avoids ever having stored numbers
+// drift out of sync with the ledger.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Contributor {
+  id            Int            @id @default(autoincrement())
+  name          String         @unique
+  contributions Contribution[]
+}
+
+model Contribution {
+  id            Int         @id @default(autoincrement())
+  contributorId Int
+  contributor   Contributor @relation(fields: [contributorId], references: [id])
+  // Human label matching the sheet's row labels, e.g. "Initial Investment",
+  // "MAR (2025)", "Additional"
+  label         String
+  // Date used for sorting/grouping (first of the month works fine for
+  // regular monthly contributions)
+  date          DateTime
+  amount        Float
+  createdAt     DateTime    @default(now())
+
+  @@index([contributorId])
+  @@index([date])
+}
+
+model Transaction {
+  id        Int      @id @default(autoincrement())
+  date      DateTime
+  action    String // "Buy" | "Sell"
+  ticker    String
+  region    String // "US" | "SG" | "HK"
+  qty       Float
+  price     Float
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@index([ticker, region])
+  @@index([date])
+}

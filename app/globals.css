@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply bg-ink-950 text-ink-100;
+  }
+  body {
+    @apply antialiased;
+  }
+  ::selection {
+    @apply bg-accent/30 text-ink-100;
+  }
+}
+
+@layer utilities {
+  .num {
+    @apply font-mono tabular-nums;
+  }
+  .ledger-table {
+    @apply w-full border-collapse text-sm;
+  }
+  .ledger-table th {
+    @apply border-b border-ink-700 px-3 py-2 text-center font-medium text-ink-300;
+  }
+  .ledger-table td {
+    @apply border-b border-ink-800 px-3 py-2 text-center align-middle;
+  }
+  .ledger-table tbody tr:hover {
+    @apply bg-ink-900/60;
+  }
+  .panel {
+    @apply border border-ink-700 bg-ink-900;
+  }
+  .field {
+    @apply w-full border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100 outline-none focus:border-accent;
+  }
+  .btn-primary {
+    @apply bg-accent px-4 py-2 text-sm font-medium text-ink-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-ghost {
+    @apply border border-ink-700 px-4 py-2 text-sm font-medium text-ink-100 transition hover:border-ink-500 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+}

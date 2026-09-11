@@ -1,0 +1,2286 @@
+From d87fd7ff941f076b0026de6847cf22cd62f2193d Mon Sep 17 00:00:00 2001
+From: "Josh (via Claude)" <josh@users.noreply.github.com>
+Date: Fri, 11 Sep 2026 03:59:06 +0000
+Subject: [PATCH 1/2] Redesign nav, positions, transactions, and contributions
+
+- Nav: horizontal top bar instead of a left sidebar
+- Open Positions: single top-level tab with US / SG / HK sub-tabs
+  (previously US was separate but SG+HK were combined)
+- Transactions: add inline edit (PATCH) alongside delete; edits are
+  re-validated against the full ledger (not just the edited row) so an
+  edited Buy can't silently push a later Sell negative
+- Portfolio %: no longer colored green / no leading '+' (it's a share
+  of total, not a gain/loss figure) - applied to both the Open
+  Positions 'Portfolio %' column and the Contributions '% of
+  portfolio' column
+- Open Positions: per-row Unrealized P/L (native currency) is now
+  colored green/red like every other P/L figure in the app
+- Contributions: 'Contribution history' is now a horizontal pivot
+  (one row per month/label, one column per stakeholder, with row and
+  column totals) instead of a flat ledger, matching how the sheet
+  showed bulk monthly contributions
+---
+ app/api/transactions/[id]/route.ts     |  79 +++++++++++
+ app/layout.tsx                         |   2 +-
+ app/portfolio/page.tsx                 | 117 +++++++++++-----
+ app/positions/hk/page.tsx              |  10 ++
+ app/positions/layout.tsx               |  42 ++++++
+ app/positions/page.tsx                 |   5 +
+ app/positions/sg-hk/page.tsx           |  15 ---
+ app/positions/sg/page.tsx              |  10 ++
+ app/positions/us/page.tsx              |   7 +-
+ app/transactions/page.tsx              |  28 +---
+ components/DeleteTransactionButton.tsx |  31 -----
+ components/EditableTransactionRow.tsx  | 180 +++++++++++++++++++++++++
+ components/Nav.tsx                     |  14 +-
+ components/PositionsTable.tsx          |   9 +-
+ components/SignedNumber.tsx            |  24 ++++
+ lib/portfolio-engine.ts                |  20 +++
+ 16 files changed, 467 insertions(+), 126 deletions(-)
+ create mode 100644 app/positions/hk/page.tsx
+ create mode 100644 app/positions/layout.tsx
+ create mode 100644 app/positions/page.tsx
+ delete mode 100644 app/positions/sg-hk/page.tsx
+ create mode 100644 app/positions/sg/page.tsx
+ delete mode 100644 components/DeleteTransactionButton.tsx
+ create mode 100644 components/EditableTransactionRow.tsx
+
+diff --git a/app/api/transactions/[id]/route.ts b/app/api/transactions/[id]/route.ts
+index c48cb7c..c02170d 100644
+--- a/app/api/transactions/[id]/route.ts
++++ b/app/api/transactions/[id]/route.ts
+@@ -1,5 +1,6 @@
+ import { NextRequest, NextResponse } from "next/server";
+ import { prisma } from "@/lib/prisma";
++import { fromDbRows, findFirstNegativeQty, type DbTransactionRow } from "@/lib/portfolio-engine";
+ 
+ export async function DELETE(
+   _req: NextRequest,
+@@ -13,3 +14,81 @@ export async function DELETE(
+   await prisma.transaction.delete({ where: { id } });
+   return NextResponse.json({ ok: true });
+ }
++
++export async function PATCH(
++  req: NextRequest,
++  { params }: { params: Promise<{ id: string }> }
++) {
++  const { id: idParam } = await params;
++  const id = Number(idParam);
++  if (!Number.isInteger(id)) {
++    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
++  }
++
++  const body = await req.json();
++  const { date, action, ticker, region, qty, price, notes } = body;
++
++  if (!date || !action || !ticker || !region || qty === undefined || price === undefined) {
++    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
++  }
++  if (action !== "Buy" && action !== "Sell") {
++    return NextResponse.json({ error: "action must be 'Buy' or 'Sell'" }, { status: 400 });
++  }
++  if (Number(qty) <= 0 || Number(price) <= 0) {
++    return NextResponse.json({ error: "qty and price must be positive" }, { status: 400 });
++  }
++
++  const normalizedTicker = String(ticker).toUpperCase().trim();
++  const normalizedRegion = String(region).toUpperCase().trim();
++
++  const existingRaw = await prisma.transaction.findMany({
++    orderBy: [{ date: "asc" }, { id: "asc" }],
++  });
++  if (!existingRaw.some((t: DbTransactionRow) => t.id === id)) {
++    return NextResponse.json({ error: "Transaction not found" }, { status: 404 });
++  }
++
++  // Re-run the full ledger with this row's edited fields swapped in — an
++  // edit to a Buy's qty/date can push a *later* Sell negative even though
++  // the edited row itself isn't the Sell, so we can't just check the
++  // edited row in isolation the way the POST (new transaction) guard does.
++  const existing = fromDbRows(existingRaw);
++  const candidateSet = existing.map((t) =>
++    t.id === id
++      ? {
++          id,
++          date: new Date(date),
++          action: action as "Buy" | "Sell",
++          ticker: normalizedTicker,
++          region: normalizedRegion,
++          qty: Number(qty),
++          price: Number(price),
++          notes: notes ? String(notes) : null,
++        }
++      : t
++  );
++  const violation = findFirstNegativeQty(candidateSet);
++  if (violation) {
++    return NextResponse.json(
++      {
++        error: `This edit would leave ${violation.ticker} (${violation.region}) at a negative quantity (${violation.runningQty.toFixed(4)}) at some point in the ledger — check the ticker, region, qty, or date.`,
++      },
++      { status: 400 }
++    );
++  }
++
++  const transaction = await prisma.transaction.update({
++    where: { id },
++    data: {
++      date: new Date(date),
++      action,
++      ticker: normalizedTicker,
++      region: normalizedRegion,
++      qty: Number(qty),
++      price: Number(price),
++      notes: notes ? String(notes) : null,
++    },
++  });
++
++  return NextResponse.json(transaction);
++}
+diff --git a/app/layout.tsx b/app/layout.tsx
+index 705e902..46b3925 100644
+--- a/app/layout.tsx
++++ b/app/layout.tsx
+@@ -11,7 +11,7 @@ export default function RootLayout({ children }: { children: React.ReactNode })
+   return (
+     <html lang="en">
+       <body>
+-        <div className="flex min-h-screen">
++        <div className="flex min-h-screen flex-col">
+           <Nav />
+           <main className="min-w-0 flex-1 px-8 py-8">{children}</main>
+         </div>
+diff --git a/app/portfolio/page.tsx b/app/portfolio/page.tsx
+index ebba877..d7f112c 100644
+--- a/app/portfolio/page.tsx
++++ b/app/portfolio/page.tsx
+@@ -1,5 +1,5 @@
+ import { prisma } from "@/lib/prisma";
+-import { Money, Percent } from "@/components/SignedNumber";
++import { Money, PlainMoney, PlainPercent } from "@/components/SignedNumber";
+ import AddContributionForm from "@/components/AddContributionForm";
+ 
+ export const dynamic = "force-dynamic";
+@@ -28,6 +28,35 @@ export default async function PortfolioPage() {
+ 
+   const knownContributors = contributorRows.map((r) => r.name);
+ 
++  // Pivot the flat contribution rows into one row per label (usually a
++  // month, e.g. "MAR (2025)") with one column per stakeholder — this is
++  // how the sheet showed it, since contributions land in bulk per month
++  // rather than as separate ledger-style entries.
++  const labelGroups = new Map<string, { date: Date; amounts: Map<string, number> }>();
++  for (const c of contributions) {
++    const existing = labelGroups.get(c.label);
++    if (existing) {
++      existing.amounts.set(
++        c.contributor.name,
++        (existing.amounts.get(c.contributor.name) ?? 0) + c.amount
++      );
++      if (c.date < existing.date) existing.date = c.date;
++    } else {
++      labelGroups.set(c.label, {
++        date: c.date,
++        amounts: new Map([[c.contributor.name, c.amount]]),
++      });
++    }
++  }
++  const labelRows = Array.from(labelGroups.entries())
++    .map(([label, g]) => ({
++      label,
++      date: g.date,
++      amounts: g.amounts,
++      rowTotal: Array.from(g.amounts.values()).reduce((sum, v) => sum + v, 0),
++    }))
++    .sort((a, b) => a.date.getTime() - b.date.getTime());
++
+   return (
+     <div className="flex flex-col gap-8">
+       <div>
+@@ -55,7 +84,7 @@ export default async function PortfolioPage() {
+                   <Money value={r.total} />
+                 </td>
+                 <td className="text-right">
+-                  <Percent value={r.pct} />
++                  <PlainPercent value={r.pct} />
+                 </td>
+               </tr>
+             ))}
+@@ -75,41 +104,61 @@ export default async function PortfolioPage() {
+           <h2 className="text-sm font-medium text-ink-300">Contribution history</h2>
+           <AddContributionForm knownContributors={knownContributors} />
+         </div>
+-        <table className="ledger-table">
+-          <thead>
+-            <tr>
+-              <th>Date</th>
+-              <th>Stakeholder</th>
+-              <th>Label</th>
+-              <th className="text-right">Amount</th>
+-            </tr>
+-          </thead>
+-          <tbody>
+-            {[...contributions].reverse().map((c) => (
+-              <tr key={c.id}>
+-                <td className="num text-ink-300">
+-                  {new Date(c.date).toLocaleDateString(undefined, {
+-                    day: "2-digit",
+-                    month: "short",
+-                    year: "numeric",
+-                  })}
+-                </td>
+-                <td>{c.contributor.name}</td>
+-                <td className="text-ink-300">{c.label}</td>
+-                <td className="text-right">
+-                  <Money value={c.amount} />
+-                </td>
+-              </tr>
+-            ))}
+-            {contributions.length === 0 && (
++        <div className="overflow-x-auto">
++          <table className="ledger-table">
++            <thead>
+               <tr>
+-                <td colSpan={4} className="py-6 text-center text-ink-300">
+-                  Nothing here yet — record the first deposit above.
+-                </td>
++                <th>Month / label</th>
++                {contributorRows.map((r) => (
++                  <th key={r.name} className="text-right">
++                    {r.name}
++                  </th>
++                ))}
++                <th className="text-right">Total</th>
+               </tr>
++            </thead>
++            <tbody>
++              {labelRows.map((row) => (
++                <tr key={row.label}>
++                  <td className="text-ink-300">{row.label}</td>
++                  {contributorRows.map((r) => {
++                    const amount = row.amounts.get(r.name);
++                    return (
++                      <td key={r.name} className="text-right">
++                        {amount ? <PlainMoney value={amount} /> : <span className="text-ink-500">—</span>}
++                      </td>
++                    );
++                  })}
++                  <td className="text-right font-medium">
++                    <PlainMoney value={row.rowTotal} />
++                  </td>
++                </tr>
++              ))}
++              {labelRows.length === 0 && (
++                <tr>
++                  <td colSpan={contributorRows.length + 2} className="py-6 text-center text-ink-300">
++                    Nothing here yet — record the first deposit above.
++                  </td>
++                </tr>
++              )}
++            </tbody>
++            {labelRows.length > 0 && (
++              <tfoot>
++                <tr className="border-t-2 border-ink-600 font-medium">
++                  <td>Total</td>
++                  {contributorRows.map((r) => (
++                    <td key={r.name} className="text-right">
++                      <PlainMoney value={r.total} />
++                    </td>
++                  ))}
++                  <td className="text-right">
++                    <PlainMoney value={grandTotal} />
++                  </td>
++                </tr>
++              </tfoot>
+             )}
+-          </tbody>
+-        </table>
++          </table>
++        </div>
+       </section>
+     </div>
+   );
+diff --git a/app/positions/hk/page.tsx b/app/positions/hk/page.tsx
+new file mode 100644
+index 0000000..6a1b4ce
+--- /dev/null
++++ b/app/positions/hk/page.tsx
+@@ -0,0 +1,10 @@
++import { getOpenPositionsFor } from "@/lib/get-positions";
++import PositionsTable from "@/components/PositionsTable";
++
++export const dynamic = "force-dynamic";
++
++export default async function OpenPositionsHKPage() {
++  const rows = await getOpenPositionsFor(["HK"]);
++
++  return <PositionsTable rows={rows} />;
++}
+diff --git a/app/positions/layout.tsx b/app/positions/layout.tsx
+new file mode 100644
+index 0000000..0370718
+--- /dev/null
++++ b/app/positions/layout.tsx
+@@ -0,0 +1,42 @@
++"use client";
++
++import Link from "next/link";
++import { usePathname } from "next/navigation";
++
++const subLinks = [
++  { href: "/positions/us", label: "US" },
++  { href: "/positions/sg", label: "SG" },
++  { href: "/positions/hk", label: "HK" },
++];
++
++export default function PositionsLayout({ children }: { children: React.ReactNode }) {
++  const pathname = usePathname();
++
++  return (
++    <div className="flex flex-col gap-6">
++      <div>
++        <p className="text-sm text-ink-300">Open positions</p>
++        <ul className="mt-3 flex gap-1 border-b border-ink-700">
++          {subLinks.map((link) => {
++            const active = pathname === link.href;
++            return (
++              <li key={link.href}>
++                <Link
++                  href={link.href}
++                  className={`-mb-px block border-b-2 px-4 py-2 text-sm transition ${
++                    active
++                      ? "border-accent text-ink-100"
++                      : "border-transparent text-ink-300 hover:border-ink-500 hover:text-ink-100"
++                  }`}
++                >
++                  {link.label}
++                </Link>
++              </li>
++            );
++          })}
++        </ul>
++      </div>
++      {children}
++    </div>
++  );
++}
+diff --git a/app/positions/page.tsx b/app/positions/page.tsx
+new file mode 100644
+index 0000000..70c4345
+--- /dev/null
++++ b/app/positions/page.tsx
+@@ -0,0 +1,5 @@
++import { redirect } from "next/navigation";
++
++export default function PositionsIndexPage() {
++  redirect("/positions/us");
++}
+diff --git a/app/positions/sg-hk/page.tsx b/app/positions/sg-hk/page.tsx
+deleted file mode 100644
+index c5d6aaf..0000000
+--- a/app/positions/sg-hk/page.tsx
++++ /dev/null
+@@ -1,15 +0,0 @@
+-import { getOpenPositionsFor } from "@/lib/get-positions";
+-import PositionsTable from "@/components/PositionsTable";
+-
+-export const dynamic = "force-dynamic";
+-
+-export default async function OpenPositionsSgHkPage() {
+-  const rows = await getOpenPositionsFor(["SG", "HK"]);
+-
+-  return (
+-    <div className="flex flex-col gap-4">
+-      <p className="text-sm text-ink-300">Open positions — SG / HK</p>
+-      <PositionsTable rows={rows} />
+-    </div>
+-  );
+-}
+diff --git a/app/positions/sg/page.tsx b/app/positions/sg/page.tsx
+new file mode 100644
+index 0000000..6f11c99
+--- /dev/null
++++ b/app/positions/sg/page.tsx
+@@ -0,0 +1,10 @@
++import { getOpenPositionsFor } from "@/lib/get-positions";
++import PositionsTable from "@/components/PositionsTable";
++
++export const dynamic = "force-dynamic";
++
++export default async function OpenPositionsSGPage() {
++  const rows = await getOpenPositionsFor(["SG"]);
++
++  return <PositionsTable rows={rows} />;
++}
+diff --git a/app/positions/us/page.tsx b/app/positions/us/page.tsx
+index dd96388..21686c9 100644
+--- a/app/positions/us/page.tsx
++++ b/app/positions/us/page.tsx
+@@ -6,10 +6,5 @@ export const dynamic = "force-dynamic";
+ export default async function OpenPositionsUSPage() {
+   const rows = await getOpenPositionsFor(["US"]);
+ 
+-  return (
+-    <div className="flex flex-col gap-4">
+-      <p className="text-sm text-ink-300">Open positions — US</p>
+-      <PositionsTable rows={rows} />
+-    </div>
+-  );
++  return <PositionsTable rows={rows} />;
+ }
+diff --git a/app/transactions/page.tsx b/app/transactions/page.tsx
+index bf883fe..4f04899 100644
+--- a/app/transactions/page.tsx
++++ b/app/transactions/page.tsx
+@@ -1,7 +1,7 @@
+ import { prisma } from "@/lib/prisma";
+ import { computeLedger, fromDbRows } from "@/lib/portfolio-engine";
+ import AddTransactionForm from "@/components/AddTransactionForm";
+-import DeleteTransactionButton from "@/components/DeleteTransactionButton";
++import EditableTransactionRow from "@/components/EditableTransactionRow";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -50,31 +50,7 @@ export default async function TransactionsPage() {
+         </thead>
+         <tbody>
+           {[...ledger].reverse().map((t) => (
+-            <tr key={t.id} className={t.runningQty < 0 ? "bg-loss/10" : undefined}>
+-              <td className="num text-ink-300">
+-                {new Date(t.date).toLocaleDateString(undefined, {
+-                  day: "2-digit",
+-                  month: "short",
+-                  year: "2-digit",
+-                })}
+-              </td>
+-              <td className={t.action === "Buy" ? "text-gain" : "text-loss"}>{t.action}</td>
+-              <td className="num">{t.ticker}</td>
+-              <td className="text-ink-300">{t.region}</td>
+-              <td className="num text-right">{t.qty}</td>
+-              <td className="num text-right">${t.price.toFixed(2)}</td>
+-              <td className={`num text-right ${t.runningQty < 0 ? "font-semibold text-loss" : ""}`}>
+-                {t.runningQty}
+-              </td>
+-              <td className="num text-right">${t.runningAvgCost.toFixed(2)}</td>
+-              <td className="num text-right">${t.transactionValue.toFixed(2)}</td>
+-              <td className="max-w-xs truncate text-ink-300" title={t.notes ?? undefined}>
+-                {t.notes}
+-              </td>
+-              <td>
+-                <DeleteTransactionButton id={t.id} />
+-              </td>
+-            </tr>
++            <EditableTransactionRow key={t.id} t={t} />
+           ))}
+           {ledger.length === 0 && (
+             <tr>
+diff --git a/components/DeleteTransactionButton.tsx b/components/DeleteTransactionButton.tsx
+deleted file mode 100644
+index d4c3358..0000000
+--- a/components/DeleteTransactionButton.tsx
++++ /dev/null
+@@ -1,31 +0,0 @@
+-"use client";
+-
+-import { useRouter } from "next/navigation";
+-import { useState } from "react";
+-
+-export default function DeleteTransactionButton({ id }: { id: number }) {
+-  const router = useRouter();
+-  const [busy, setBusy] = useState(false);
+-
+-  async function handleDelete() {
+-    if (!confirm("Delete this transaction? This can't be undone.")) return;
+-    setBusy(true);
+-    try {
+-      await fetch(`/api/transactions/${id}`, { method: "DELETE" });
+-      router.refresh();
+-    } finally {
+-      setBusy(false);
+-    }
+-  }
+-
+-  return (
+-    <button
+-      onClick={handleDelete}
+-      disabled={busy}
+-      className="text-xs text-ink-300 hover:text-loss disabled:opacity-50"
+-      title="Delete transaction"
+-    >
+-      Delete
+-    </button>
+-  );
+-}
+diff --git a/components/EditableTransactionRow.tsx b/components/EditableTransactionRow.tsx
+new file mode 100644
+index 0000000..869c075
+--- /dev/null
++++ b/components/EditableTransactionRow.tsx
+@@ -0,0 +1,180 @@
++"use client";
++
++import { useRouter } from "next/navigation";
++import { useState } from "react";
++import type { LedgerRow } from "@/lib/portfolio-engine";
++
++export default function EditableTransactionRow({ t }: { t: LedgerRow }) {
++  const router = useRouter();
++  const [editing, setEditing] = useState(false);
++  const [submitting, setSubmitting] = useState(false);
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState<string | null>(null);
++
++  const dateStr = new Date(t.date).toISOString().slice(0, 10);
++
++  async function handleSave(e: React.FormEvent<HTMLFormElement>) {
++    e.preventDefault();
++    setError(null);
++    const form = new FormData(e.currentTarget);
++    const payload = {
++      date: form.get("date"),
++      action: form.get("action"),
++      ticker: form.get("ticker"),
++      region: form.get("region"),
++      qty: form.get("qty"),
++      price: form.get("price"),
++      notes: form.get("notes"),
++    };
++
++    setSubmitting(true);
++    try {
++      const res = await fetch(`/api/transactions/${t.id}`, {
++        method: "PATCH",
++        headers: { "Content-Type": "application/json" },
++        body: JSON.stringify(payload),
++      });
++      if (!res.ok) {
++        const body = await res.json().catch(() => ({}));
++        throw new Error(body.error || "Failed to save transaction");
++      }
++      setEditing(false);
++      router.refresh();
++    } catch (err) {
++      setError(err instanceof Error ? err.message : "Something went wrong");
++    } finally {
++      setSubmitting(false);
++    }
++  }
++
++  async function handleDelete() {
++    if (!confirm("Delete this transaction? This can't be undone.")) return;
++    setBusy(true);
++    try {
++      await fetch(`/api/transactions/${t.id}`, { method: "DELETE" });
++      router.refresh();
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  if (editing) {
++    return (
++      <tr className="bg-ink-900/60">
++        <td colSpan={11} className="px-3 py-3">
++          <form onSubmit={handleSave} className="flex flex-wrap items-end gap-3">
++            <div className="flex flex-col gap-1">
++              <label className="text-xs text-ink-300">Date</label>
++              <input name="date" type="date" required defaultValue={dateStr} className="field w-36" />
++            </div>
++            <div className="flex flex-col gap-1">
++              <label className="text-xs text-ink-300">Action</label>
++              <select name="action" required defaultValue={t.action} className="field w-28">
++                <option value="Buy">Buy</option>
++                <option value="Sell">Sell</option>
++              </select>
++            </div>
++            <div className="flex flex-col gap-1">
++              <label className="text-xs text-ink-300">Ticker</label>
++              <input name="ticker" required defaultValue={t.ticker} className="field w-24" />
++            </div>
++            <div className="flex flex-col gap-1">
++              <label className="text-xs text-ink-300">Region</label>
++              <select name="region" required defaultValue={t.region} className="field w-24">
++                <option value="US">US</option>
++                <option value="SG">SG</option>
++                <option value="HK">HK</option>
++              </select>
++            </div>
++            <div className="flex flex-col gap-1">
++              <label className="text-xs text-ink-300">Qty</label>
++              <input
++                name="qty"
++                type="number"
++                step="0.0001"
++                min="0"
++                required
++                defaultValue={t.qty}
++                className="field w-24"
++              />
++            </div>
++            <div className="flex flex-col gap-1">
++              <label className="text-xs text-ink-300">Price</label>
++              <input
++                name="price"
++                type="number"
++                step="0.0001"
++                min="0"
++                required
++                defaultValue={t.price}
++                className="field w-28"
++              />
++            </div>
++            <div className="flex flex-col gap-1">
++              <label className="text-xs text-ink-300">Notes</label>
++              <input name="notes" defaultValue={t.notes ?? ""} className="field w-56" />
++            </div>
++            <div className="flex gap-2">
++              <button type="submit" className="btn-primary" disabled={submitting}>
++                {submitting ? "Saving…" : "Save"}
++              </button>
++              <button
++                type="button"
++                className="btn-ghost"
++                onClick={() => setEditing(false)}
++                disabled={submitting}
++              >
++                Cancel
++              </button>
++            </div>
++            {error && <p className="w-full text-sm text-loss">{error}</p>}
++          </form>
++        </td>
++      </tr>
++    );
++  }
++
++  return (
++    <tr className={t.runningQty < 0 ? "bg-loss/10" : undefined}>
++      <td className="num text-ink-300">
++        {new Date(t.date).toLocaleDateString(undefined, {
++          day: "2-digit",
++          month: "short",
++          year: "2-digit",
++        })}
++      </td>
++      <td className={t.action === "Buy" ? "text-gain" : "text-loss"}>{t.action}</td>
++      <td className="num">{t.ticker}</td>
++      <td className="text-ink-300">{t.region}</td>
++      <td className="num text-right">{t.qty}</td>
++      <td className="num text-right">${t.price.toFixed(2)}</td>
++      <td className={`num text-right ${t.runningQty < 0 ? "font-semibold text-loss" : ""}`}>
++        {t.runningQty}
++      </td>
++      <td className="num text-right">${t.runningAvgCost.toFixed(2)}</td>
++      <td className="num text-right">${t.transactionValue.toFixed(2)}</td>
++      <td className="max-w-xs truncate text-ink-300" title={t.notes ?? undefined}>
++        {t.notes}
++      </td>
++      <td>
++        <div className="flex gap-3">
++          <button
++            onClick={() => setEditing(true)}
++            className="text-xs text-ink-300 hover:text-accent"
++            title="Edit transaction"
++          >
++            Edit
++          </button>
++          <button
++            onClick={handleDelete}
++            disabled={busy}
++            className="text-xs text-ink-300 hover:text-loss disabled:opacity-50"
++            title="Delete transaction"
++          >
++            Delete
++          </button>
++        </div>
++      </td>
++    </tr>
++  );
++}
+diff --git a/components/Nav.tsx b/components/Nav.tsx
+index 33ceb28..fabcf13 100644
+--- a/components/Nav.tsx
++++ b/components/Nav.tsx
+@@ -6,8 +6,7 @@ import { usePathname } from "next/navigation";
+ const links = [
+   { href: "/portfolio", label: "Portfolio" },
+   { href: "/transactions", label: "Transactions" },
+-  { href: "/positions/us", label: "Open Positions (US)" },
+-  { href: "/positions/sg-hk", label: "Open Positions (SG/HK)" },
++  { href: "/positions", label: "Open Positions" },
+   { href: "/completed-trades", label: "Completed Trades" },
+ ];
+ 
+@@ -15,21 +14,20 @@ export default function Nav() {
+   const pathname = usePathname();
+ 
+   return (
+-    <nav className="flex h-full w-56 shrink-0 flex-col border-r border-ink-700 bg-ink-900">
+-      <div className="border-b border-ink-700 px-5 py-5">
++    <nav className="flex w-full items-center gap-6 border-b border-ink-700 bg-ink-900 px-6">
++      <div className="py-4 pr-2">
+         <p className="text-sm font-semibold tracking-tight text-ink-100">Investments</p>
+-        <p className="mt-0.5 text-xs text-ink-300">Portfolio ledger</p>
+       </div>
+-      <ul className="flex-1 py-2">
++      <ul className="flex h-full items-stretch gap-1">
+         {links.map((link) => {
+           const active = pathname === link.href || pathname?.startsWith(link.href + "/");
+           return (
+             <li key={link.href}>
+               <Link
+                 href={link.href}
+-                className={`block border-l-2 px-5 py-2.5 text-sm transition ${
++                className={`flex h-full items-center border-b-2 px-3 py-4 text-sm transition ${
+                   active
+-                    ? "border-accent bg-ink-800 text-ink-100"
++                    ? "border-accent text-ink-100"
+                     : "border-transparent text-ink-300 hover:border-ink-500 hover:text-ink-100"
+                 }`}
+               >
+diff --git a/components/PositionsTable.tsx b/components/PositionsTable.tsx
+index f06527f..a02d2c2 100644
+--- a/components/PositionsTable.tsx
++++ b/components/PositionsTable.tsx
+@@ -1,4 +1,4 @@
+-import { Money, Percent } from "@/components/SignedNumber";
++import { Money, Percent, PlainPercent, NativeMoney } from "@/components/SignedNumber";
+ import { currencySymbol, currencyForRegion } from "@/lib/fx";
+ 
+ export interface PositionRow {
+@@ -78,14 +78,13 @@ export default function PositionsTable({ rows }: { rows: PositionRow[] }) {
+                   {r.totalHoldings.toFixed(2)}
+                 </td>
+                 <td className="text-right">
+-                  <Percent value={r.portfolioPct} />
++                  <PlainPercent value={r.portfolioPct} />
+                 </td>
+                 <td className="text-right">
+                   <Percent value={r.unrealizedPLPct} />
+                 </td>
+-                <td className="num text-right">
+-                  {symbol}
+-                  {r.unrealizedPL.toFixed(2)}
++                <td className="text-right">
++                  <NativeMoney value={r.unrealizedPL} symbol={symbol} />
+                 </td>
+               </tr>
+             );
+diff --git a/components/SignedNumber.tsx b/components/SignedNumber.tsx
+index db25a6d..1d2d01e 100644
+--- a/components/SignedNumber.tsx
++++ b/components/SignedNumber.tsx
+@@ -34,3 +34,27 @@ export function Percent({ value }: { value: number }) {
+ export function PlainMoney({ value }: { value: number }) {
+   return <span className="num">{formatMoney(Math.abs(value)).replace("-", "")}</span>;
+ }
++
++/** For shares-of-total percentages (e.g. Portfolio %, % of portfolio) — these
++ * aren't a gain/loss figure, so no green/red coloring and no leading "+". */
++export function PlainPercent({ value }: { value: number }) {
++  return <span className="num text-ink-100">{(value * 100).toFixed(2)}%</span>;
++}
++
++/** Like Money, but for figures in a native (non-USD) currency — takes the
++ * currency's symbol (e.g. "S$", "HK$") instead of assuming "$". */
++export function NativeMoney({ value, symbol }: { value: number; symbol: string }) {
++  const positive = value > 0;
++  const negative = value < 0;
++  const abs = Math.abs(value).toLocaleString(undefined, {
++    minimumFractionDigits: 2,
++    maximumFractionDigits: 2,
++  });
++  return (
++    <span className={`num ${positive ? "text-gain" : negative ? "text-loss" : "text-ink-100"}`}>
++      {negative ? "-" : ""}
++      {symbol}
++      {abs}
++    </span>
++  );
++}
+diff --git a/lib/portfolio-engine.ts b/lib/portfolio-engine.ts
+index 771a0dc..35aa657 100644
+--- a/lib/portfolio-engine.ts
++++ b/lib/portfolio-engine.ts
+@@ -206,4 +206,24 @@ export function findNegativeQtyAfter(
+   const last = rowsForKey[rowsForKey.length - 1];
+   if (last && last.runningQty < -EPSILON) return last.runningQty;
+   return null;
++}
++
++/**
++ * Broader version of the same guard, used when *editing* an existing
++ * transaction rather than appending a new one — an edit can change a
++ * Buy's qty/date too, which can push a *later* Sell negative even though
++ * the edited row itself isn't a Sell. Replays the whole ledger and
++ * returns the first (region, ticker) row that goes negative anywhere,
++ * not just the resulting final qty for one key.
++ */
++export function findFirstNegativeQty(
++  transactions: RawTransaction[]
++): { region: string; ticker: string; runningQty: number } | null {
++  const { ledger } = computeLedger(transactions);
++  for (const row of ledger) {
++    if (row.runningQty < -EPSILON) {
++      return { region: row.region, ticker: row.ticker, runningQty: row.runningQty };
++    }
++  }
++  return null;
+ }
+\ No newline at end of file
+-- 
+2.43.0
+
+
+From 6ea06a08978a6a3f319241572bfd6f55a5965c32 Mon Sep 17 00:00:00 2001
+From: "Josh (via Claude)" <josh@users.noreply.github.com>
+Date: Fri, 11 Sep 2026 06:04:40 +0000
+Subject: [PATCH 2/2] Rename to Contributions, add sort/search, pie chart, SGD
+ realized P/L
+
+- Rename /portfolio -> /contributions (nav label + route); old /portfolio
+  URL redirects to the new one
+- Contributions: pivot table now shows most recent month first
+- Contributions: new 'Add default month' bulk action next to 'Record a
+  deposit' that pre-fills the standard 500/500/200/500/500 split
+  (Chin at 200, everyone else 500, matching the historical pattern) for
+  the next calendar month after the latest recorded one; amounts are
+  editable before saving, and posts all stakeholders in one request
+- Contributions: 'By stakeholder' is now a pie chart (CSS conic-gradient,
+  no new dependency) with a legend showing amount + percent per person,
+  replacing the old table
+- All table headers/cells are center-aligned by default now (was a
+  left-aligned header sitting above right-aligned numbers, which read as
+  misaligned) - removed the per-column text-right/text-left overrides
+  across every table
+- Completed Trades: realized P/L now defaults to SGD instead of USD,
+  via a new generic convertCurrency() helper in lib/fx.ts
+- Transactions, Open Positions (all 3 sub-tabs), and Completed Trades
+  each get a search box (ticker/region/notes) and clickable sortable
+  column headers, via two new shared pieces: components/SortableTh.tsx
+  and lib/use-sortable.ts
+---
+ app/api/contributions/route.ts        |  39 ++++++
+ app/completed-trades/page.tsx         |  86 ++-----------
+ app/contributions/page.tsx            | 157 ++++++++++++++++++++++++
+ app/globals.css                       |   4 +-
+ app/portfolio/page.tsx                | 166 +-------------------------
+ app/transactions/page.tsx             |  34 +-----
+ components/AddContributionForm.tsx    | 133 +++++++++++++++++++--
+ components/CompletedTradesTable.tsx   | 133 +++++++++++++++++++++
+ components/EditableTransactionRow.tsx |  10 +-
+ components/Nav.tsx                    |   2 +-
+ components/PieChart.tsx               |  52 ++++++++
+ components/PositionsTable.tsx         | 117 ++++++++++++++----
+ components/SearchBox.tsx              |  21 ++++
+ components/SortableTh.tsx             |  30 +++++
+ components/TransactionsTable.tsx      |  90 ++++++++++++++
+ lib/fx.ts                             |  15 +++
+ lib/use-sortable.ts                   |  41 +++++++
+ 17 files changed, 825 insertions(+), 305 deletions(-)
+ create mode 100644 app/contributions/page.tsx
+ create mode 100644 components/CompletedTradesTable.tsx
+ create mode 100644 components/PieChart.tsx
+ create mode 100644 components/SearchBox.tsx
+ create mode 100644 components/SortableTh.tsx
+ create mode 100644 components/TransactionsTable.tsx
+ create mode 100644 lib/use-sortable.ts
+
+diff --git a/app/api/contributions/route.ts b/app/api/contributions/route.ts
+index d6c1148..16a74e4 100644
+--- a/app/api/contributions/route.ts
++++ b/app/api/contributions/route.ts
+@@ -11,6 +11,45 @@ export async function GET() {
+ 
+ export async function POST(req: NextRequest) {
+   const body = await req.json();
++
++  // Bulk shape: { label, date, entries: [{ contributorName, amount }, ...] }
++  // — used by the "add default month" quick action to record a whole
++  // month's split (one row per stakeholder) in a single request.
++  if (Array.isArray(body.entries)) {
++    const { label, date, entries } = body;
++    if (!label || !date || entries.length === 0) {
++      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
++    }
++    for (const entry of entries) {
++      if (!entry.contributorName || entry.amount === undefined || Number(entry.amount) <= 0) {
++        return NextResponse.json(
++          { error: "Each entry needs a contributorName and a positive amount" },
++          { status: 400 }
++        );
++      }
++    }
++
++    const created = await prisma.$transaction(
++      entries.map((entry: { contributorName: string; amount: number }) =>
++        prisma.contribution.create({
++          data: {
++            date: new Date(date),
++            label: String(label).trim(),
++            amount: Number(entry.amount),
++            contributor: {
++              connectOrCreate: {
++                where: { name: String(entry.contributorName).trim() },
++                create: { name: String(entry.contributorName).trim() },
++              },
++            },
++          },
++        })
++      )
++    );
++
++    return NextResponse.json(created, { status: 201 });
++  }
++
+   const { contributorName, label, date, amount } = body;
+ 
+   if (!contributorName || !label || !date || amount === undefined) {
+diff --git a/app/completed-trades/page.tsx b/app/completed-trades/page.tsx
+index 138e7ab..4c9c947 100644
+--- a/app/completed-trades/page.tsx
++++ b/app/completed-trades/page.tsx
+@@ -1,7 +1,8 @@
+ import { prisma } from "@/lib/prisma";
+ import { computeLedger, fromDbRows } from "@/lib/portfolio-engine";
+-import { fetchFxRates, toUSD, currencySymbol, currencyForRegion } from "@/lib/fx";
+-import { Money, Percent } from "@/components/SignedNumber";
++import { fetchFxRates, convertCurrency } from "@/lib/fx";
++import { NativeMoney } from "@/components/SignedNumber";
++import CompletedTradesTable from "@/components/CompletedTradesTable";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -13,90 +14,27 @@ export default async function CompletedTradesPage() {
+   const { completedTrades } = computeLedger(fromDbRows(raw));
+   const rates = await fetchFxRates();
+ 
+-  const tradesWithUSD = completedTrades.map((t) => ({
++  const tradesWithSGD = completedTrades.map((t) => ({
+     ...t,
+-    realizedPLUSD: toUSD(t.realizedPL, t.region, rates),
++    realizedPLSGD: convertCurrency(t.realizedPL, t.region, "SGD", rates),
+   }));
+ 
+-  const totalRealizedUSD = tradesWithUSD.reduce((sum, t) => sum + t.realizedPLUSD, 0);
++  const totalRealizedSGD = tradesWithSGD.reduce((sum, t) => sum + t.realizedPLSGD, 0);
+ 
+   return (
+     <div className="flex flex-col gap-4">
+       <div>
+-        <p className="text-sm text-ink-300">Total realized P/L (USD)</p>
++        <p className="text-sm text-ink-300">Total realized P/L (SGD)</p>
+         <p className="num mt-1 text-3xl font-medium">
+-          <Money value={totalRealizedUSD} />
++          <NativeMoney value={totalRealizedSGD} symbol="S$" />
+         </p>
+         <p className="mt-1 text-xs text-ink-300">
+-          SG and HK trades are converted at the current USD/SGD ({rates.SGD.toFixed(3)}) and
+-          USD/HKD ({rates.HKD.toFixed(3)}) rate — not the rate on the actual sell date, so this
+-          is an approximation for older trades.
++          US and HK trades are converted at the current SGD/USD and SGD/HKD rate — not the
++          rate on the actual sell date, so this is an approximation for older trades.
+         </p>
+       </div>
+ 
+-      <table className="ledger-table">
+-        <thead>
+-          <tr>
+-            <th>Sell date</th>
+-            <th>Region</th>
+-            <th>Ticker</th>
+-            <th className="text-right">Qty sold</th>
+-            <th className="text-right">Avg cost</th>
+-            <th className="text-right">Sell price</th>
+-            <th className="text-right">Realized P/L (native)</th>
+-            <th className="text-right">Realized P/L (USD)</th>
+-            <th className="text-right">Return %</th>
+-            <th>Notes</th>
+-          </tr>
+-        </thead>
+-        <tbody>
+-          {[...tradesWithUSD].reverse().map((t) => {
+-            const symbol = currencySymbol[currencyForRegion(t.region)];
+-            return (
+-              <tr key={t.id}>
+-                <td className="num text-ink-300">
+-                  {new Date(t.sellDate).toLocaleDateString(undefined, {
+-                    day: "2-digit",
+-                    month: "short",
+-                    year: "2-digit",
+-                  })}
+-                </td>
+-                <td className="text-ink-300">{t.region}</td>
+-                <td className="num">{t.ticker}</td>
+-                <td className="num text-right">{t.qtySold}</td>
+-                <td className="num text-right">
+-                  {symbol}
+-                  {t.avgCost.toFixed(2)}
+-                </td>
+-                <td className="num text-right">
+-                  {symbol}
+-                  {t.sellPrice.toFixed(2)}
+-                </td>
+-                <td className="num text-right text-ink-300">
+-                  {symbol}
+-                  {t.realizedPL.toFixed(2)}
+-                </td>
+-                <td className="text-right">
+-                  <Money value={t.realizedPLUSD} />
+-                </td>
+-                <td className="text-right">
+-                  <Percent value={t.returnPct} />
+-                </td>
+-                <td className="max-w-xs truncate text-ink-300" title={t.notes ?? undefined}>
+-                  {t.notes}
+-                </td>
+-              </tr>
+-            );
+-          })}
+-          {completedTrades.length === 0 && (
+-            <tr>
+-              <td colSpan={10} className="py-6 text-center text-ink-300">
+-                No closed trades yet.
+-              </td>
+-            </tr>
+-          )}
+-        </tbody>
+-      </table>
++      <CompletedTradesTable trades={tradesWithSGD} />
+     </div>
+   );
+-}
+\ No newline at end of file
++}
+diff --git a/app/contributions/page.tsx b/app/contributions/page.tsx
+new file mode 100644
+index 0000000..38820b7
+--- /dev/null
++++ b/app/contributions/page.tsx
+@@ -0,0 +1,157 @@
++import { prisma } from "@/lib/prisma";
++import { Money, PlainMoney } from "@/components/SignedNumber";
++import AddContributionForm from "@/components/AddContributionForm";
++import PieChart from "@/components/PieChart";
++
++export const dynamic = "force-dynamic";
++
++export default async function ContributionsPage() {
++  const contributions = await prisma.contribution.findMany({
++    include: { contributor: true },
++    orderBy: [{ date: "asc" }, { id: "asc" }],
++  });
++
++  const totalsByContributor = new Map<string, number>();
++  let grandTotal = 0;
++  let latestDate: Date | null = null;
++  for (const c of contributions) {
++    const name = c.contributor.name;
++    totalsByContributor.set(name, (totalsByContributor.get(name) ?? 0) + c.amount);
++    grandTotal += c.amount;
++    if (!latestDate || c.date > latestDate) latestDate = c.date;
++  }
++
++  const contributorRows = Array.from(totalsByContributor.entries())
++    .map(([name, total]) => ({
++      name,
++      total,
++      pct: grandTotal === 0 ? 0 : total / grandTotal,
++    }))
++    .sort((a, b) => b.total - a.total);
++
++  const knownContributors = contributorRows.map((r) => r.name);
++
++  // Default label/date for the "add default month" quick action — one
++  // calendar month after the most recent contribution on record.
++  const base = latestDate ?? new Date();
++  const nextMonthDateObj = new Date(base.getFullYear(), base.getMonth() + 1, 1);
++  const nextMonthLabel = `${nextMonthDateObj
++    .toLocaleString("en-US", { month: "short" })
++    .toUpperCase()} (${nextMonthDateObj.getFullYear()})`;
++  const nextMonthDate = nextMonthDateObj.toISOString().slice(0, 10);
++
++  // Pivot the flat contribution rows into one row per label (usually a
++  // month, e.g. "MAR (2025)") with one column per stakeholder — this is
++  // how the sheet showed it, since contributions land in bulk per month
++  // rather than as separate ledger-style entries. Most recent month first.
++  const labelGroups = new Map<string, { date: Date; amounts: Map<string, number> }>();
++  for (const c of contributions) {
++    const existing = labelGroups.get(c.label);
++    if (existing) {
++      existing.amounts.set(
++        c.contributor.name,
++        (existing.amounts.get(c.contributor.name) ?? 0) + c.amount
++      );
++      if (c.date < existing.date) existing.date = c.date;
++    } else {
++      labelGroups.set(c.label, {
++        date: c.date,
++        amounts: new Map([[c.contributor.name, c.amount]]),
++      });
++    }
++  }
++  const labelRows = Array.from(labelGroups.entries())
++    .map(([label, g]) => ({
++      label,
++      date: g.date,
++      amounts: g.amounts,
++      rowTotal: Array.from(g.amounts.values()).reduce((sum, v) => sum + v, 0),
++    }))
++    .sort((a, b) => b.date.getTime() - a.date.getTime());
++
++  return (
++    <div className="flex flex-col gap-8">
++      <div>
++        <p className="text-sm text-ink-300">Total portfolio contributions</p>
++        <p className="num mt-1 text-4xl font-medium">
++          <Money value={grandTotal} />
++        </p>
++      </div>
++
++      <section>
++        <h2 className="mb-4 text-sm font-medium text-ink-300">By stakeholder</h2>
++        {contributorRows.length === 0 ? (
++          <p className="text-sm text-ink-300">No contributions recorded yet.</p>
++        ) : (
++          <PieChart
++            slices={contributorRows.map((r) => ({ label: r.name, value: r.total }))}
++          />
++        )}
++      </section>
++
++      <section className="flex flex-col gap-3">
++        <div className="flex items-center justify-between">
++          <h2 className="text-sm font-medium text-ink-300">Contribution history</h2>
++          <AddContributionForm
++            knownContributors={knownContributors}
++            nextMonthLabel={nextMonthLabel}
++            nextMonthDate={nextMonthDate}
++          />
++        </div>
++        <div className="overflow-x-auto">
++          <table className="ledger-table">
++            <thead>
++              <tr>
++                <th>Month / label</th>
++                {contributorRows.map((r) => (
++                  <th key={r.name}>{r.name}</th>
++                ))}
++                <th>Total</th>
++              </tr>
++            </thead>
++            <tbody>
++              {labelRows.map((row) => (
++                <tr key={row.label}>
++                  <td className="text-ink-300">{row.label}</td>
++                  {contributorRows.map((r) => {
++                    const amount = row.amounts.get(r.name);
++                    return (
++                      <td key={r.name}>
++                        {amount ? <PlainMoney value={amount} /> : <span className="text-ink-500">—</span>}
++                      </td>
++                    );
++                  })}
++                  <td className="font-medium">
++                    <PlainMoney value={row.rowTotal} />
++                  </td>
++                </tr>
++              ))}
++              {labelRows.length === 0 && (
++                <tr>
++                  <td colSpan={contributorRows.length + 2} className="py-6 text-center text-ink-300">
++                    Nothing here yet — record the first deposit above.
++                  </td>
++                </tr>
++              )}
++            </tbody>
++            {labelRows.length > 0 && (
++              <tfoot>
++                <tr className="border-t-2 border-ink-600 font-medium">
++                  <td>Total</td>
++                  {contributorRows.map((r) => (
++                    <td key={r.name}>
++                      <PlainMoney value={r.total} />
++                    </td>
++                  ))}
++                  <td>
++                    <PlainMoney value={grandTotal} />
++                  </td>
++                </tr>
++              </tfoot>
++            )}
++          </table>
++        </div>
++      </section>
++    </div>
++  );
++}
+diff --git a/app/globals.css b/app/globals.css
+index 0aa98a5..85156b3 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -22,10 +22,10 @@
+     @apply w-full border-collapse text-sm;
+   }
+   .ledger-table th {
+-    @apply border-b border-ink-700 px-3 py-2 text-left font-medium text-ink-300;
++    @apply border-b border-ink-700 px-3 py-2 text-center font-medium text-ink-300;
+   }
+   .ledger-table td {
+-    @apply border-b border-ink-800 px-3 py-2 align-middle;
++    @apply border-b border-ink-800 px-3 py-2 text-center align-middle;
+   }
+   .ledger-table tbody tr:hover {
+     @apply bg-ink-900/60;
+diff --git a/app/portfolio/page.tsx b/app/portfolio/page.tsx
+index d7f112c..1e8b5bf 100644
+--- a/app/portfolio/page.tsx
++++ b/app/portfolio/page.tsx
+@@ -1,165 +1,5 @@
+-import { prisma } from "@/lib/prisma";
+-import { Money, PlainMoney, PlainPercent } from "@/components/SignedNumber";
+-import AddContributionForm from "@/components/AddContributionForm";
++import { redirect } from "next/navigation";
+ 
+-export const dynamic = "force-dynamic";
+-
+-export default async function PortfolioPage() {
+-  const contributions = await prisma.contribution.findMany({
+-    include: { contributor: true },
+-    orderBy: [{ date: "asc" }, { id: "asc" }],
+-  });
+-
+-  const totalsByContributor = new Map<string, number>();
+-  let grandTotal = 0;
+-  for (const c of contributions) {
+-    const name = c.contributor.name;
+-    totalsByContributor.set(name, (totalsByContributor.get(name) ?? 0) + c.amount);
+-    grandTotal += c.amount;
+-  }
+-
+-  const contributorRows = Array.from(totalsByContributor.entries())
+-    .map(([name, total]) => ({
+-      name,
+-      total,
+-      pct: grandTotal === 0 ? 0 : total / grandTotal,
+-    }))
+-    .sort((a, b) => b.total - a.total);
+-
+-  const knownContributors = contributorRows.map((r) => r.name);
+-
+-  // Pivot the flat contribution rows into one row per label (usually a
+-  // month, e.g. "MAR (2025)") with one column per stakeholder — this is
+-  // how the sheet showed it, since contributions land in bulk per month
+-  // rather than as separate ledger-style entries.
+-  const labelGroups = new Map<string, { date: Date; amounts: Map<string, number> }>();
+-  for (const c of contributions) {
+-    const existing = labelGroups.get(c.label);
+-    if (existing) {
+-      existing.amounts.set(
+-        c.contributor.name,
+-        (existing.amounts.get(c.contributor.name) ?? 0) + c.amount
+-      );
+-      if (c.date < existing.date) existing.date = c.date;
+-    } else {
+-      labelGroups.set(c.label, {
+-        date: c.date,
+-        amounts: new Map([[c.contributor.name, c.amount]]),
+-      });
+-    }
+-  }
+-  const labelRows = Array.from(labelGroups.entries())
+-    .map(([label, g]) => ({
+-      label,
+-      date: g.date,
+-      amounts: g.amounts,
+-      rowTotal: Array.from(g.amounts.values()).reduce((sum, v) => sum + v, 0),
+-    }))
+-    .sort((a, b) => a.date.getTime() - b.date.getTime());
+-
+-  return (
+-    <div className="flex flex-col gap-8">
+-      <div>
+-        <p className="text-sm text-ink-300">Total portfolio contributions</p>
+-        <p className="num mt-1 text-4xl font-medium">
+-          <Money value={grandTotal} />
+-        </p>
+-      </div>
+-
+-      <section>
+-        <h2 className="mb-3 text-sm font-medium text-ink-300">By stakeholder</h2>
+-        <table className="ledger-table">
+-          <thead>
+-            <tr>
+-              <th>Stakeholder</th>
+-              <th className="text-right">Total investment</th>
+-              <th className="text-right">% of portfolio</th>
+-            </tr>
+-          </thead>
+-          <tbody>
+-            {contributorRows.map((r) => (
+-              <tr key={r.name}>
+-                <td>{r.name}</td>
+-                <td className="text-right">
+-                  <Money value={r.total} />
+-                </td>
+-                <td className="text-right">
+-                  <PlainPercent value={r.pct} />
+-                </td>
+-              </tr>
+-            ))}
+-            {contributorRows.length === 0 && (
+-              <tr>
+-                <td colSpan={3} className="py-6 text-center text-ink-300">
+-                  No contributions recorded yet.
+-                </td>
+-              </tr>
+-            )}
+-          </tbody>
+-        </table>
+-      </section>
+-
+-      <section className="flex flex-col gap-3">
+-        <div className="flex items-center justify-between">
+-          <h2 className="text-sm font-medium text-ink-300">Contribution history</h2>
+-          <AddContributionForm knownContributors={knownContributors} />
+-        </div>
+-        <div className="overflow-x-auto">
+-          <table className="ledger-table">
+-            <thead>
+-              <tr>
+-                <th>Month / label</th>
+-                {contributorRows.map((r) => (
+-                  <th key={r.name} className="text-right">
+-                    {r.name}
+-                  </th>
+-                ))}
+-                <th className="text-right">Total</th>
+-              </tr>
+-            </thead>
+-            <tbody>
+-              {labelRows.map((row) => (
+-                <tr key={row.label}>
+-                  <td className="text-ink-300">{row.label}</td>
+-                  {contributorRows.map((r) => {
+-                    const amount = row.amounts.get(r.name);
+-                    return (
+-                      <td key={r.name} className="text-right">
+-                        {amount ? <PlainMoney value={amount} /> : <span className="text-ink-500">—</span>}
+-                      </td>
+-                    );
+-                  })}
+-                  <td className="text-right font-medium">
+-                    <PlainMoney value={row.rowTotal} />
+-                  </td>
+-                </tr>
+-              ))}
+-              {labelRows.length === 0 && (
+-                <tr>
+-                  <td colSpan={contributorRows.length + 2} className="py-6 text-center text-ink-300">
+-                    Nothing here yet — record the first deposit above.
+-                  </td>
+-                </tr>
+-              )}
+-            </tbody>
+-            {labelRows.length > 0 && (
+-              <tfoot>
+-                <tr className="border-t-2 border-ink-600 font-medium">
+-                  <td>Total</td>
+-                  {contributorRows.map((r) => (
+-                    <td key={r.name} className="text-right">
+-                      <PlainMoney value={r.total} />
+-                    </td>
+-                  ))}
+-                  <td className="text-right">
+-                    <PlainMoney value={grandTotal} />
+-                  </td>
+-                </tr>
+-              </tfoot>
+-            )}
+-          </table>
+-        </div>
+-      </section>
+-    </div>
+-  );
++export default function OldPortfolioPage() {
++  redirect("/contributions");
+ }
+diff --git a/app/transactions/page.tsx b/app/transactions/page.tsx
+index 4f04899..a291a7f 100644
+--- a/app/transactions/page.tsx
++++ b/app/transactions/page.tsx
+@@ -1,7 +1,7 @@
+ import { prisma } from "@/lib/prisma";
+ import { computeLedger, fromDbRows } from "@/lib/portfolio-engine";
+ import AddTransactionForm from "@/components/AddTransactionForm";
+-import EditableTransactionRow from "@/components/EditableTransactionRow";
++import TransactionsTable from "@/components/TransactionsTable";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -32,35 +32,7 @@ export default async function TransactionsPage() {
+         </div>
+       )}
+ 
+-      <table className="ledger-table">
+-        <thead>
+-          <tr>
+-            <th>Date</th>
+-            <th>Action</th>
+-            <th>Ticker</th>
+-            <th>Region</th>
+-            <th className="text-right">Qty</th>
+-            <th className="text-right">Price</th>
+-            <th className="text-right">Running qty</th>
+-            <th className="text-right">Running avg cost</th>
+-            <th className="text-right">Txn value</th>
+-            <th>Notes</th>
+-            <th></th>
+-          </tr>
+-        </thead>
+-        <tbody>
+-          {[...ledger].reverse().map((t) => (
+-            <EditableTransactionRow key={t.id} t={t} />
+-          ))}
+-          {ledger.length === 0 && (
+-            <tr>
+-              <td colSpan={11} className="py-6 text-center text-ink-300">
+-                No transactions yet — log the first trade above.
+-              </td>
+-            </tr>
+-          )}
+-        </tbody>
+-      </table>
++      <TransactionsTable ledger={ledger} />
+     </div>
+   );
+-}
+\ No newline at end of file
++}
+diff --git a/components/AddContributionForm.tsx b/components/AddContributionForm.tsx
+index 5755d1f..4bc2707 100644
+--- a/components/AddContributionForm.tsx
++++ b/components/AddContributionForm.tsx
+@@ -3,19 +3,36 @@
+ import { useRouter } from "next/navigation";
+ import { useState } from "react";
+ 
++// The standard monthly split observed in the contribution history —
++// everyone puts in 500 except Chin at 200. Editable per-month below in
++// case a particular month's split needs to differ.
++const DEFAULT_MONTHLY_AMOUNTS: Record<string, number> = {
++  Josh: 500,
++  Roy: 500,
++  Chin: 200,
++  Keng: 500,
++  Zhiming: 500,
++};
++
++type Mode = "closed" | "single" | "default-month";
++
+ export default function AddContributionForm({
+   knownContributors,
++  nextMonthLabel,
++  nextMonthDate,
+ }: {
+   knownContributors: string[];
++  nextMonthLabel: string;
++  nextMonthDate: string;
+ }) {
+   const router = useRouter();
+-  const [open, setOpen] = useState(false);
++  const [mode, setMode] = useState<Mode>("closed");
+   const [submitting, setSubmitting] = useState(false);
+   const [error, setError] = useState<string | null>(null);
+ 
+   const today = new Date().toISOString().slice(0, 10);
+ 
+-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
++  async function handleSingleSubmit(e: React.FormEvent<HTMLFormElement>) {
+     e.preventDefault();
+     setError(null);
+     const form = new FormData(e.currentTarget);
+@@ -38,7 +55,7 @@ export default function AddContributionForm({
+         throw new Error(body.error || "Failed to save contribution");
+       }
+       (e.target as HTMLFormElement).reset();
+-      setOpen(false);
++      setMode("closed");
+       router.refresh();
+     } catch (err) {
+       setError(err instanceof Error ? err.message : "Something went wrong");
+@@ -47,16 +64,114 @@ export default function AddContributionForm({
+     }
+   }
+ 
+-  if (!open) {
++  async function handleDefaultMonthSubmit(e: React.FormEvent<HTMLFormElement>) {
++    e.preventDefault();
++    setError(null);
++    const form = new FormData(e.currentTarget);
++    const label = form.get("label");
++    const date = form.get("date");
++    const entries = knownContributors
++      .map((name) => ({
++        contributorName: name,
++        amount: Number(form.get(`amount:${name}`)),
++      }))
++      .filter((entry) => entry.amount > 0);
++
++    if (entries.length === 0) {
++      setError("At least one stakeholder needs a positive amount.");
++      return;
++    }
++
++    setSubmitting(true);
++    try {
++      const res = await fetch("/api/contributions", {
++        method: "POST",
++        headers: { "Content-Type": "application/json" },
++        body: JSON.stringify({ label, date, entries }),
++      });
++      if (!res.ok) {
++        const body = await res.json().catch(() => ({}));
++        throw new Error(body.error || "Failed to save contributions");
++      }
++      setMode("closed");
++      router.refresh();
++    } catch (err) {
++      setError(err instanceof Error ? err.message : "Something went wrong");
++    } finally {
++      setSubmitting(false);
++    }
++  }
++
++  if (mode === "closed") {
+     return (
+-      <button className="btn-primary" onClick={() => setOpen(true)}>
+-        Record a deposit
+-      </button>
++      <div className="flex gap-2">
++        <button className="btn-primary" onClick={() => setMode("single")}>
++          Record a deposit
++        </button>
++        <button className="btn-ghost" onClick={() => setMode("default-month")}>
++          Add default month
++        </button>
++      </div>
++    );
++  }
++
++  if (mode === "default-month") {
++    return (
++      <form
++        onSubmit={handleDefaultMonthSubmit}
++        className="panel flex flex-col gap-3 p-4"
++      >
++        <div className="flex flex-wrap items-end gap-3">
++          <div className="flex flex-col gap-1">
++            <label className="text-xs text-ink-300">Label</label>
++            <input name="label" required defaultValue={nextMonthLabel} className="field w-36" />
++          </div>
++          <div className="flex flex-col gap-1">
++            <label className="text-xs text-ink-300">Date</label>
++            <input
++              name="date"
++              type="date"
++              required
++              defaultValue={nextMonthDate}
++              className="field w-36"
++            />
++          </div>
++        </div>
++        <div className="flex flex-wrap gap-3">
++          {knownContributors.map((name) => (
++            <div key={name} className="flex flex-col gap-1">
++              <label className="text-xs text-ink-300">{name}</label>
++              <input
++                name={`amount:${name}`}
++                type="number"
++                step="0.01"
++                min="0"
++                defaultValue={DEFAULT_MONTHLY_AMOUNTS[name] ?? 0}
++                className="field w-24"
++              />
++            </div>
++          ))}
++        </div>
++        <div className="flex gap-2">
++          <button type="submit" className="btn-primary" disabled={submitting}>
++            {submitting ? "Saving…" : "Add month"}
++          </button>
++          <button
++            type="button"
++            className="btn-ghost"
++            onClick={() => setMode("closed")}
++            disabled={submitting}
++          >
++            Cancel
++          </button>
++        </div>
++        {error && <p className="text-sm text-loss">{error}</p>}
++      </form>
+     );
+   }
+ 
+   return (
+-    <form onSubmit={handleSubmit} className="panel flex flex-wrap items-end gap-3 p-4">
++    <form onSubmit={handleSingleSubmit} className="panel flex flex-wrap items-end gap-3 p-4">
+       <div className="flex flex-col gap-1">
+         <label className="text-xs text-ink-300">Stakeholder</label>
+         <input
+@@ -104,7 +219,7 @@ export default function AddContributionForm({
+         <button
+           type="button"
+           className="btn-ghost"
+-          onClick={() => setOpen(false)}
++          onClick={() => setMode("closed")}
+           disabled={submitting}
+         >
+           Cancel
+diff --git a/components/CompletedTradesTable.tsx b/components/CompletedTradesTable.tsx
+new file mode 100644
+index 0000000..16a9bb6
+--- /dev/null
++++ b/components/CompletedTradesTable.tsx
+@@ -0,0 +1,133 @@
++"use client";
++
++import { useMemo, useState } from "react";
++import { NativeMoney, Percent } from "@/components/SignedNumber";
++import { currencySymbol, currencyForRegion } from "@/lib/fx";
++import SortableTh from "@/components/SortableTh";
++import SearchBox from "@/components/SearchBox";
++import { useSortable } from "@/lib/use-sortable";
++
++export interface CompletedTradeRow {
++  id: number;
++  sellDate: Date;
++  region: string;
++  ticker: string;
++  qtySold: number;
++  avgCost: number;
++  sellPrice: number;
++  realizedPL: number;
++  realizedPLSGD: number;
++  returnPct: number;
++  notes?: string | null;
++}
++
++const GETTERS: Record<string, (t: CompletedTradeRow) => number | string> = {
++  sellDate: (t) => new Date(t.sellDate).getTime(),
++  region: (t) => t.region,
++  ticker: (t) => t.ticker,
++  qtySold: (t) => t.qtySold,
++  avgCost: (t) => t.avgCost,
++  sellPrice: (t) => t.sellPrice,
++  realizedPL: (t) => t.realizedPL,
++  realizedPLSGD: (t) => t.realizedPLSGD,
++  returnPct: (t) => t.returnPct,
++};
++
++export default function CompletedTradesTable({ trades }: { trades: CompletedTradeRow[] }) {
++  const [search, setSearch] = useState("");
++
++  const filtered = useMemo(() => {
++    const q = search.trim().toLowerCase();
++    if (!q) return trades;
++    return trades.filter(
++      (t) =>
++        t.ticker.toLowerCase().includes(q) ||
++        t.region.toLowerCase().includes(q) ||
++        (t.notes ?? "").toLowerCase().includes(q)
++    );
++  }, [trades, search]);
++
++  const { sorted, sortKey, sortDir, toggleSort } = useSortable(filtered, GETTERS, "sellDate", "desc");
++
++  return (
++    <div className="flex flex-col gap-3">
++      <div className="flex justify-end">
++        <SearchBox value={search} onChange={setSearch} placeholder="Search ticker, region, or notes…" />
++      </div>
++
++      <table className="ledger-table">
++        <thead>
++          <tr>
++            <SortableTh label="Sell date" active={sortKey === "sellDate"} direction={sortDir} onClick={() => toggleSort("sellDate")} />
++            <SortableTh label="Region" active={sortKey === "region"} direction={sortDir} onClick={() => toggleSort("region")} />
++            <SortableTh label="Ticker" active={sortKey === "ticker"} direction={sortDir} onClick={() => toggleSort("ticker")} />
++            <SortableTh label="Qty sold" active={sortKey === "qtySold"} direction={sortDir} onClick={() => toggleSort("qtySold")} />
++            <SortableTh label="Avg cost" active={sortKey === "avgCost"} direction={sortDir} onClick={() => toggleSort("avgCost")} />
++            <SortableTh label="Sell price" active={sortKey === "sellPrice"} direction={sortDir} onClick={() => toggleSort("sellPrice")} />
++            <SortableTh
++              label="Realized P/L (native)"
++              active={sortKey === "realizedPL"}
++              direction={sortDir}
++              onClick={() => toggleSort("realizedPL")}
++            />
++            <SortableTh
++              label="Realized P/L (SGD)"
++              active={sortKey === "realizedPLSGD"}
++              direction={sortDir}
++              onClick={() => toggleSort("realizedPLSGD")}
++            />
++            <SortableTh label="Return %" active={sortKey === "returnPct"} direction={sortDir} onClick={() => toggleSort("returnPct")} />
++            <th>Notes</th>
++          </tr>
++        </thead>
++        <tbody>
++          {sorted.map((t) => {
++            const symbol = currencySymbol[currencyForRegion(t.region)];
++            return (
++              <tr key={t.id}>
++                <td className="num text-ink-300">
++                  {new Date(t.sellDate).toLocaleDateString(undefined, {
++                    day: "2-digit",
++                    month: "short",
++                    year: "2-digit",
++                  })}
++                </td>
++                <td className="text-ink-300">{t.region}</td>
++                <td className="num">{t.ticker}</td>
++                <td className="num">{t.qtySold}</td>
++                <td className="num">
++                  {symbol}
++                  {t.avgCost.toFixed(2)}
++                </td>
++                <td className="num">
++                  {symbol}
++                  {t.sellPrice.toFixed(2)}
++                </td>
++                <td className="num text-ink-300">
++                  {symbol}
++                  {t.realizedPL.toFixed(2)}
++                </td>
++                <td>
++                  <NativeMoney value={t.realizedPLSGD} symbol={currencySymbol.SGD} />
++                </td>
++                <td>
++                  <Percent value={t.returnPct} />
++                </td>
++                <td className="max-w-xs truncate text-ink-300" title={t.notes ?? undefined}>
++                  {t.notes}
++                </td>
++              </tr>
++            );
++          })}
++          {sorted.length === 0 && (
++            <tr>
++              <td colSpan={10} className="py-6 text-center text-ink-300">
++                {trades.length === 0 ? "No closed trades yet." : "No trades match your search."}
++              </td>
++            </tr>
++          )}
++        </tbody>
++      </table>
++    </div>
++  );
++}
+diff --git a/components/EditableTransactionRow.tsx b/components/EditableTransactionRow.tsx
+index 869c075..b1e9118 100644
+--- a/components/EditableTransactionRow.tsx
++++ b/components/EditableTransactionRow.tsx
+@@ -146,13 +146,13 @@ export default function EditableTransactionRow({ t }: { t: LedgerRow }) {
+       <td className={t.action === "Buy" ? "text-gain" : "text-loss"}>{t.action}</td>
+       <td className="num">{t.ticker}</td>
+       <td className="text-ink-300">{t.region}</td>
+-      <td className="num text-right">{t.qty}</td>
+-      <td className="num text-right">${t.price.toFixed(2)}</td>
+-      <td className={`num text-right ${t.runningQty < 0 ? "font-semibold text-loss" : ""}`}>
++      <td className="num">{t.qty}</td>
++      <td className="num">${t.price.toFixed(2)}</td>
++      <td className={`num ${t.runningQty < 0 ? "font-semibold text-loss" : ""}`}>
+         {t.runningQty}
+       </td>
+-      <td className="num text-right">${t.runningAvgCost.toFixed(2)}</td>
+-      <td className="num text-right">${t.transactionValue.toFixed(2)}</td>
++      <td className="num">${t.runningAvgCost.toFixed(2)}</td>
++      <td className="num">${t.transactionValue.toFixed(2)}</td>
+       <td className="max-w-xs truncate text-ink-300" title={t.notes ?? undefined}>
+         {t.notes}
+       </td>
+diff --git a/components/Nav.tsx b/components/Nav.tsx
+index fabcf13..5fe57ec 100644
+--- a/components/Nav.tsx
++++ b/components/Nav.tsx
+@@ -4,7 +4,7 @@ import Link from "next/link";
+ import { usePathname } from "next/navigation";
+ 
+ const links = [
+-  { href: "/portfolio", label: "Portfolio" },
++  { href: "/contributions", label: "Contributions" },
+   { href: "/transactions", label: "Transactions" },
+   { href: "/positions", label: "Open Positions" },
+   { href: "/completed-trades", label: "Completed Trades" },
+diff --git a/components/PieChart.tsx b/components/PieChart.tsx
+new file mode 100644
+index 0000000..44dd03e
+--- /dev/null
++++ b/components/PieChart.tsx
+@@ -0,0 +1,52 @@
++export interface PieSlice {
++  label: string;
++  value: number;
++}
++
++// Distinct hues chosen to read clearly against the dark ink background —
++// not reusing gain/loss since this chart isn't a P/L figure.
++const CHART_COLORS = ["#e8a33d", "#4f8fe8", "#3ecf8e", "#b98ae8", "#f2545b", "#5fd0e8"];
++
++function formatAmount(n: number) {
++  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
++}
++
++export default function PieChart({ slices }: { slices: PieSlice[] }) {
++  const total = slices.reduce((sum, s) => sum + s.value, 0);
++
++  let cursor = 0;
++  const stops = slices.map((s, i) => {
++    const start = cursor;
++    const pct = total === 0 ? 0 : (s.value / total) * 100;
++    cursor += pct;
++    return `${CHART_COLORS[i % CHART_COLORS.length]} ${start}% ${cursor}%`;
++  });
++
++  return (
++    <div className="flex flex-wrap items-center gap-10">
++      <div
++        className="h-48 w-48 shrink-0 rounded-full"
++        style={{
++          background: total === 0 ? "#1a2333" : `conic-gradient(${stops.join(", ")})`,
++        }}
++        role="img"
++        aria-label="Contributions by stakeholder"
++      />
++      <ul className="flex flex-col gap-2.5 text-sm">
++        {slices.map((s, i) => (
++          <li key={s.label} className="flex items-center gap-3">
++            <span
++              className="h-2.5 w-2.5 shrink-0 rounded-full"
++              style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
++            />
++            <span className="w-20 text-ink-100">{s.label}</span>
++            <span className="num w-24 text-ink-300">${formatAmount(s.value)}</span>
++            <span className="num text-ink-300">
++              {total === 0 ? "0.00" : ((s.value / total) * 100).toFixed(2)}%
++            </span>
++          </li>
++        ))}
++      </ul>
++    </div>
++  );
++}
+diff --git a/components/PositionsTable.tsx b/components/PositionsTable.tsx
+index a02d2c2..1ffc426 100644
+--- a/components/PositionsTable.tsx
++++ b/components/PositionsTable.tsx
+@@ -1,5 +1,11 @@
++"use client";
++
++import { useMemo, useState } from "react";
+ import { Money, Percent, PlainPercent, NativeMoney } from "@/components/SignedNumber";
+ import { currencySymbol, currencyForRegion } from "@/lib/fx";
++import SortableTh from "@/components/SortableTh";
++import SearchBox from "@/components/SearchBox";
++import { useSortable } from "@/lib/use-sortable";
+ 
+ export interface PositionRow {
+   region: string;
+@@ -15,7 +21,29 @@ export interface PositionRow {
+   portfolioPct: number;
+ }
+ 
++const GETTERS: Record<string, (r: PositionRow) => number | string> = {
++  region: (r) => r.region,
++  ticker: (r) => r.ticker,
++  qty: (r) => r.qty,
++  avgCost: (r) => r.avgCost,
++  currentPrice: (r) => r.currentPrice,
++  totalHoldings: (r) => r.totalHoldings,
++  portfolioPct: (r) => r.portfolioPct,
++  unrealizedPLPct: (r) => r.unrealizedPLPct,
++  unrealizedPL: (r) => r.unrealizedPL,
++};
++
+ export default function PositionsTable({ rows }: { rows: PositionRow[] }) {
++  const [search, setSearch] = useState("");
++
++  const filtered = useMemo(() => {
++    const q = search.trim().toLowerCase();
++    if (!q) return rows;
++    return rows.filter((r) => r.ticker.toLowerCase().includes(q) || r.region.toLowerCase().includes(q));
++  }, [rows, search]);
++
++  const { sorted, sortKey, sortDir, toggleSort } = useSortable(filtered, GETTERS, "ticker", "asc");
++
+   // Mixed-currency pages (SG + HK together) must total in USD; a
+   // single-currency page (US) will show the same number either way.
+   const totalValueUSD = rows.reduce((sum, r) => sum + r.totalHoldingsUSD, 0);
+@@ -43,56 +71,105 @@ export default function PositionsTable({ rows }: { rows: PositionRow[] }) {
+         </p>
+       )}
+ 
++      <div className="flex justify-end">
++        <SearchBox value={search} onChange={setSearch} placeholder="Search ticker or region…" />
++      </div>
++
+       <table className="ledger-table">
+         <thead>
+           <tr>
+-            <th>Region</th>
+-            <th>Ticker</th>
+-            <th className="text-right">Qty</th>
+-            <th className="text-right">Avg cost</th>
+-            <th className="text-right">Current price</th>
+-            <th className="text-right">Total holdings</th>
+-            <th className="text-right">Portfolio %</th>
+-            <th className="text-right">Unrealized P/L (%)</th>
+-            <th className="text-right">Unrealized P/L</th>
++            <SortableTh
++              label="Region"
++              active={sortKey === "region"}
++              direction={sortDir}
++              onClick={() => toggleSort("region")}
++            />
++            <SortableTh
++              label="Ticker"
++              active={sortKey === "ticker"}
++              direction={sortDir}
++              onClick={() => toggleSort("ticker")}
++            />
++            <SortableTh
++              label="Qty"
++              active={sortKey === "qty"}
++              direction={sortDir}
++              onClick={() => toggleSort("qty")}
++            />
++            <SortableTh
++              label="Avg cost"
++              active={sortKey === "avgCost"}
++              direction={sortDir}
++              onClick={() => toggleSort("avgCost")}
++            />
++            <SortableTh
++              label="Current price"
++              active={sortKey === "currentPrice"}
++              direction={sortDir}
++              onClick={() => toggleSort("currentPrice")}
++            />
++            <SortableTh
++              label="Total holdings"
++              active={sortKey === "totalHoldings"}
++              direction={sortDir}
++              onClick={() => toggleSort("totalHoldings")}
++            />
++            <SortableTh
++              label="Portfolio %"
++              active={sortKey === "portfolioPct"}
++              direction={sortDir}
++              onClick={() => toggleSort("portfolioPct")}
++            />
++            <SortableTh
++              label="Unrealized P/L (%)"
++              active={sortKey === "unrealizedPLPct"}
++              direction={sortDir}
++              onClick={() => toggleSort("unrealizedPLPct")}
++            />
++            <SortableTh
++              label="Unrealized P/L"
++              active={sortKey === "unrealizedPL"}
++              direction={sortDir}
++              onClick={() => toggleSort("unrealizedPL")}
++            />
+           </tr>
+         </thead>
+         <tbody>
+-          {rows.map((r) => {
++          {sorted.map((r) => {
+             const symbol = currencySymbol[currencyForRegion(r.region)];
+             return (
+               <tr key={`${r.region}-${r.ticker}`}>
+                 <td className="text-ink-300">{r.region}</td>
+                 <td className="num">{r.ticker}</td>
+-                <td className="num text-right">{r.qty}</td>
+-                <td className="num text-right">
++                <td className="num">{r.qty}</td>
++                <td className="num">
+                   {symbol}
+                   {r.avgCost.toFixed(2)}
+                 </td>
+-                <td className="num text-right">
++                <td className="num">
+                   {symbol}
+                   {r.currentPrice.toFixed(2)}
+                 </td>
+-                <td className="num text-right">
++                <td className="num">
+                   {symbol}
+                   {r.totalHoldings.toFixed(2)}
+                 </td>
+-                <td className="text-right">
++                <td>
+                   <PlainPercent value={r.portfolioPct} />
+                 </td>
+-                <td className="text-right">
++                <td>
+                   <Percent value={r.unrealizedPLPct} />
+                 </td>
+-                <td className="text-right">
++                <td>
+                   <NativeMoney value={r.unrealizedPL} symbol={symbol} />
+                 </td>
+               </tr>
+             );
+           })}
+-          {rows.length === 0 && (
++          {sorted.length === 0 && (
+             <tr>
+               <td colSpan={9} className="py-6 text-center text-ink-300">
+-                No open positions in this region right now.
++                {rows.length === 0 ? "No open positions in this region right now." : "No positions match your search."}
+               </td>
+             </tr>
+           )}
+@@ -100,4 +177,4 @@ export default function PositionsTable({ rows }: { rows: PositionRow[] }) {
+       </table>
+     </div>
+   );
+-}
+\ No newline at end of file
++}
+diff --git a/components/SearchBox.tsx b/components/SearchBox.tsx
+new file mode 100644
+index 0000000..066410d
+--- /dev/null
++++ b/components/SearchBox.tsx
+@@ -0,0 +1,21 @@
++"use client";
++
++export default function SearchBox({
++  value,
++  onChange,
++  placeholder,
++}: {
++  value: string;
++  onChange: (value: string) => void;
++  placeholder?: string;
++}) {
++  return (
++    <input
++      type="text"
++      value={value}
++      onChange={(e) => onChange(e.target.value)}
++      placeholder={placeholder ?? "Search…"}
++      className="field w-56"
++    />
++  );
++}
+diff --git a/components/SortableTh.tsx b/components/SortableTh.tsx
+new file mode 100644
+index 0000000..28405b8
+--- /dev/null
++++ b/components/SortableTh.tsx
+@@ -0,0 +1,30 @@
++"use client";
++
++export default function SortableTh({
++  label,
++  active,
++  direction,
++  onClick,
++}: {
++  label: string;
++  active: boolean;
++  direction: "asc" | "desc";
++  onClick: () => void;
++}) {
++  return (
++    <th>
++      <button
++        type="button"
++        onClick={onClick}
++        className={`inline-flex items-center gap-1 font-medium transition ${
++          active ? "text-ink-100" : "text-ink-300 hover:text-ink-100"
++        }`}
++      >
++        {label}
++        <span className="text-[10px] leading-none">
++          {active ? (direction === "asc" ? "▲" : "▼") : "↕"}
++        </span>
++      </button>
++    </th>
++  );
++}
+diff --git a/components/TransactionsTable.tsx b/components/TransactionsTable.tsx
+new file mode 100644
+index 0000000..5aafe35
+--- /dev/null
++++ b/components/TransactionsTable.tsx
+@@ -0,0 +1,90 @@
++"use client";
++
++import { useMemo, useState } from "react";
++import type { LedgerRow } from "@/lib/portfolio-engine";
++import EditableTransactionRow from "@/components/EditableTransactionRow";
++import SortableTh from "@/components/SortableTh";
++import SearchBox from "@/components/SearchBox";
++import { useSortable } from "@/lib/use-sortable";
++
++const GETTERS: Record<string, (t: LedgerRow) => number | string> = {
++  date: (t) => new Date(t.date).getTime(),
++  action: (t) => t.action,
++  ticker: (t) => t.ticker,
++  region: (t) => t.region,
++  qty: (t) => t.qty,
++  price: (t) => t.price,
++  runningQty: (t) => t.runningQty,
++  runningAvgCost: (t) => t.runningAvgCost,
++  transactionValue: (t) => t.transactionValue,
++};
++
++export default function TransactionsTable({ ledger }: { ledger: LedgerRow[] }) {
++  const [search, setSearch] = useState("");
++
++  const filtered = useMemo(() => {
++    const q = search.trim().toLowerCase();
++    if (!q) return ledger;
++    return ledger.filter(
++      (t) =>
++        t.ticker.toLowerCase().includes(q) ||
++        t.region.toLowerCase().includes(q) ||
++        (t.notes ?? "").toLowerCase().includes(q)
++    );
++  }, [ledger, search]);
++
++  const { sorted, sortKey, sortDir, toggleSort } = useSortable(filtered, GETTERS, "date", "desc");
++
++  return (
++    <div className="flex flex-col gap-3">
++      <div className="flex justify-end">
++        <SearchBox value={search} onChange={setSearch} placeholder="Search ticker, region, or notes…" />
++      </div>
++
++      <table className="ledger-table">
++        <thead>
++          <tr>
++            <SortableTh label="Date" active={sortKey === "date"} direction={sortDir} onClick={() => toggleSort("date")} />
++            <SortableTh label="Action" active={sortKey === "action"} direction={sortDir} onClick={() => toggleSort("action")} />
++            <SortableTh label="Ticker" active={sortKey === "ticker"} direction={sortDir} onClick={() => toggleSort("ticker")} />
++            <SortableTh label="Region" active={sortKey === "region"} direction={sortDir} onClick={() => toggleSort("region")} />
++            <SortableTh label="Qty" active={sortKey === "qty"} direction={sortDir} onClick={() => toggleSort("qty")} />
++            <SortableTh label="Price" active={sortKey === "price"} direction={sortDir} onClick={() => toggleSort("price")} />
++            <SortableTh
++              label="Running qty"
++              active={sortKey === "runningQty"}
++              direction={sortDir}
++              onClick={() => toggleSort("runningQty")}
++            />
++            <SortableTh
++              label="Running avg cost"
++              active={sortKey === "runningAvgCost"}
++              direction={sortDir}
++              onClick={() => toggleSort("runningAvgCost")}
++            />
++            <SortableTh
++              label="Txn value"
++              active={sortKey === "transactionValue"}
++              direction={sortDir}
++              onClick={() => toggleSort("transactionValue")}
++            />
++            <th>Notes</th>
++            <th></th>
++          </tr>
++        </thead>
++        <tbody>
++          {sorted.map((t) => (
++            <EditableTransactionRow key={t.id} t={t} />
++          ))}
++          {sorted.length === 0 && (
++            <tr>
++              <td colSpan={11} className="py-6 text-center text-ink-300">
++                {ledger.length === 0 ? "No transactions yet — log the first trade above." : "No transactions match your search."}
++              </td>
++            </tr>
++          )}
++        </tbody>
++      </table>
++    </div>
++  );
++}
+diff --git a/lib/fx.ts b/lib/fx.ts
+index 09e056b..9d66270 100644
+--- a/lib/fx.ts
++++ b/lib/fx.ts
+@@ -49,4 +49,19 @@ export function toUSD(amount: number, region: string, rates: FxRates): number {
+   if (currency === "USD") return amount;
+   const rate = rates[currency];
+   return rate ? amount / rate : amount;
++}
++
++/** Converts an amount from its region's native currency into any target
++ * currency, via USD as the common base (rates are expressed as units of
++ * foreign currency per 1 USD). */
++export function convertCurrency(
++  amount: number,
++  fromRegion: string,
++  toCurrency: Currency,
++  rates: FxRates
++): number {
++  const usd = toUSD(amount, fromRegion, rates);
++  if (toCurrency === "USD") return usd;
++  const rate = rates[toCurrency];
++  return rate ? usd * rate : usd;
+ }
+\ No newline at end of file
+diff --git a/lib/use-sortable.ts b/lib/use-sortable.ts
+new file mode 100644
+index 0000000..9501a61
+--- /dev/null
++++ b/lib/use-sortable.ts
+@@ -0,0 +1,41 @@
++"use client";
++
++import { useMemo, useState } from "react";
++
++export function useSortable<T>(
++  rows: T[],
++  getters: Record<string, (row: T) => number | string>,
++  initialKey: string,
++  initialDir: "asc" | "desc" = "desc"
++) {
++  const [sortKey, setSortKey] = useState(initialKey);
++  const [sortDir, setSortDir] = useState<"asc" | "desc">(initialDir);
++
++  function toggleSort(key: string) {
++    if (key === sortKey) {
++      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
++    } else {
++      setSortKey(key);
++      setSortDir("asc");
++    }
++  }
++
++  const sorted = useMemo(() => {
++    const getter = getters[sortKey];
++    if (!getter) return rows;
++    const copy = [...rows];
++    copy.sort((a, b) => {
++      const va = getter(a);
++      const vb = getter(b);
++      const cmp =
++        typeof va === "number" && typeof vb === "number"
++          ? va - vb
++          : String(va).localeCompare(String(vb));
++      return sortDir === "asc" ? cmp : -cmp;
++    });
++    return copy;
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [rows, sortKey, sortDir]);
++
++  return { sorted, sortKey, sortDir, toggleSort };
++}
+-- 
+2.43.0
+
