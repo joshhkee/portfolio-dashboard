@@ -41,7 +41,8 @@ export default function TransactionsTable({ ledger }: { ledger: LedgerRow[] }) {
         <SearchBox value={search} onChange={setSearch} placeholder="Search ticker, region, or notes…" />
       </div>
 
-      <table className="ledger-table">
+      <div className="overflow-x-auto">
+        <table className="ledger-table">
         <thead>
           <tr>
             <SortableTh label="Date" active={sortKey === "date"} direction={sortDir} onClick={() => toggleSort("date")} />
@@ -68,7 +69,7 @@ export default function TransactionsTable({ ledger }: { ledger: LedgerRow[] }) {
               direction={sortDir}
               onClick={() => toggleSort("transactionValue")}
             />
-            <th>Notes</th>
+            <th className="text-left">Notes</th>
             <th></th>
           </tr>
         </thead>
@@ -84,7 +85,8 @@ export default function TransactionsTable({ ledger }: { ledger: LedgerRow[] }) {
             </tr>
           )}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   );
 }

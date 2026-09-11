@@ -75,7 +75,8 @@ export default function PositionsTable({ rows }: { rows: PositionRow[] }) {
         <SearchBox value={search} onChange={setSearch} placeholder="Search ticker or region…" />
       </div>
 
-      <table className="ledger-table">
+      <div className="overflow-x-auto">
+        <table className="ledger-table">
         <thead>
           <tr>
             <SortableTh
@@ -174,7 +175,8 @@ export default function PositionsTable({ rows }: { rows: PositionRow[] }) {
             </tr>
           )}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   );
 }

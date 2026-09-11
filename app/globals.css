@@ -19,10 +19,10 @@
     @apply font-mono tabular-nums;
   }
   .ledger-table {
-    @apply w-full border-collapse text-sm;
+    @apply w-full min-w-[720px] border-collapse text-sm;
   }
   .ledger-table th {
-    @apply border-b border-ink-700 px-3 py-2 text-center font-medium text-ink-300;
+    @apply sticky top-14 z-10 whitespace-nowrap border-b border-ink-700 bg-ink-950 px-3 py-2 text-center font-medium text-ink-300;
   }
   .ledger-table td {
     @apply border-b border-ink-800 px-3 py-2 text-center align-middle;

@@ -55,7 +55,8 @@ export default function CompletedTradesTable({ trades }: { trades: CompletedTrad
         <SearchBox value={search} onChange={setSearch} placeholder="Search ticker, region, or notes…" />
       </div>
 
-      <table className="ledger-table">
+      <div className="overflow-x-auto">
+        <table className="ledger-table">
         <thead>
           <tr>
             <SortableTh label="Sell date" active={sortKey === "sellDate"} direction={sortDir} onClick={() => toggleSort("sellDate")} />
@@ -77,7 +78,7 @@ export default function CompletedTradesTable({ trades }: { trades: CompletedTrad
               onClick={() => toggleSort("realizedPLSGD")}
             />
             <SortableTh label="Return %" active={sortKey === "returnPct"} direction={sortDir} onClick={() => toggleSort("returnPct")} />
-            <th>Notes</th>
+            <th className="text-left">Notes</th>
           </tr>
         </thead>
         <tbody>
@@ -104,16 +105,17 @@ export default function CompletedTradesTable({ trades }: { trades: CompletedTrad
                   {t.sellPrice.toFixed(2)}
                 </td>
                 <td className="num text-ink-300">
+                  {t.realizedPL < 0 ? "-" : t.realizedPL > 0 ? "+" : ""}
                   {symbol}
-                  {t.realizedPL.toFixed(2)}
+                  {Math.abs(t.realizedPL).toFixed(2)}
                 </td>
                 <td>
-                  <NativeMoney value={t.realizedPLSGD} symbol={currencySymbol.SGD} />
+                  <NativeMoney value={t.realizedPLSGD} symbol={currencySymbol.SGD} showPlus />
                 </td>
                 <td>
                   <Percent value={t.returnPct} />
                 </td>
-                <td className="max-w-xs truncate text-ink-300" title={t.notes ?? undefined}>
+                <td className="max-w-xs truncate text-left text-ink-300" title={t.notes ?? undefined}>
                   {t.notes}
                 </td>
               </tr>
@@ -127,7 +129,8 @@ export default function CompletedTradesTable({ trades }: { trades: CompletedTrad
             </tr>
           )}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   );
 }

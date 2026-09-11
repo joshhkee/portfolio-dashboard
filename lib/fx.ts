@@ -20,7 +20,7 @@ export const regionCurrency: Record<string, Currency> = {
 };
 
 export const currencySymbol: Record<Currency, string> = {
-  USD: "$",
+  USD: "US$",
   SGD: "S$",
   HKD: "HK$",
 };

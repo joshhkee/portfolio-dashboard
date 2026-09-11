@@ -42,8 +42,17 @@ export function PlainPercent({ value }: { value: number }) {
 }
 
 /** Like Money, but for figures in a native (non-USD) currency — takes the
- * currency's symbol (e.g. "S$", "HK$") instead of assuming "$". */
-export function NativeMoney({ value, symbol }: { value: number; symbol: string }) {
+ * currency's symbol (e.g. "S$", "HK$") instead of assuming "$".
+ * showPlus adds a leading "+" on positive values, matching Percent. */
+export function NativeMoney({
+  value,
+  symbol,
+  showPlus = false,
+}: {
+  value: number;
+  symbol: string;
+  showPlus?: boolean;
+}) {
   const positive = value > 0;
   const negative = value < 0;
   const abs = Math.abs(value).toLocaleString(undefined, {
@@ -52,9 +61,15 @@ export function NativeMoney({ value, symbol }: { value: number; symbol: string }
   });
   return (
     <span className={`num ${positive ? "text-gain" : negative ? "text-loss" : "text-ink-100"}`}>
-      {negative ? "-" : ""}
+      {negative ? "-" : positive && showPlus ? "+" : ""}
       {symbol}
       {abs}
     </span>
   );
+}
+
+/** Caps qty display at 4 decimal places without padding whole numbers
+ * with trailing zeros (10 -> "10", 10.5 -> "10.5", not "10.0000"). */
+export function formatQty(n: number) {
+  return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
 }

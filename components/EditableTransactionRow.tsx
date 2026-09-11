@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { LedgerRow } from "@/lib/portfolio-engine";
+import { currencySymbol, currencyForRegion } from "@/lib/fx";
+import { formatQty } from "@/components/SignedNumber";
 
 export default function EditableTransactionRow({ t }: { t: LedgerRow }) {
   const router = useRouter();
@@ -134,6 +136,8 @@ export default function EditableTransactionRow({ t }: { t: LedgerRow }) {
     );
   }
 
+  const symbol = currencySymbol[currencyForRegion(t.region)];
+
   return (
     <tr className={t.runningQty < 0 ? "bg-loss/10" : undefined}>
       <td className="num text-ink-300">
@@ -146,14 +150,23 @@ export default function EditableTransactionRow({ t }: { t: LedgerRow }) {
       <td className={t.action === "Buy" ? "text-gain" : "text-loss"}>{t.action}</td>
       <td className="num">{t.ticker}</td>
       <td className="text-ink-300">{t.region}</td>
-      <td className="num">{t.qty}</td>
-      <td className="num">${t.price.toFixed(2)}</td>
-      <td className={`num ${t.runningQty < 0 ? "font-semibold text-loss" : ""}`}>
-        {t.runningQty}
+      <td className="num">{formatQty(t.qty)}</td>
+      <td className="num">
+        {symbol}
+        {t.price.toFixed(2)}
       </td>
-      <td className="num">${t.runningAvgCost.toFixed(2)}</td>
-      <td className="num">${t.transactionValue.toFixed(2)}</td>
-      <td className="max-w-xs truncate text-ink-300" title={t.notes ?? undefined}>
+      <td className={`num ${t.runningQty < 0 ? "font-semibold text-loss" : ""}`}>
+        {formatQty(t.runningQty)}
+      </td>
+      <td className="num">
+        {symbol}
+        {t.runningAvgCost.toFixed(2)}
+      </td>
+      <td className="num">
+        {symbol}
+        {t.transactionValue.toFixed(2)}
+      </td>
+      <td className="max-w-xs truncate text-left text-ink-300" title={t.notes ?? undefined}>
         {t.notes}
       </td>
       <td>

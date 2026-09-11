@@ -14,7 +14,7 @@ export default function Nav() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex w-full items-center gap-6 border-b border-ink-700 bg-ink-900 px-6">
+    <nav className="sticky top-0 z-30 flex h-14 w-full items-center gap-6 border-b border-ink-700 bg-ink-900 px-6">
       <div className="py-4 pr-2">
         <p className="text-sm font-semibold tracking-tight text-ink-100">Investments</p>
       </div>
