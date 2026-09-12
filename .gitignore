@@ -25,3 +25,6 @@ dashboard-batch-3.patch
 dashboard-batch-4.patch
 dashboard-batch-5.patch
 dashboard-batch-6.patch
+
+.env
+.env.example
