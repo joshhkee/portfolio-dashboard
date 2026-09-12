@@ -141,7 +141,7 @@ export default function EditableTransactionRow({ t }: { t: LedgerRow }) {
   return (
     <tr className={t.runningQty < 0 ? "bg-loss/10" : undefined}>
       <td className="num text-ink-300">
-        {new Date(t.date).toLocaleDateString(undefined, {
+        {new Date(t.date).toLocaleDateString("en-US", {
           day: "2-digit",
           month: "short",
           year: "2-digit",

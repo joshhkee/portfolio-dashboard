@@ -87,7 +87,7 @@ export default function CompletedTradesTable({ trades }: { trades: CompletedTrad
             return (
               <tr key={t.id}>
                 <td className="num text-ink-300">
-                  {new Date(t.sellDate).toLocaleDateString(undefined, {
+                  {new Date(t.sellDate).toLocaleDateString("en-US", {
                     day: "2-digit",
                     month: "short",
                     year: "2-digit",

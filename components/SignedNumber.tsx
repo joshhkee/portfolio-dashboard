@@ -1,6 +1,6 @@
 function formatMoney(n: number) {
   const abs = Math.abs(n);
-  const formatted = abs.toLocaleString(undefined, {
+  const formatted = abs.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
@@ -55,7 +55,7 @@ export function NativeMoney({
 }) {
   const positive = value > 0;
   const negative = value < 0;
-  const abs = Math.abs(value).toLocaleString(undefined, {
+  const abs = Math.abs(value).toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
@@ -71,5 +71,5 @@ export function NativeMoney({
 /** Caps qty display at 4 decimal places without padding whole numbers
  * with trailing zeros (10 -> "10", 10.5 -> "10.5", not "10.0000"). */
 export function formatQty(n: number) {
-  return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  return n.toLocaleString("en-US", { maximumFractionDigits: 4 });
 }
