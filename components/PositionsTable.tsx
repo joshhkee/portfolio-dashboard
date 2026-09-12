@@ -48,7 +48,7 @@ export default function PositionsTable({
     return rows.filter((r) => r.ticker.toLowerCase().includes(q) || r.region.toLowerCase().includes(q));
   }, [rows, search]);
 
-  const { sorted, sortKey, sortDir, toggleSort } = useSortable(filtered, GETTERS, "ticker", "asc");
+  const { sorted, sortKey, sortDir, toggleSort } = useSortable(filtered, GETTERS, "portfolioPct", "desc");
 
   const displaySymbol = currencySymbol[displayCurrency];
 

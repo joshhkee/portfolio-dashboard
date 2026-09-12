@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { NativeMoney, Percent } from "@/components/SignedNumber";
 import { currencySymbol, currencyForRegion } from "@/lib/fx";
+import { formatShortDate } from "@/lib/dates";
 import SortableTh from "@/components/SortableTh";
 import SearchBox from "@/components/SearchBox";
 import { useSortable } from "@/lib/use-sortable";
@@ -87,11 +88,7 @@ export default function CompletedTradesTable({ trades }: { trades: CompletedTrad
             return (
               <tr key={t.id}>
                 <td className="num text-ink-300">
-                  {new Date(t.sellDate).toLocaleDateString("en-US", {
-                    day: "2-digit",
-                    month: "short",
-                    year: "2-digit",
-                  })}
+                  {formatShortDate(new Date(t.sellDate))}
                 </td>
                 <td className="text-ink-300">{t.region}</td>
                 <td className="num">{t.ticker}</td>

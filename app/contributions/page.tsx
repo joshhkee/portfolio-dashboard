@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { Money, PlainMoney } from "@/components/SignedNumber";
+import { Money } from "@/components/SignedNumber";
 import AddContributionForm from "@/components/AddContributionForm";
 import PieChart from "@/components/PieChart";
+import ContributionsPivotTable from "@/components/ContributionsPivotTable";
+import { toLocalDateInputValue } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -38,36 +40,46 @@ export default async function ContributionsPage() {
   const nextMonthLabel = `${nextMonthDateObj
     .toLocaleString("en-US", { month: "short" })
     .toUpperCase()} (${nextMonthDateObj.getFullYear()})`;
-  const nextMonthDate = nextMonthDateObj.toISOString().slice(0, 10);
+  const nextMonthDate = toLocalDateInputValue(nextMonthDateObj);
 
   // Pivot the flat contribution rows into one row per label (usually a
   // month, e.g. "MAR (2025)") with one column per stakeholder — this is
   // how the sheet showed it, since contributions land in bulk per month
   // rather than as separate ledger-style entries. Most recent month first.
-  const labelGroups = new Map<string, { date: Date; amounts: Map<string, number> }>();
+  // Each cell keeps the underlying contribution's id (when there's
+  // exactly one) so the pivot table can offer inline edit/delete;
+  // duplicate contributions under the same label+contributor (rare) fall
+  // back to a read-only summed cell rather than picking one arbitrarily.
+  const labelGroups = new Map<
+    string,
+    { date: Date; entries: Map<string, { id: number; amount: number }[]> }
+  >();
   for (const c of contributions) {
     const existing = labelGroups.get(c.label);
-    if (existing) {
-      existing.amounts.set(
-        c.contributor.name,
-        (existing.amounts.get(c.contributor.name) ?? 0) + c.amount
-      );
-      if (c.date < existing.date) existing.date = c.date;
-    } else {
-      labelGroups.set(c.label, {
-        date: c.date,
-        amounts: new Map([[c.contributor.name, c.amount]]),
-      });
-    }
+    const group = existing ?? { date: c.date, entries: new Map() };
+    const list = group.entries.get(c.contributor.name) ?? [];
+    list.push({ id: c.id, amount: c.amount });
+    group.entries.set(c.contributor.name, list);
+    if (c.date < group.date) group.date = c.date;
+    labelGroups.set(c.label, group);
   }
   const labelRows = Array.from(labelGroups.entries())
-    .map(([label, g]) => ({
-      label,
-      date: g.date,
-      amounts: g.amounts,
-      rowTotal: Array.from(g.amounts.values()).reduce((sum, v) => sum + v, 0),
-    }))
-    .sort((a, b) => b.date.getTime() - a.date.getTime());
+    .map(([label, g]) => {
+      const cells = contributorRows.map((r) => {
+        const list = g.entries.get(r.name) ?? [];
+        if (list.length === 0) return { name: r.name, id: null, amount: null, multiple: false };
+        if (list.length === 1) return { name: r.name, id: list[0].id, amount: list[0].amount, multiple: false };
+        return {
+          name: r.name,
+          id: null,
+          amount: list.reduce((sum, e) => sum + e.amount, 0),
+          multiple: true,
+        };
+      });
+      const rowTotal = cells.reduce((sum, c) => sum + (c.amount ?? 0), 0);
+      return { label, dateMs: g.date.getTime(), cells, rowTotal };
+    })
+    .sort((a, b) => b.dateMs - a.dateMs);
 
   return (
     <div className="flex flex-col gap-8">
@@ -98,59 +110,12 @@ export default async function ContributionsPage() {
             nextMonthDate={nextMonthDate}
           />
         </div>
-        <div className="table-scroll">
-          <table className="ledger-table">
-            <thead>
-              <tr>
-                <th>Month / label</th>
-                {contributorRows.map((r) => (
-                  <th key={r.name}>{r.name}</th>
-                ))}
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {labelRows.map((row) => (
-                <tr key={row.label}>
-                  <td className="text-ink-300">{row.label}</td>
-                  {contributorRows.map((r) => {
-                    const amount = row.amounts.get(r.name);
-                    return (
-                      <td key={r.name}>
-                        {amount ? <PlainMoney value={amount} /> : <span className="text-ink-500">—</span>}
-                      </td>
-                    );
-                  })}
-                  <td className="font-medium">
-                    <PlainMoney value={row.rowTotal} />
-                  </td>
-                </tr>
-              ))}
-              {labelRows.length === 0 && (
-                <tr>
-                  <td colSpan={contributorRows.length + 2} className="py-6 text-center text-ink-300">
-                    Nothing here yet — record the first deposit above.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-            {labelRows.length > 0 && (
-              <tfoot>
-                <tr className="border-t-2 border-ink-600 font-medium">
-                  <td>Total</td>
-                  {contributorRows.map((r) => (
-                    <td key={r.name}>
-                      <PlainMoney value={r.total} />
-                    </td>
-                  ))}
-                  <td>
-                    <PlainMoney value={grandTotal} />
-                  </td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
+        <ContributionsPivotTable
+          contributorNames={contributorRows.map((r) => r.name)}
+          contributorTotals={Object.fromEntries(contributorRows.map((r) => [r.name, r.total]))}
+          labelRows={labelRows}
+          grandTotal={grandTotal}
+        />
       </section>
     </div>
   );

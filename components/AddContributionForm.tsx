@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toLocalDateInputValue } from "@/lib/dates";
 
 // The standard monthly split observed in the contribution history —
 // everyone puts in 500 except Chin at 200. Editable per-month below in
@@ -30,7 +31,7 @@ export default function AddContributionForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toLocalDateInputValue(new Date());
 
   async function handleSingleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
