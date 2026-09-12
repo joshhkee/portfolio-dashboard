@@ -19,13 +19,22 @@
     @apply font-mono tabular-nums;
   }
   .ledger-table {
-    @apply w-full min-w-[720px] border-collapse text-sm;
+    @apply w-full min-w-[720px] border-separate border-spacing-0 text-center text-sm;
   }
   .ledger-table th {
-    @apply sticky top-14 z-10 whitespace-nowrap border-b border-ink-700 bg-ink-950 px-3 py-2 text-center font-medium text-ink-300;
+    @apply sticky top-0 z-10 whitespace-nowrap border-b border-ink-700 bg-ink-950 px-3 py-2 font-medium text-ink-300;
   }
   .ledger-table td {
-    @apply border-b border-ink-800 px-3 py-2 text-center align-middle;
+    @apply border-b border-ink-800 px-3 py-2 align-middle;
+  }
+  /* The table needs to own its scroll (both axes) for its sticky <thead>
+     to actually stick to the top of ITS scrollport — an ancestor with
+     overflow-x: auto alone silently becomes a scroll container for
+     overflow-y too per the CSS spec, which breaks sticky positioning in
+     confusing, hard-to-diagnose ways if this box isn't explicit about
+     owning both axes itself. */
+  .table-scroll {
+    @apply max-h-[70vh] overflow-auto rounded-sm border border-ink-800;
   }
   .ledger-table tbody tr:hover {
     @apply bg-ink-900/60;

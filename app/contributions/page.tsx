@@ -98,7 +98,7 @@ export default async function ContributionsPage() {
             nextMonthDate={nextMonthDate}
           />
         </div>
-        <div className="overflow-x-auto">
+        <div className="table-scroll">
           <table className="ledger-table">
             <thead>
               <tr>

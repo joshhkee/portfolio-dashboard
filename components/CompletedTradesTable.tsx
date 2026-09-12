@@ -55,7 +55,7 @@ export default function CompletedTradesTable({ trades }: { trades: CompletedTrad
         <SearchBox value={search} onChange={setSearch} placeholder="Search ticker, region, or notes…" />
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="table-scroll">
         <table className="ledger-table">
         <thead>
           <tr>

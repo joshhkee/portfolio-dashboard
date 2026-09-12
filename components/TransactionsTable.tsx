@@ -41,7 +41,7 @@ export default function TransactionsTable({ ledger }: { ledger: LedgerRow[] }) {
         <SearchBox value={search} onChange={setSearch} placeholder="Search ticker, region, or notes…" />
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="table-scroll">
         <table className="ledger-table">
         <thead>
           <tr>
