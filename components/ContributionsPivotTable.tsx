@@ -74,8 +74,8 @@ function PivotCell({ cell }: { cell: Cell }) {
 
   if (editing) {
     return (
-      <form onSubmit={handleSave} className="flex flex-col items-center gap-1">
-        <div className="flex items-center gap-1">
+      <form onSubmit={handleSave} className="flex flex-col items-center gap-1.5">
+        <div className="flex items-center gap-1.5">
           <input
             name="amount"
             type="number"
@@ -84,14 +84,19 @@ function PivotCell({ cell }: { cell: Cell }) {
             required
             autoFocus
             defaultValue={cell.amount}
-            className="field w-20 px-1 py-0.5 text-center"
+            className="field w-20 px-1 py-1 text-center"
           />
-          <button type="submit" className="text-xs text-gain hover:brightness-125" disabled={busy} title="Save">
+          <button
+            type="submit"
+            className="rounded-sm bg-gain/15 px-2.5 py-1.5 text-sm font-medium leading-none text-gain hover:bg-gain/25 disabled:opacity-50"
+            disabled={busy}
+            title="Save"
+          >
             ✓
           </button>
           <button
             type="button"
-            className="text-xs text-ink-300 hover:text-ink-100"
+            className="rounded-sm bg-ink-800 px-2.5 py-1.5 text-sm leading-none text-ink-300 hover:bg-ink-700 hover:text-ink-100 disabled:opacity-50"
             onClick={() => setEditing(false)}
             disabled={busy}
             title="Cancel"
@@ -105,11 +110,11 @@ function PivotCell({ cell }: { cell: Cell }) {
   }
 
   return (
-    <div className="group flex items-center justify-center gap-1.5">
+    <div className="flex items-center justify-center gap-1">
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className="hover:text-accent"
+        className="rounded-sm px-1 py-0.5 hover:bg-ink-800 hover:text-accent"
         title="Edit this contribution"
       >
         <PlainMoney value={cell.amount} />
@@ -118,7 +123,7 @@ function PivotCell({ cell }: { cell: Cell }) {
         type="button"
         onClick={handleDelete}
         disabled={busy}
-        className="text-xs text-ink-500 opacity-0 transition hover:text-loss group-hover:opacity-100 disabled:opacity-50"
+        className="rounded-sm px-1.5 py-0.5 text-sm leading-none text-ink-500 hover:bg-loss/15 hover:text-loss disabled:opacity-50"
         title="Delete this contribution"
       >
         ×
