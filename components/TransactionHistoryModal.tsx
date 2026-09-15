@@ -81,9 +81,38 @@ function computeCycleStats(rows: HistoryRow[]): CycleStats {
   };
 }
 
-function StatRow({ label, children }: { label: string; children: React.ReactNode }) {
+/** The big "won or lost" headline number for a trade — a percentage,
+ * colored gain/loss, sized to be the first thing you notice in the
+ * section. */
+function HeadlinePL({ label, pct }: { label: string; pct: number }) {
+  const positive = pct > 0;
+  const negative = pct < 0;
   return (
-    <div className="flex items-baseline justify-between gap-4 py-1 text-sm">
+    <div>
+      <p className="text-xs text-ink-300">{label}</p>
+      <p className={`num text-3xl font-semibold ${positive ? "text-gain" : negative ? "text-loss" : "text-ink-100"}`}>
+        {pct >= 0 ? "+" : ""}
+        {(pct * 100).toFixed(2)}%
+      </p>
+    </div>
+  );
+}
+
+function CostBox({ label, symbol, value }: { label: string; symbol: string; value: number }) {
+  return (
+    <div>
+      <p className="text-xs text-ink-300">{label}</p>
+      <p className="num text-base">
+        {symbol}
+        {formatAmount(value)}
+      </p>
+    </div>
+  );
+}
+
+function SubStat({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 text-sm">
       <dt className="text-ink-300">{label}</dt>
       <dd className="num">{children}</dd>
     </div>
@@ -92,14 +121,12 @@ function StatRow({ label, children }: { label: string; children: React.ReactNode
 
 function TradeSection({
   trade,
-  ticker,
   symbol,
   rates,
   region,
   currentPrice,
 }: {
   trade: Trade;
-  ticker: string;
   symbol: string;
   rates: FxRates | null;
   region: string;
@@ -108,14 +135,17 @@ function TradeSection({
   const stats = computeCycleStats(trade.cycle);
   const sgdSymbol = currencySymbol.SGD;
   const currency = currencyForRegion(region);
+  // SG stocks are already natively SGD — showing both the "native" and
+  // "SGD" P/L lines would just repeat the same number twice.
+  const nativeIsSgd = currency === "SGD";
 
   const unrealizedPLNative = (currentPrice - stats.avgBuyCost) * stats.remainingQty;
   const unrealizedPLPct = stats.avgBuyCost > 0 ? (currentPrice - stats.avgBuyCost) / stats.avgBuyCost : 0;
 
   return (
-    <div className="mb-8 last:mb-0">
-      <p className="mb-2 text-sm font-medium text-ink-100">
-        {ticker} Trade {trade.tradeNumber} ({trade.isOpen ? "open" : "closed"})
+    <div className="py-6 first:pt-0">
+      <p className="mb-3 text-sm font-medium text-ink-100">
+        {trade.cycle[0]?.ticker} Trade {trade.tradeNumber} ({trade.isOpen ? "open" : "closed"})
       </p>
       <div className="table-scroll">
         <table className="ledger-table">
@@ -149,25 +179,23 @@ function TradeSection({
         </table>
       </div>
 
-      <dl className="mt-3 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
-        <StatRow label="Avg buy cost">
-          {symbol}
-          {formatAmount(stats.avgBuyCost)}
-        </StatRow>
+      {/* Buy vs sell cost, side by side so the gap between them is easy
+          to read at a glance. */}
+      <div className="mt-4 flex gap-8 rounded-sm border border-ink-800 p-3">
+        <CostBox label="Avg buy cost" symbol={symbol} value={stats.avgBuyCost} />
+        {stats.hasSells && <CostBox label="Avg sell cost" symbol={symbol} value={stats.avgSellCost} />}
+      </div>
 
-        {stats.hasSells && (
-          <>
-            <StatRow label="Avg sell cost">
-              {symbol}
-              {formatAmount(stats.avgSellCost)}
-            </StatRow>
-            <StatRow label="Realised P/L (%)">
-              <Percent value={stats.realizedPLPct} />
-            </StatRow>
-            <StatRow label={`Realised P/L (${currency})`}>
-              <NativeMoney value={stats.realizedPLNative} symbol={symbol} showPlus />
-            </StatRow>
-            <StatRow label="Realised P/L (SGD)">
+      {stats.hasSells && (
+        <div className="mt-4">
+          <HeadlinePL label="Realised P/L" pct={stats.realizedPLPct} />
+          <dl className="mt-2 flex flex-col gap-1">
+            {!nativeIsSgd && (
+              <SubStat label={`Realised P/L (${currency})`}>
+                <NativeMoney value={stats.realizedPLNative} symbol={symbol} showPlus />
+              </SubStat>
+            )}
+            <SubStat label="Realised P/L (SGD)">
               {rates ? (
                 <NativeMoney
                   value={convertCurrency(stats.realizedPLNative, region, "SGD", rates)}
@@ -177,19 +205,21 @@ function TradeSection({
               ) : (
                 "—"
               )}
-            </StatRow>
-          </>
-        )}
+            </SubStat>
+          </dl>
+        </div>
+      )}
 
-        {trade.isOpen && (
-          <>
-            <StatRow label="Unrealised P/L (%)">
-              <Percent value={unrealizedPLPct} />
-            </StatRow>
-            <StatRow label={`Unrealised P/L (${currency})`}>
-              <NativeMoney value={unrealizedPLNative} symbol={symbol} showPlus />
-            </StatRow>
-            <StatRow label="Unrealised P/L (SGD)">
+      {trade.isOpen && (
+        <div className="mt-4">
+          <HeadlinePL label="Unrealised P/L" pct={unrealizedPLPct} />
+          <dl className="mt-2 flex flex-col gap-1">
+            {!nativeIsSgd && (
+              <SubStat label={`Unrealised P/L (${currency})`}>
+                <NativeMoney value={unrealizedPLNative} symbol={symbol} showPlus />
+              </SubStat>
+            )}
+            <SubStat label="Unrealised P/L (SGD)">
               {rates ? (
                 <NativeMoney
                   value={convertCurrency(unrealizedPLNative, region, "SGD", rates)}
@@ -199,10 +229,10 @@ function TradeSection({
               ) : (
                 "—"
               )}
-            </StatRow>
-          </>
-        )}
-      </dl>
+            </SubStat>
+          </dl>
+        </div>
+      )}
     </div>
   );
 }
@@ -220,6 +250,7 @@ export default function TransactionHistoryModal({
 }) {
   const [rows, setRows] = useState<HistoryRow[] | null>(null);
   const [rates, setRates] = useState<FxRates | null>(null);
+  const [companyName, setCompanyName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -233,6 +264,7 @@ export default function TransactionHistoryModal({
         if (!cancelled) {
           setRows(data.ledger);
           setRates(data.rates);
+          setCompanyName(data.companyName ?? null);
         }
       })
       .catch((err) => {
@@ -280,8 +312,9 @@ export default function TransactionHistoryModal({
         <div className="flex items-center justify-between border-b border-ink-700 px-5 py-4">
           <div>
             <p className="text-sm text-ink-300">Transaction history</p>
-            <p className="num text-lg font-medium">
-              {ticker} <span className="text-ink-300">· {region}</span>
+            <p className="text-lg font-medium text-ink-100">{companyName || ticker}</p>
+            <p className="num text-xs text-ink-300">
+              {ticker} · {region}
             </p>
           </div>
           <button
@@ -300,19 +333,20 @@ export default function TransactionHistoryModal({
           {!error && rows && rows.length === 0 && (
             <p className="text-sm text-ink-300">No transactions found for this position.</p>
           )}
-          {!error &&
-            rows &&
-            trades.map((trade) => (
-              <TradeSection
-                key={`${trade.isOpen ? "open" : "closed"}-${trade.tradeNumber}`}
-                trade={trade}
-                ticker={ticker}
-                symbol={symbol}
-                rates={rates}
-                region={region}
-                currentPrice={currentPrice}
-              />
-            ))}
+          {!error && rows && (
+            <div className="divide-y divide-ink-700">
+              {trades.map((trade) => (
+                <TradeSection
+                  key={`${trade.isOpen ? "open" : "closed"}-${trade.tradeNumber}`}
+                  trade={trade}
+                  symbol={symbol}
+                  rates={rates}
+                  region={region}
+                  currentPrice={currentPrice}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

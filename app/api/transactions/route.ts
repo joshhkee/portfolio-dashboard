@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { computeLedger, fromDbRows, findNegativeQtyAfter } from "@/lib/portfolio-engine";
 import { fetchFxRates } from "@/lib/fx";
+import { fetchCompanyName, toYahooSymbol } from "@/lib/prices";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -23,9 +24,12 @@ export async function GET(req: NextRequest) {
   // Only needed by the transaction-history modal (region+ticker filtered
   // case), but cheap enough to include either way and keeps the response
   // shape consistent.
-  const rates = await fetchFxRates();
+  const [rates, companyName] = await Promise.all([
+    fetchFxRates(),
+    region && ticker ? fetchCompanyName(toYahooSymbol(region.toUpperCase(), ticker.toUpperCase())) : null,
+  ]);
 
-  return NextResponse.json({ ledger: filtered, rates });
+  return NextResponse.json({ ledger: filtered, rates, companyName });
 }
 
 export async function POST(req: NextRequest) {
