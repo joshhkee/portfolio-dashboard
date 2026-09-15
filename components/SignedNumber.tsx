@@ -73,3 +73,12 @@ export function NativeMoney({
 export function formatQty(n: number) {
   return n.toLocaleString("en-US", { maximumFractionDigits: 4 });
 }
+
+/** Comma-formatted amount with exactly 2 decimals, no symbol or sign —
+ * for composing with a currency symbol that's already handled
+ * separately, e.g. `{symbol}{formatAmount(price)}`. Same underlying
+ * formatting Money/NativeMoney use, for always-positive figures like
+ * a price or avg cost that don't need their sign/color logic. */
+export function formatAmount(n: number) {
+  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}

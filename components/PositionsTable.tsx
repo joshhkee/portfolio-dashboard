@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Percent, PlainPercent, NativeMoney } from "@/components/SignedNumber";
+import { Percent, PlainPercent, NativeMoney, formatAmount } from "@/components/SignedNumber";
 import { currencySymbol, currencyForRegion, type Currency } from "@/lib/fx";
 import SortableTh from "@/components/SortableTh";
 import SearchBox from "@/components/SearchBox";
@@ -69,7 +69,7 @@ export default function PositionsTable({
           <p className="text-sm text-ink-300">Total holdings ({displayCurrency})</p>
           <p className="num mt-1 text-3xl font-medium">
             {displaySymbol}
-            {totalValueConverted.toFixed(2)}
+            {formatAmount(totalValueConverted)}
           </p>
         </div>
         <div>
@@ -166,15 +166,15 @@ export default function PositionsTable({
                   <td className="num">{r.qty}</td>
                   <td className="num">
                     {symbol}
-                    {r.avgCost.toFixed(2)}
+                    {formatAmount(r.avgCost)}
                   </td>
                   <td className="num">
                     {symbol}
-                    {r.currentPrice.toFixed(2)}
+                    {formatAmount(r.currentPrice)}
                   </td>
                   <td className="num">
                     {symbol}
-                    {r.totalHoldings.toFixed(2)}
+                    {formatAmount(r.totalHoldings)}
                   </td>
                   <td>
                     <PlainPercent value={r.portfolioPct} />

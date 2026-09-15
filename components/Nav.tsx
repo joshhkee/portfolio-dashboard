@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 const links = [
   { href: "/contributions", label: "Contributions" },
@@ -12,6 +12,17 @@ const links = [
 
 export default function Nav() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  // The login page has nothing to navigate to yet — skip the bar
+  // rather than show links that would just bounce back here.
+  if (pathname === "/login") return null;
+
+  async function handleLogout() {
+    await fetch("/api/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <nav className="sticky top-0 z-30 flex h-14 w-full items-center gap-6 border-b border-ink-700 bg-ink-900 px-6">
@@ -37,6 +48,12 @@ export default function Nav() {
           );
         })}
       </ul>
+      <button
+        onClick={handleLogout}
+        className="ml-auto text-sm text-ink-300 hover:text-ink-100"
+      >
+        Log out
+      </button>
     </nav>
   );
 }

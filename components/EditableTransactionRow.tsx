@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { LedgerRow } from "@/lib/portfolio-engine";
 import { currencySymbol, currencyForRegion } from "@/lib/fx";
-import { formatQty } from "@/components/SignedNumber";
+import { formatQty, formatAmount } from "@/components/SignedNumber";
 import { formatShortDate } from "@/lib/dates";
 
 export default function EditableTransactionRow({ t }: { t: LedgerRow }) {
@@ -150,18 +150,18 @@ export default function EditableTransactionRow({ t }: { t: LedgerRow }) {
       <td className="num">{formatQty(t.qty)}</td>
       <td className="num">
         {symbol}
-        {t.price.toFixed(2)}
+        {formatAmount(t.price)}
       </td>
       <td className={`num ${t.runningQty < 0 ? "font-semibold text-loss" : ""}`}>
         {formatQty(t.runningQty)}
       </td>
       <td className="num">
         {symbol}
-        {t.runningAvgCost.toFixed(2)}
+        {formatAmount(t.runningAvgCost)}
       </td>
       <td className="num">
         {symbol}
-        {t.transactionValue.toFixed(2)}
+        {formatAmount(t.transactionValue)}
       </td>
       <td className="max-w-xs truncate text-left text-ink-300" title={t.notes ?? undefined}>
         {t.notes}

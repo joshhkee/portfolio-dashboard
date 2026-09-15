@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { currencySymbol, currencyForRegion, convertCurrency, type FxRates } from "@/lib/fx";
 import { formatShortDate } from "@/lib/dates";
-import { formatQty, Percent, NativeMoney } from "@/components/SignedNumber";
+import { formatQty, formatAmount, Percent, NativeMoney } from "@/components/SignedNumber";
 
 interface HistoryRow {
   id: number;
@@ -137,7 +137,7 @@ function TradeSection({
                 <td className="num">{formatQty(row.qty)}</td>
                 <td className="num">
                   {symbol}
-                  {row.price.toFixed(2)}
+                  {formatAmount(row.price)}
                 </td>
                 <td className="num">{formatQty(row.runningQty)}</td>
                 <td className="max-w-[16rem] truncate text-left text-ink-300" title={row.notes ?? undefined}>
@@ -152,14 +152,14 @@ function TradeSection({
       <dl className="mt-3 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
         <StatRow label="Avg buy cost">
           {symbol}
-          {stats.avgBuyCost.toFixed(2)}
+          {formatAmount(stats.avgBuyCost)}
         </StatRow>
 
         {stats.hasSells && (
           <>
             <StatRow label="Avg sell cost">
               {symbol}
-              {stats.avgSellCost.toFixed(2)}
+              {formatAmount(stats.avgSellCost)}
             </StatRow>
             <StatRow label="Realised P/L (%)">
               <Percent value={stats.realizedPLPct} />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { NativeMoney, Percent } from "@/components/SignedNumber";
+import { NativeMoney, Percent, formatAmount } from "@/components/SignedNumber";
 import { currencySymbol, currencyForRegion } from "@/lib/fx";
 import { formatShortDate } from "@/lib/dates";
 import SortableTh from "@/components/SortableTh";
@@ -95,16 +95,16 @@ export default function CompletedTradesTable({ trades }: { trades: CompletedTrad
                 <td className="num">{t.qtySold}</td>
                 <td className="num">
                   {symbol}
-                  {t.avgCost.toFixed(2)}
+                  {formatAmount(t.avgCost)}
                 </td>
                 <td className="num">
                   {symbol}
-                  {t.sellPrice.toFixed(2)}
+                  {formatAmount(t.sellPrice)}
                 </td>
                 <td className="num text-ink-300">
                   {t.realizedPL < 0 ? "-" : t.realizedPL > 0 ? "+" : ""}
                   {symbol}
-                  {Math.abs(t.realizedPL).toFixed(2)}
+                  {formatAmount(Math.abs(t.realizedPL))}
                 </td>
                 <td>
                   <NativeMoney value={t.realizedPLSGD} symbol={currencySymbol.SGD} showPlus />
