@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Money, Percent, PlainPercent, NativeMoney } from "@/components/SignedNumber";
-import { currencySymbol, currencyForRegion } from "@/lib/fx";
+import { Percent, PlainPercent, NativeMoney } from "@/components/SignedNumber";
+import { currencySymbol, currencyForRegion, type Currency } from "@/lib/fx";
 import SortableTh from "@/components/SortableTh";
 import SearchBox from "@/components/SearchBox";
 import { useSortable } from "@/lib/use-sortable";
+import TransactionHistoryModal from "@/components/TransactionHistoryModal";
 
 export interface PositionRow {
   region: string;
@@ -14,9 +15,9 @@ export interface PositionRow {
   avgCost: number;
   currentPrice: number;
   totalHoldings: number;
-  totalHoldingsUSD: number;
+  totalHoldingsConverted: number;
   unrealizedPL: number;
-  unrealizedPLUSD: number;
+  unrealizedPLConverted: number;
   unrealizedPLPct: number;
   portfolioPct: number;
 }
@@ -33,8 +34,15 @@ const GETTERS: Record<string, (r: PositionRow) => number | string> = {
   unrealizedPL: (r) => r.unrealizedPL,
 };
 
-export default function PositionsTable({ rows }: { rows: PositionRow[] }) {
+export default function PositionsTable({
+  rows,
+  displayCurrency = "USD",
+}: {
+  rows: PositionRow[];
+  displayCurrency?: Currency;
+}) {
   const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<{ region: string; ticker: string } | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -42,32 +50,38 @@ export default function PositionsTable({ rows }: { rows: PositionRow[] }) {
     return rows.filter((r) => r.ticker.toLowerCase().includes(q) || r.region.toLowerCase().includes(q));
   }, [rows, search]);
 
-  const { sorted, sortKey, sortDir, toggleSort } = useSortable(filtered, GETTERS, "ticker", "asc");
+  const { sorted, sortKey, sortDir, toggleSort } = useSortable(filtered, GETTERS, "portfolioPct", "desc");
 
-  // Mixed-currency pages (SG + HK together) must total in USD; a
-  // single-currency page (US) will show the same number either way.
-  const totalValueUSD = rows.reduce((sum, r) => sum + r.totalHoldingsUSD, 0);
-  const totalPLUSD = rows.reduce((sum, r) => sum + r.unrealizedPLUSD, 0);
+  const displaySymbol = currencySymbol[displayCurrency];
+
+  // Mixed-currency pages must total in one currency; a single-currency
+  // page will show the same number either way once converted.
+  const totalValueConverted = rows.reduce((sum, r) => sum + r.totalHoldingsConverted, 0);
+  const totalPLConverted = rows.reduce((sum, r) => sum + r.unrealizedPLConverted, 0);
   const mixedCurrencies = new Set(rows.map((r) => r.region)).size > 1;
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex gap-10">
         <div>
-          <p className="text-sm text-ink-300">Total holdings (USD)</p>
-          <p className="num mt-1 text-3xl font-medium">${totalValueUSD.toFixed(2)}</p>
+          <p className="text-sm text-ink-300">Total holdings ({displayCurrency})</p>
+          <p className="num mt-1 text-3xl font-medium">
+            {displaySymbol}
+            {totalValueConverted.toFixed(2)}
+          </p>
         </div>
         <div>
-          <p className="text-sm text-ink-300">Unrealized P/L (USD)</p>
+          <p className="text-sm text-ink-300">Unrealized P/L ({displayCurrency})</p>
           <p className="num mt-1 text-3xl font-medium">
-            <Money value={totalPLUSD} />
+            <NativeMoney value={totalPLConverted} symbol={displaySymbol} showPlus />
           </p>
         </div>
       </div>
       {mixedCurrencies && (
         <p className="-mt-4 text-xs text-ink-300">
           Per-row figures below are in each market&apos;s native currency; totals above and
-          Portfolio % are converted to USD at the current rate so SG and HK can be compared.
+          Portfolio % are converted to {displayCurrency} at the current rate so regions can be
+          compared.
         </p>
       )}
 
@@ -75,106 +89,123 @@ export default function PositionsTable({ rows }: { rows: PositionRow[] }) {
         <SearchBox value={search} onChange={setSearch} placeholder="Search ticker or region…" />
       </div>
 
-      <table className="ledger-table">
-        <thead>
-          <tr>
-            <SortableTh
-              label="Region"
-              active={sortKey === "region"}
-              direction={sortDir}
-              onClick={() => toggleSort("region")}
-            />
-            <SortableTh
-              label="Ticker"
-              active={sortKey === "ticker"}
-              direction={sortDir}
-              onClick={() => toggleSort("ticker")}
-            />
-            <SortableTh
-              label="Qty"
-              active={sortKey === "qty"}
-              direction={sortDir}
-              onClick={() => toggleSort("qty")}
-            />
-            <SortableTh
-              label="Avg cost"
-              active={sortKey === "avgCost"}
-              direction={sortDir}
-              onClick={() => toggleSort("avgCost")}
-            />
-            <SortableTh
-              label="Current price"
-              active={sortKey === "currentPrice"}
-              direction={sortDir}
-              onClick={() => toggleSort("currentPrice")}
-            />
-            <SortableTh
-              label="Total holdings"
-              active={sortKey === "totalHoldings"}
-              direction={sortDir}
-              onClick={() => toggleSort("totalHoldings")}
-            />
-            <SortableTh
-              label="Portfolio %"
-              active={sortKey === "portfolioPct"}
-              direction={sortDir}
-              onClick={() => toggleSort("portfolioPct")}
-            />
-            <SortableTh
-              label="Unrealized P/L (%)"
-              active={sortKey === "unrealizedPLPct"}
-              direction={sortDir}
-              onClick={() => toggleSort("unrealizedPLPct")}
-            />
-            <SortableTh
-              label="Unrealized P/L"
-              active={sortKey === "unrealizedPL"}
-              direction={sortDir}
-              onClick={() => toggleSort("unrealizedPL")}
-            />
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((r) => {
-            const symbol = currencySymbol[currencyForRegion(r.region)];
-            return (
-              <tr key={`${r.region}-${r.ticker}`}>
-                <td className="text-ink-300">{r.region}</td>
-                <td className="num">{r.ticker}</td>
-                <td className="num">{r.qty}</td>
-                <td className="num">
-                  {symbol}
-                  {r.avgCost.toFixed(2)}
-                </td>
-                <td className="num">
-                  {symbol}
-                  {r.currentPrice.toFixed(2)}
-                </td>
-                <td className="num">
-                  {symbol}
-                  {r.totalHoldings.toFixed(2)}
-                </td>
-                <td>
-                  <PlainPercent value={r.portfolioPct} />
-                </td>
-                <td>
-                  <Percent value={r.unrealizedPLPct} />
-                </td>
-                <td>
-                  <NativeMoney value={r.unrealizedPL} symbol={symbol} />
+      <div className="table-scroll">
+        <table className="ledger-table">
+          <thead>
+            <tr>
+              <SortableTh
+                label="Region"
+                active={sortKey === "region"}
+                direction={sortDir}
+                onClick={() => toggleSort("region")}
+              />
+              <SortableTh
+                label="Ticker"
+                active={sortKey === "ticker"}
+                direction={sortDir}
+                onClick={() => toggleSort("ticker")}
+              />
+              <SortableTh
+                label="Qty"
+                active={sortKey === "qty"}
+                direction={sortDir}
+                onClick={() => toggleSort("qty")}
+              />
+              <SortableTh
+                label="Avg cost"
+                active={sortKey === "avgCost"}
+                direction={sortDir}
+                onClick={() => toggleSort("avgCost")}
+              />
+              <SortableTh
+                label="Current price"
+                active={sortKey === "currentPrice"}
+                direction={sortDir}
+                onClick={() => toggleSort("currentPrice")}
+              />
+              <SortableTh
+                label="Total holdings"
+                active={sortKey === "totalHoldings"}
+                direction={sortDir}
+                onClick={() => toggleSort("totalHoldings")}
+              />
+              <SortableTh
+                label="Portfolio %"
+                active={sortKey === "portfolioPct"}
+                direction={sortDir}
+                onClick={() => toggleSort("portfolioPct")}
+              />
+              <SortableTh
+                label="Unrealized P/L (%)"
+                active={sortKey === "unrealizedPLPct"}
+                direction={sortDir}
+                onClick={() => toggleSort("unrealizedPLPct")}
+              />
+              <SortableTh
+                label="Unrealized P/L"
+                active={sortKey === "unrealizedPL"}
+                direction={sortDir}
+                onClick={() => toggleSort("unrealizedPL")}
+              />
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((r) => {
+              const symbol = currencySymbol[currencyForRegion(r.region)];
+              return (
+                <tr
+                  key={`${r.region}-${r.ticker}`}
+                  onClick={() => setSelected({ region: r.region, ticker: r.ticker })}
+                  className="cursor-pointer hover:bg-ink-900/60"
+                  title="View transaction history"
+                >
+                  <td className="text-ink-300">{r.region}</td>
+                  <td className="num">{r.ticker}</td>
+                  <td className="num">{r.qty}</td>
+                  <td className="num">
+                    {symbol}
+                    {r.avgCost.toFixed(2)}
+                  </td>
+                  <td className="num">
+                    {symbol}
+                    {r.currentPrice.toFixed(2)}
+                  </td>
+                  <td className="num">
+                    {symbol}
+                    {r.totalHoldings.toFixed(2)}
+                  </td>
+                  <td>
+                    <PlainPercent value={r.portfolioPct} />
+                  </td>
+                  <td>
+                    <Percent value={r.unrealizedPLPct} />
+                  </td>
+                  <td>
+                    <NativeMoney value={r.unrealizedPL} symbol={symbol} />
+                  </td>
+                </tr>
+              );
+            })}
+            {sorted.length === 0 && (
+              <tr>
+                <td colSpan={9} className="py-6 text-center text-ink-300">
+                  {rows.length === 0
+                    ? "No open positions in this region right now."
+                    : "No positions match your search."}
                 </td>
               </tr>
-            );
-          })}
-          {sorted.length === 0 && (
-            <tr>
-              <td colSpan={9} className="py-6 text-center text-ink-300">
-                {rows.length === 0 ? "No open positions in this region right now." : "No positions match your search."}
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {selected && (
+        <TransactionHistoryModal
+          region={selected.region}
+          ticker={selected.ticker}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   );
 }

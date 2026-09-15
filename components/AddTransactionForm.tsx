@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toLocalDateInputValue } from "@/lib/dates";
 
 export default function AddTransactionForm() {
   const router = useRouter();
@@ -9,7 +10,7 @@ export default function AddTransactionForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toLocalDateInputValue(new Date());
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

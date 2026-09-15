@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { computeLedger, fromDbRows, withLivePrices } from "@/lib/portfolio-engine";
 import { fetchQuotesForPositions } from "@/lib/prices";
-import { fetchFxRates, toUSD } from "@/lib/fx";
+import { fetchFxRates, convertCurrency, type Currency } from "@/lib/fx";
 
-export async function getOpenPositionsFor(regions: string[]) {
+export async function getOpenPositionsFor(regions: string[], displayCurrency: Currency = "USD") {
   const raw = await prisma.transaction.findMany({
     orderBy: [{ date: "asc" }, { id: "asc" }],
   });
@@ -17,20 +17,21 @@ export async function getOpenPositionsFor(regions: string[]) {
   ]);
   const withPrices = withLivePrices(filtered, prices);
 
-  // Convert to USD before computing each row's share of the group total —
-  // when a page mixes currencies (SG + HK together), summing native
-  // totalHoldings directly would add SGD and HKD as if they were equal.
-  const withUSD = withPrices.map((r) => ({
+  // Convert to a single display currency before computing each row's share
+  // of the group total — when a page mixes currencies (or just isn't in
+  // that currency natively), summing native totalHoldings directly would
+  // add SGD and HKD together as if they were equal.
+  const withConverted = withPrices.map((r) => ({
     ...r,
-    totalHoldingsUSD: toUSD(r.totalHoldings, r.region, rates),
-    unrealizedPLUSD: toUSD(r.unrealizedPL, r.region, rates),
+    totalHoldingsConverted: convertCurrency(r.totalHoldings, r.region, displayCurrency, rates),
+    unrealizedPLConverted: convertCurrency(r.unrealizedPL, r.region, displayCurrency, rates),
   }));
-  const groupTotalUSD = withUSD.reduce((sum, r) => sum + r.totalHoldingsUSD, 0);
-  const withPct = withUSD.map((r) => ({
+  const groupTotalConverted = withConverted.reduce((sum, r) => sum + r.totalHoldingsConverted, 0);
+  const withPct = withConverted.map((r) => ({
     ...r,
-    portfolioPct: groupTotalUSD === 0 ? 0 : r.totalHoldingsUSD / groupTotalUSD,
+    portfolioPct: groupTotalConverted === 0 ? 0 : r.totalHoldingsConverted / groupTotalConverted,
   }));
 
   // Highest-value holdings first, matching how you'd scan a positions sheet.
-  return withPct.sort((a, b) => b.totalHoldingsUSD - a.totalHoldingsUSD);
+  return withPct.sort((a, b) => b.totalHoldingsConverted - a.totalHoldingsConverted);
 }

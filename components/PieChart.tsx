@@ -8,7 +8,7 @@ export interface PieSlice {
 const CHART_COLORS = ["#e8a33d", "#4f8fe8", "#3ecf8e", "#b98ae8", "#f2545b", "#5fd0e8"];
 
 function formatAmount(n: number) {
-  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export default function PieChart({ slices }: { slices: PieSlice[] }) {

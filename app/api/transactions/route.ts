@@ -2,11 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { computeLedger, fromDbRows, findNegativeQtyAfter } from "@/lib/portfolio-engine";
 
-export async function GET() {
-  const transactions = await prisma.transaction.findMany({
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const region = searchParams.get("region");
+  const ticker = searchParams.get("ticker");
+
+  const raw = await prisma.transaction.findMany({
     orderBy: [{ date: "asc" }, { id: "asc" }],
   });
-  return NextResponse.json(transactions);
+  const { ledger } = computeLedger(fromDbRows(raw));
+
+  const filtered =
+    region && ticker
+      ? ledger.filter(
+          (t) => t.region === region.toUpperCase() && t.ticker === ticker.toUpperCase()
+        )
+      : ledger;
+
+  return NextResponse.json(filtered);
 }
 
 export async function POST(req: NextRequest) {
