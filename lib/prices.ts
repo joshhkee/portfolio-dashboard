@@ -16,8 +16,16 @@ export function toYahooSymbol(region: string, ticker: string): string {
   switch (region) {
     case "SG":
       return `${ticker}.SI`;
-    case "HK":
-      return `${ticker}.HK`;
+    case "HK": {
+      // Yahoo expects HK codes zero-padded to exactly 4 digits (e.g.
+      // "0700.HK" for Tencent, "1810.HK" for Xiaomi) — stripping to the
+      // numeric value and re-padding handles both a 5-digit code with an
+      // extra leading zero and a plain 3-digit code correctly, matching
+      // Yahoo's actual convention either way.
+      const numeric = Number(ticker);
+      const padded = Number.isFinite(numeric) ? String(numeric).padStart(4, "0") : ticker;
+      return `${padded}.HK`;
+    }
     default:
       return ticker; // US tickers are used as-is
   }
@@ -37,6 +45,29 @@ export async function fetchQuote(yahooSymbol: string): Promise<number | null> {
     const data = await res.json();
     const price = data?.chart?.result?.[0]?.meta?.regularMarketPrice;
     return typeof price === "number" ? price : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Full company/fund name for a ticker (e.g. "Xiaomi Corporation"), for
+ * display only. Uses a different, less reliable Yahoo endpoint than
+ * fetchQuote (the chart endpoint doesn't return a name at all) — this
+ * one is known to occasionally 401, so treat it as cosmetic and fail
+ * silently rather than let a missing name break anything.
+ */
+export async function fetchCompanyName(yahooSymbol: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(yahooSymbol)}`,
+      { next: { revalidate: 3600 } }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const quote = data?.quoteResponse?.result?.[0];
+    const name = quote?.longName ?? quote?.shortName;
+    return typeof name === "string" && name.length > 0 ? name : null;
   } catch {
     return null;
   }

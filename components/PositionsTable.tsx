@@ -20,7 +20,10 @@ export interface PositionRow {
   unrealizedPLConverted: number;
   unrealizedPLPct: number;
   portfolioPct: number;
+  priceUnavailable: boolean;
 }
+
+const REGION_LABEL: Record<Currency, string> = { USD: "US", SGD: "SG", HKD: "HK" };
 
 const GETTERS: Record<string, (r: PositionRow) => number | string> = {
   region: (r) => r.region,
@@ -61,6 +64,7 @@ export default function PositionsTable({
   const totalValueConverted = rows.reduce((sum, r) => sum + r.totalHoldingsConverted, 0);
   const totalPLConverted = rows.reduce((sum, r) => sum + r.unrealizedPLConverted, 0);
   const mixedCurrencies = new Set(rows.map((r) => r.region)).size > 1;
+  const anyPriceUnavailable = rows.some((r) => r.priceUnavailable);
 
   return (
     <div className="flex flex-col gap-6">
@@ -84,6 +88,14 @@ export default function PositionsTable({
           Per-row figures below are in each market&apos;s native currency; totals above and
           Portfolio % are converted to {displayCurrency} at the current rate so regions can be
           compared.
+        </p>
+      )}
+      {anyPriceUnavailable && (
+        <p className="-mt-4 text-xs text-ink-300">
+          ⚠ One or more tickers below have no live quote available right now (common for HK
+          listings) — those rows show total holdings at cost basis and their unrealized P/L as
+          N/A rather than a possibly-wrong number. The totals above treat those rows as
+          contributing $0 unrealized P/L, so they may understate the true total.
         </p>
       )}
 
@@ -132,7 +144,7 @@ export default function PositionsTable({
                 onClick={() => toggleSort("totalHoldings")}
               />
               <SortableTh
-                label="Portfolio %"
+                label={`${REGION_LABEL[displayCurrency]} Portfolio %`}
                 active={sortKey === "portfolioPct"}
                 direction={sortDir}
                 onClick={() => toggleSort("portfolioPct")}
@@ -162,15 +174,33 @@ export default function PositionsTable({
                   title="View transaction history"
                 >
                   <td className="text-ink-300">{r.region}</td>
-                  <td className="num">{r.ticker}</td>
+                  <td className="num">
+                    {r.ticker}
+                    {r.priceUnavailable && (
+                      <span
+                        className="ml-1 text-ink-500"
+                        title="No live quote available for this ticker — price/P&L shown may be stale"
+                      >
+                        ⚠
+                      </span>
+                    )}
+                  </td>
                   <td className="num">{r.qty}</td>
                   <td className="num">
                     {symbol}
                     {formatAmount(r.avgCost)}
                   </td>
                   <td className="num">
-                    {symbol}
-                    {formatAmount(r.currentPrice)}
+                    {r.priceUnavailable ? (
+                      <span className="text-ink-500" title="No live quote available">
+                        —
+                      </span>
+                    ) : (
+                      <>
+                        {symbol}
+                        {formatAmount(r.currentPrice)}
+                      </>
+                    )}
                   </td>
                   <td className="num">
                     {symbol}
@@ -180,10 +210,20 @@ export default function PositionsTable({
                     <PlainPercent value={r.portfolioPct} />
                   </td>
                   <td>
-                    <Percent value={r.unrealizedPLPct} />
+                    {r.priceUnavailable ? (
+                      <span className="text-ink-500" title="No live quote — can't compute unrealized P/L">
+                        N/A
+                      </span>
+                    ) : (
+                      <Percent value={r.unrealizedPLPct} />
+                    )}
                   </td>
                   <td>
-                    <NativeMoney value={r.unrealizedPL} symbol={symbol} />
+                    {r.priceUnavailable ? (
+                      <span className="text-ink-500">N/A</span>
+                    ) : (
+                      <NativeMoney value={r.unrealizedPL} symbol={symbol} />
+                    )}
                   </td>
                 </tr>
               );

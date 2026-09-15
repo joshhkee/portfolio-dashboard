@@ -173,7 +173,15 @@ export function withLivePrices(
   prices: Record<string, number>
 ) {
   return positions.map((p) => {
-    const currentPrice = prices[p.ticker] ?? p.avgCost; // fall back to cost if quote missing
+    const livePrice = prices[p.ticker];
+    const priceUnavailable = livePrice === undefined;
+    // Fall back to cost basis when there's no live quote (e.g. HK
+    // tickers, which Yahoo's free endpoint doesn't reliably cover) —
+    // keeps aggregate totals a reasonable approximation rather than
+    // undercounting the position entirely. priceUnavailable flags this
+    // row so the UI can show its P/L as unknown instead of a
+    // misleading "0% gain".
+    const currentPrice = livePrice ?? p.avgCost;
     const totalHoldings = p.qty * currentPrice;
     const unrealizedPL = (currentPrice - p.avgCost) * p.qty;
     const unrealizedPLPct =
@@ -184,6 +192,7 @@ export function withLivePrices(
       totalHoldings,
       unrealizedPL,
       unrealizedPLPct,
+      priceUnavailable,
     };
   });
 }
