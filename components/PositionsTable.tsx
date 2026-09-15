@@ -42,7 +42,9 @@ export default function PositionsTable({
   displayCurrency?: Currency;
 }) {
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<{ region: string; ticker: string } | null>(null);
+  const [selected, setSelected] = useState<{ region: string; ticker: string; currentPrice: number } | null>(
+    null
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -155,7 +157,7 @@ export default function PositionsTable({
               return (
                 <tr
                   key={`${r.region}-${r.ticker}`}
-                  onClick={() => setSelected({ region: r.region, ticker: r.ticker })}
+                  onClick={() => setSelected({ region: r.region, ticker: r.ticker, currentPrice: r.currentPrice })}
                   className="cursor-pointer hover:bg-ink-900/60"
                   title="View transaction history"
                 >
@@ -203,6 +205,7 @@ export default function PositionsTable({
         <TransactionHistoryModal
           region={selected.region}
           ticker={selected.ticker}
+          currentPrice={selected.currentPrice}
           onClose={() => setSelected(null)}
         />
       )}

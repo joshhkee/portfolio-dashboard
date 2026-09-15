@@ -1,9 +1,9 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
-import { currencySymbol, currencyForRegion } from "@/lib/fx";
+import { useEffect, useState } from "react";
+import { currencySymbol, currencyForRegion, convertCurrency, type FxRates } from "@/lib/fx";
 import { formatShortDate } from "@/lib/dates";
-import { formatQty } from "@/components/SignedNumber";
+import { formatQty, Percent, NativeMoney } from "@/components/SignedNumber";
 
 interface HistoryRow {
   id: number;
@@ -17,6 +17,12 @@ interface HistoryRow {
   runningQty: number;
   runningAvgCost: number;
   transactionValue: number;
+}
+
+interface Trade {
+  cycle: HistoryRow[];
+  tradeNumber: number;
+  isOpen: boolean;
 }
 
 const EPSILON = 1e-6;
@@ -38,16 +44,182 @@ function splitIntoCycles(rows: HistoryRow[]) {
   return { closedCycles, openCycle: current };
 }
 
+interface CycleStats {
+  avgBuyCost: number;
+  hasSells: boolean;
+  avgSellCost: number;
+  realizedPLNative: number;
+  realizedPLPct: number;
+  remainingQty: number;
+}
+
+/** Sell rows don't change the running average, so a Sell row's own
+ * runningAvgCost is exactly the cost basis that sale was realized
+ * against — matches how the engine computes completedTrades. */
+function computeCycleStats(rows: HistoryRow[]): CycleStats {
+  const sells = rows.filter((r) => r.action === "Sell");
+  const last = rows[rows.length - 1];
+
+  let totalSellQty = 0;
+  let totalSellValue = 0;
+  let totalRealizedPL = 0;
+  let totalCostBasisSold = 0;
+  for (const row of sells) {
+    totalSellQty += row.qty;
+    totalSellValue += row.qty * row.price;
+    totalRealizedPL += (row.price - row.runningAvgCost) * row.qty;
+    totalCostBasisSold += row.runningAvgCost * row.qty;
+  }
+
+  return {
+    avgBuyCost: last?.runningAvgCost ?? 0,
+    hasSells: sells.length > 0,
+    avgSellCost: totalSellQty > 0 ? totalSellValue / totalSellQty : 0,
+    realizedPLNative: totalRealizedPL,
+    realizedPLPct: totalCostBasisSold > 0 ? totalRealizedPL / totalCostBasisSold : 0,
+    remainingQty: last?.runningQty ?? 0,
+  };
+}
+
+function StatRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-1 text-sm">
+      <dt className="text-ink-300">{label}</dt>
+      <dd className="num">{children}</dd>
+    </div>
+  );
+}
+
+function TradeSection({
+  trade,
+  ticker,
+  symbol,
+  rates,
+  region,
+  currentPrice,
+}: {
+  trade: Trade;
+  ticker: string;
+  symbol: string;
+  rates: FxRates | null;
+  region: string;
+  currentPrice: number;
+}) {
+  const stats = computeCycleStats(trade.cycle);
+  const sgdSymbol = currencySymbol.SGD;
+  const currency = currencyForRegion(region);
+
+  const unrealizedPLNative = (currentPrice - stats.avgBuyCost) * stats.remainingQty;
+  const unrealizedPLPct = stats.avgBuyCost > 0 ? (currentPrice - stats.avgBuyCost) / stats.avgBuyCost : 0;
+
+  return (
+    <div className="mb-8 last:mb-0">
+      <p className="mb-2 text-sm font-medium text-ink-100">
+        {ticker} Trade {trade.tradeNumber} ({trade.isOpen ? "open" : "closed"})
+      </p>
+      <div className="table-scroll">
+        <table className="ledger-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Action</th>
+              <th>Qty</th>
+              <th>Price</th>
+              <th>Running qty</th>
+              <th className="text-left">Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {trade.cycle.map((row) => (
+              <tr key={row.id}>
+                <td className="num text-ink-300">{formatShortDate(new Date(row.date))}</td>
+                <td className={row.action === "Buy" ? "text-gain" : "text-loss"}>{row.action}</td>
+                <td className="num">{formatQty(row.qty)}</td>
+                <td className="num">
+                  {symbol}
+                  {row.price.toFixed(2)}
+                </td>
+                <td className="num">{formatQty(row.runningQty)}</td>
+                <td className="max-w-[16rem] truncate text-left text-ink-300" title={row.notes ?? undefined}>
+                  {row.notes}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <dl className="mt-3 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
+        <StatRow label="Avg buy cost">
+          {symbol}
+          {stats.avgBuyCost.toFixed(2)}
+        </StatRow>
+
+        {stats.hasSells && (
+          <>
+            <StatRow label="Avg sell cost">
+              {symbol}
+              {stats.avgSellCost.toFixed(2)}
+            </StatRow>
+            <StatRow label="Realised P/L (%)">
+              <Percent value={stats.realizedPLPct} />
+            </StatRow>
+            <StatRow label={`Realised P/L (${currency})`}>
+              <NativeMoney value={stats.realizedPLNative} symbol={symbol} showPlus />
+            </StatRow>
+            <StatRow label="Realised P/L (SGD)">
+              {rates ? (
+                <NativeMoney
+                  value={convertCurrency(stats.realizedPLNative, region, "SGD", rates)}
+                  symbol={sgdSymbol}
+                  showPlus
+                />
+              ) : (
+                "—"
+              )}
+            </StatRow>
+          </>
+        )}
+
+        {trade.isOpen && (
+          <>
+            <StatRow label="Unrealised P/L (%)">
+              <Percent value={unrealizedPLPct} />
+            </StatRow>
+            <StatRow label={`Unrealised P/L (${currency})`}>
+              <NativeMoney value={unrealizedPLNative} symbol={symbol} showPlus />
+            </StatRow>
+            <StatRow label="Unrealised P/L (SGD)">
+              {rates ? (
+                <NativeMoney
+                  value={convertCurrency(unrealizedPLNative, region, "SGD", rates)}
+                  symbol={sgdSymbol}
+                  showPlus
+                />
+              ) : (
+                "—"
+              )}
+            </StatRow>
+          </>
+        )}
+      </dl>
+    </div>
+  );
+}
+
 export default function TransactionHistoryModal({
   region,
   ticker,
+  currentPrice,
   onClose,
 }: {
   region: string;
   ticker: string;
+  currentPrice: number;
   onClose: () => void;
 }) {
   const [rows, setRows] = useState<HistoryRow[] | null>(null);
+  const [rates, setRates] = useState<FxRates | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,7 +230,10 @@ export default function TransactionHistoryModal({
         return res.json();
       })
       .then((data) => {
-        if (!cancelled) setRows(data);
+        if (!cancelled) {
+          setRows(data.ledger);
+          setRates(data.rates);
+        }
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "Something went wrong");
@@ -76,25 +251,21 @@ export default function TransactionHistoryModal({
     return () => window.removeEventListener("keydown", handleKey);
   }, [onClose]);
 
-  const { closedCycles, openCycle } = rows ? splitIntoCycles(rows) : { closedCycles: [], openCycle: [] };
   const symbol = currencySymbol[currencyForRegion(region)];
 
-  function renderRow(row: HistoryRow) {
-    return (
-      <tr key={row.id}>
-        <td className="num text-ink-300">{formatShortDate(new Date(row.date))}</td>
-        <td className={row.action === "Buy" ? "text-gain" : "text-loss"}>{row.action}</td>
-        <td className="num">{formatQty(row.qty)}</td>
-        <td className="num">
-          {symbol}
-          {row.price.toFixed(2)}
-        </td>
-        <td className="num">{formatQty(row.runningQty)}</td>
-        <td className="max-w-[16rem] truncate text-left text-ink-300" title={row.notes ?? undefined}>
-          {row.notes}
-        </td>
-      </tr>
-    );
+  let trades: Trade[] = [];
+  if (rows) {
+    const { closedCycles, openCycle } = splitIntoCycles(rows);
+    const tradeCount = closedCycles.length + (openCycle.length > 0 ? 1 : 0);
+    const closedTrades: Trade[] = closedCycles.map((cycle, i) => ({
+      cycle,
+      tradeNumber: i + 1,
+      isOpen: false,
+    }));
+    const openTrade: Trade[] =
+      openCycle.length > 0 ? [{ cycle: openCycle, tradeNumber: tradeCount, isOpen: true }] : [];
+    // Flipped order: open position first, then closed trades most-recent-first.
+    trades = [...openTrade, ...closedTrades.slice().reverse()];
   }
 
   return (
@@ -129,33 +300,19 @@ export default function TransactionHistoryModal({
           {!error && rows && rows.length === 0 && (
             <p className="text-sm text-ink-300">No transactions found for this position.</p>
           )}
-          {!error && rows && rows.length > 0 && (
-            <table className="ledger-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Action</th>
-                  <th>Qty</th>
-                  <th>Price</th>
-                  <th>Running qty</th>
-                  <th className="text-left">Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {closedCycles.map((cycle, i) => (
-                  <Fragment key={i}>
-                    {cycle.map(renderRow)}
-                    <tr>
-                      <td colSpan={6} className="border-b border-ink-800 bg-ink-900/60 py-2 text-xs text-ink-300">
-                        — Position closed here (fully sold) — reopened below —
-                      </td>
-                    </tr>
-                  </Fragment>
-                ))}
-                {openCycle.map(renderRow)}
-              </tbody>
-            </table>
-          )}
+          {!error &&
+            rows &&
+            trades.map((trade) => (
+              <TradeSection
+                key={`${trade.isOpen ? "open" : "closed"}-${trade.tradeNumber}`}
+                trade={trade}
+                ticker={ticker}
+                symbol={symbol}
+                rates={rates}
+                region={region}
+                currentPrice={currentPrice}
+              />
+            ))}
         </div>
       </div>
     </div>
