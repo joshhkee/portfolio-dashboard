@@ -10,6 +10,7 @@
 
 # env files
 .env
+.env.example
 .env*.local
 
 # misc
@@ -19,3 +20,8 @@ npm-debug.log*
 
 # prisma
 prisma/dev.db
+
+dashboard-batch-3.patch
+dashboard-batch-4.patch
+dashboard-batch-5.patch
+dashboard-batch-6.patch
