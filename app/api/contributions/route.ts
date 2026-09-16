@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { adjustCashBalance } from "@/lib/cash";
 
 export async function GET() {
   const contributions = await prisma.contribution.findMany({
@@ -47,6 +48,13 @@ export async function POST(req: NextRequest) {
       )
     );
 
+    // Outlay is always recorded in SGD.
+    const totalAmount = entries.reduce(
+      (sum: number, e: { amount: number }) => sum + Number(e.amount),
+      0
+    );
+    await adjustCashBalance("SGD", totalAmount);
+
     return NextResponse.json(created, { status: 201 });
   }
 
@@ -70,6 +78,8 @@ export async function POST(req: NextRequest) {
       amount: Number(amount),
     },
   });
+
+  await adjustCashBalance("SGD", Number(amount));
 
   return NextResponse.json(contribution, { status: 201 });
 }

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { computeLedger, fromDbRows, findNegativeQtyAfter } from "@/lib/portfolio-engine";
-import { fetchFxRates } from "@/lib/fx";
+import { fetchFxRates, currencyForRegion } from "@/lib/fx";
 import { fetchCompanyName, toYahooSymbol } from "@/lib/prices";
+import { adjustCashBalance } from "@/lib/cash";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -90,6 +91,13 @@ export async function POST(req: NextRequest) {
       notes: notes ? String(notes) : null,
     },
   });
+
+  // A Buy spends cash in that region's currency; a Sell returns it.
+  // Soft tracking, not a hard constraint — a Buy is never blocked for
+  // insufficient cash, since this balance is meant to be an editable
+  // approximation, not an enforced ledger.
+  const cashDelta = (action === "Buy" ? -1 : 1) * Number(qty) * Number(price);
+  await adjustCashBalance(currencyForRegion(normalizedRegion), cashDelta);
 
   return NextResponse.json(transaction, { status: 201 });
 }

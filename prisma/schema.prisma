@@ -1,12 +1,20 @@
 // Portfolio dashboard schema.
 //
-// Design note: only two tables hold real data — Transaction and
-// Contribution. Everything else your Google Sheet showed as
-// "[View-Only]" (Open Positions US/SG-HK, Completed Trades, portfolio
-// totals/percentages) is DERIVED from these by replaying transactions
-// in date order — see lib/portfolio-engine.ts. This mirrors how the
-// sheet's formulas worked, and avoids ever having stored numbers
-// drift out of sync with the ledger.
+// Design note: Transaction and Contribution are the core ledger —
+// Open Positions, Completed Trades, and portfolio totals/percentages
+// are all DERIVED from these by replaying transactions in date order
+// (see lib/portfolio-engine.ts), never stored, so they can't drift out
+// of sync with the ledger.
+//
+// CashBalance is a deliberate exception to that rule: it's a real
+// stored, directly-editable balance, auto-adjusted whenever a
+// contribution/outlay, purchase, sale, or exchange happens, but also
+// meant to be hand-corrected when it drifts from reality (a bank
+// statement doesn't quite match, a fee wasn't logged, etc.) — it is
+// NOT recomputed from the ledger on each read the way everything else
+// is. CashExchange is a log of currency exchanges only, for the
+// Recent Activity feed and an audit trail; the balances themselves
+// still live on CashBalance.
 
 generator client {
   provider = "prisma-client-js"
@@ -52,5 +60,26 @@ model Transaction {
   createdAt DateTime @default(now())
 
   @@index([ticker, region])
+  @@index([date])
+}
+
+model CashBalance {
+  id        Int      @id @default(autoincrement())
+  currency  String   @unique // "SGD" | "USD" | "HKD"
+  balance   Float    @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+model CashExchange {
+  id           Int      @id @default(autoincrement())
+  date         DateTime @default(now())
+  fromCurrency String
+  fromAmount   Float
+  toCurrency   String
+  toAmount     Float
+  rate         Float // toAmount / fromAmount, kept for reference/display
+  auto         Boolean // true if the live FX rate was used, false if hand-entered
+  createdAt    DateTime @default(now())
+
   @@index([date])
 }

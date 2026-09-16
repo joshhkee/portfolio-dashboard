@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fromDbRows, findFirstNegativeQty, type DbTransactionRow } from "@/lib/portfolio-engine";
+import { currencyForRegion } from "@/lib/fx";
+import { adjustCashBalance } from "@/lib/cash";
 
 export async function DELETE(
   _req: NextRequest,
@@ -11,7 +13,17 @@ export async function DELETE(
   if (!Number.isInteger(id)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
+  const existing = await prisma.transaction.findUnique({ where: { id } });
+  if (!existing) {
+    return NextResponse.json({ error: "Transaction not found" }, { status: 404 });
+  }
   await prisma.transaction.delete({ where: { id } });
+
+  // Reverse this transaction's cash effect: a deleted Buy gives cash
+  // back, a deleted Sell takes the proceeds back out.
+  const reverseDelta = (existing.action === "Buy" ? 1 : -1) * existing.qty * existing.price;
+  await adjustCashBalance(currencyForRegion(existing.region), reverseDelta);
+
   return NextResponse.json({ ok: true });
 }
 
@@ -89,6 +101,15 @@ export async function PATCH(
       notes: notes ? String(notes) : null,
     },
   });
+
+  // Reverse the old cash effect and apply the new one — handles a
+  // changed qty/price/action, and a changed region (reverses against
+  // the OLD region's currency, applies against the NEW one).
+  const oldTxn = existing.find((t) => t.id === id)!;
+  const oldDelta = (oldTxn.action === "Buy" ? -1 : 1) * oldTxn.qty * oldTxn.price;
+  const newDelta = (action === "Buy" ? -1 : 1) * Number(qty) * Number(price);
+  await adjustCashBalance(currencyForRegion(oldTxn.region), -oldDelta);
+  await adjustCashBalance(currencyForRegion(normalizedRegion), newDelta);
 
   return NextResponse.json(transaction);
 }
