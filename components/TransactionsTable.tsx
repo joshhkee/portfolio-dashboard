@@ -36,8 +36,11 @@ export default function TransactionsTable({ ledger }: { ledger: LedgerRow[] }) {
   const { sorted, sortKey, sortDir, toggleSort } = useSortable(filtered, GETTERS, "date", "desc");
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex justify-end">
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-4">
+        <p className="label">
+          {filtered.length} {filtered.length === 1 ? "entry" : "entries"}
+        </p>
         <SearchBox value={search} onChange={setSearch} placeholder="Search ticker, region, or notes…" />
       </div>
 
@@ -49,28 +52,33 @@ export default function TransactionsTable({ ledger }: { ledger: LedgerRow[] }) {
             <SortableTh label="Action" active={sortKey === "action"} direction={sortDir} onClick={() => toggleSort("action")} />
             <SortableTh label="Ticker" active={sortKey === "ticker"} direction={sortDir} onClick={() => toggleSort("ticker")} />
             <SortableTh label="Region" active={sortKey === "region"} direction={sortDir} onClick={() => toggleSort("region")} />
-            <SortableTh label="Qty" active={sortKey === "qty"} direction={sortDir} onClick={() => toggleSort("qty")} />
-            <SortableTh label="Price" active={sortKey === "price"} direction={sortDir} onClick={() => toggleSort("price")} />
+            <SortableTh label="Qty" align="right" active={sortKey === "qty"} direction={sortDir} onClick={() => toggleSort("qty")} />
+            <SortableTh label="Price" align="right" active={sortKey === "price"} direction={sortDir} onClick={() => toggleSort("price")} />
             <SortableTh
               label="Running qty"
+              align="right"
               active={sortKey === "runningQty"}
               direction={sortDir}
               onClick={() => toggleSort("runningQty")}
             />
             <SortableTh
               label="Running avg cost"
+              align="right"
               active={sortKey === "runningAvgCost"}
               direction={sortDir}
               onClick={() => toggleSort("runningAvgCost")}
             />
             <SortableTh
               label="Txn value"
+              align="right"
               active={sortKey === "transactionValue"}
               direction={sortDir}
               onClick={() => toggleSort("transactionValue")}
             />
             <th className="text-left">Notes</th>
-            <th></th>
+            <th className="text-right">
+              <span className="sr-only">Row actions</span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -79,7 +87,7 @@ export default function TransactionsTable({ ledger }: { ledger: LedgerRow[] }) {
           ))}
           {sorted.length === 0 && (
             <tr>
-              <td colSpan={11} className="py-6 text-center text-ink-300">
+              <td colSpan={11} className="py-10 text-center">
                 {ledger.length === 0 ? "No transactions yet — log the first trade above." : "No transactions match your search."}
               </td>
             </tr>

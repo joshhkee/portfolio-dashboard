@@ -1,29 +1,34 @@
 "use client";
 
+import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
+
 export default function SortableTh({
   label,
   active,
   direction,
   onClick,
+  align = "left",
 }: {
   label: string;
   active: boolean;
   direction: "asc" | "desc";
   onClick: () => void;
+  align?: "left" | "right";
 }) {
+  const right = align === "right";
+  const Icon = active ? (direction === "asc" ? ChevronUp : ChevronDown) : ChevronsUpDown;
+
   return (
-    <th>
+    <th className={right ? "text-right" : undefined}>
       <button
         type="button"
         onClick={onClick}
-        className={`inline-flex items-center gap-1 font-medium transition ${
-          active ? "text-ink-100" : "text-ink-300 hover:text-ink-100"
-        }`}
+        className={`inline-flex items-center gap-1 whitespace-nowrap transition ${
+          right ? "justify-end" : ""
+        } ${active ? "text-accent" : "text-fg-subtle hover:text-fg-muted"}`}
       >
         {label}
-        <span className="text-[10px] leading-none">
-          {active ? (direction === "asc" ? "▲" : "▼") : "↕"}
-        </span>
+        <Icon size={11} strokeWidth={1.75} aria-hidden />
       </button>
     </th>
   );

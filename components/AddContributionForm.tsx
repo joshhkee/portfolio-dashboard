@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Plus } from "lucide-react";
 import { toLocalDateInputValue } from "@/lib/dates";
 
 // The standard monthly split observed in the contribution history —
@@ -106,7 +107,11 @@ export default function AddContributionForm({
   if (mode === "closed") {
     return (
       <div className="flex gap-2">
-        <button className="btn-primary" onClick={() => setMode("single")}>
+        <button
+          className="btn-primary inline-flex items-center gap-2"
+          onClick={() => setMode("single")}
+        >
+          <Plus size={14} strokeWidth={1.5} aria-hidden />
           Record a deposit
         </button>
         <button className="btn-ghost" onClick={() => setMode("default-month")}>
@@ -120,15 +125,15 @@ export default function AddContributionForm({
     return (
       <form
         onSubmit={handleDefaultMonthSubmit}
-        className="panel flex flex-col gap-3 p-4"
+        className="panel flex flex-col gap-5 p-5"
       >
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-ink-300">Label</label>
+            <label className="label">Label</label>
             <input name="label" required defaultValue={nextMonthLabel} className="field w-36" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-ink-300">Date</label>
+            <label className="label">Date</label>
             <input
               name="date"
               type="date"
@@ -141,7 +146,7 @@ export default function AddContributionForm({
         <div className="flex flex-wrap gap-3">
           {knownContributors.map((name) => (
             <div key={name} className="flex flex-col gap-1">
-              <label className="text-xs text-ink-300">{name}</label>
+              <label className="label">{name}</label>
               <input
                 name={`amount:${name}`}
                 type="number"
@@ -166,15 +171,15 @@ export default function AddContributionForm({
             Cancel
           </button>
         </div>
-        {error && <p className="text-sm text-loss">{error}</p>}
+        {error && <p className="text-sm text-negative">{error}</p>}
       </form>
     );
   }
 
   return (
-    <form onSubmit={handleSingleSubmit} className="panel flex flex-wrap items-end gap-3 p-4">
+    <form onSubmit={handleSingleSubmit} className="panel flex flex-wrap items-end gap-4 p-5">
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Stakeholder</label>
+        <label className="label">Stakeholder</label>
         <input
           name="contributorName"
           list="contributor-list"
@@ -189,7 +194,7 @@ export default function AddContributionForm({
         </datalist>
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Label</label>
+        <label className="label">Label</label>
         <input
           name="label"
           required
@@ -198,11 +203,11 @@ export default function AddContributionForm({
         />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Date</label>
+        <label className="label">Date</label>
         <input name="date" type="date" required defaultValue={today} className="field w-36" />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Amount</label>
+        <label className="label">Amount</label>
         <input
           name="amount"
           type="number"
@@ -226,7 +231,7 @@ export default function AddContributionForm({
           Cancel
         </button>
       </div>
-      {error && <p className="w-full text-sm text-loss">{error}</p>}
+      {error && <p className="w-full text-sm text-negative">{error}</p>}
     </form>
   );
 }

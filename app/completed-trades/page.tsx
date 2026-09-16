@@ -3,6 +3,7 @@ import { computeLedger, fromDbRows } from "@/lib/portfolio-engine";
 import { fetchFxRates, convertCurrency } from "@/lib/fx";
 import { NativeMoney } from "@/components/SignedNumber";
 import CompletedTradesTable from "@/components/CompletedTradesTable";
+import { Info } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -22,17 +23,25 @@ export default async function CompletedTradesPage() {
   const totalRealizedSGD = tradesWithSGD.reduce((sum, t) => sum + t.realizedPLSGD, 0);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <p className="text-sm text-ink-300">Total realized P/L (SGD)</p>
-        <p className="num mt-1 text-3xl font-medium">
-          <NativeMoney value={totalRealizedSGD} symbol="S$" />
-        </p>
-        <p className="mt-1 text-xs text-ink-300">
-          US and HK trades are converted at the current SGD/USD and SGD/HKD rate — not the
-          rate on the actual sell date, so this is an approximation for older trades.
-        </p>
-      </div>
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-wrap items-end justify-between gap-8">
+        <div>
+          <p className="label">Closed positions</p>
+          <h1 className="mt-2 text-3xl font-medium tracking-tight text-fg">Completed trades</h1>
+        </div>
+        <div className="text-right">
+          <p className="label">Total realized P/L (SGD)</p>
+          <p className="mt-2 text-4xl font-medium tracking-tight">
+            <NativeMoney value={totalRealizedSGD} symbol="S$" />
+          </p>
+        </div>
+      </header>
+
+      <p className="flex items-start gap-2 text-xs text-fg-subtle">
+        <Info size={13} strokeWidth={1.5} className="mt-0.5 shrink-0" aria-hidden />
+        US and HK trades are converted at the current SGD/USD and SGD/HKD rate — not the rate on the
+        actual sell date, so this is an approximation for older trades.
+      </p>
 
       <CompletedTradesTable trades={tradesWithSGD} />
     </div>

@@ -15,7 +15,7 @@ export function Money({ value }: { value: number }) {
   const positive = value > 0;
   const negative = value < 0;
   return (
-    <span className={`num ${positive ? "text-gain" : negative ? "text-loss" : "text-ink-100"}`}>
+    <span className={`num ${positive ? "text-positive" : negative ? "text-negative" : "text-fg"}`}>
       {formatMoney(value)}
     </span>
   );
@@ -25,7 +25,7 @@ export function Percent({ value }: { value: number }) {
   const positive = value > 0;
   const negative = value < 0;
   return (
-    <span className={`num ${positive ? "text-gain" : negative ? "text-loss" : "text-ink-100"}`}>
+    <span className={`num ${positive ? "text-positive" : negative ? "text-negative" : "text-fg"}`}>
       {formatPct(value)}
     </span>
   );
@@ -38,7 +38,7 @@ export function PlainMoney({ value }: { value: number }) {
 /** For shares-of-total percentages (e.g. Portfolio %, % of portfolio) — these
  * aren't a gain/loss figure, so no green/red coloring and no leading "+". */
 export function PlainPercent({ value }: { value: number }) {
-  return <span className="num text-ink-100">{(value * 100).toFixed(2)}%</span>;
+  return <span className="num text-fg">{(value * 100).toFixed(2)}%</span>;
 }
 
 /** Like Money, but for figures in a native (non-USD) currency — takes the
@@ -60,7 +60,7 @@ export function NativeMoney({
     maximumFractionDigits: 2,
   });
   return (
-    <span className={`num ${positive ? "text-gain" : negative ? "text-loss" : "text-ink-100"}`}>
+    <span className={`num ${positive ? "text-positive" : negative ? "text-negative" : "text-fg"}`}>
       {negative ? "-" : positive && showPlus ? "+" : ""}
       {symbol}
       {abs}

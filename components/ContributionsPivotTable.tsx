@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Check, Trash2, X } from "lucide-react";
 import { PlainMoney } from "@/components/SignedNumber";
 
 interface Cell {
@@ -25,7 +26,7 @@ function PivotCell({ cell }: { cell: Cell }) {
   const [error, setError] = useState<string | null>(null);
 
   if (cell.amount === null) {
-    return <span className="text-ink-500">—</span>;
+    return <span className="text-fg-subtle/60">—</span>;
   }
 
   // A handful of duplicate rows under the same label+contributor (rare) —
@@ -74,8 +75,8 @@ function PivotCell({ cell }: { cell: Cell }) {
 
   if (editing) {
     return (
-      <form onSubmit={handleSave} className="flex flex-col items-center gap-1.5">
-        <div className="flex items-center gap-1.5">
+      <form onSubmit={handleSave} className="flex flex-col items-end gap-1.5">
+        <div className="flex items-center gap-1">
           <input
             name="amount"
             type="number"
@@ -84,37 +85,37 @@ function PivotCell({ cell }: { cell: Cell }) {
             required
             autoFocus
             defaultValue={cell.amount}
-            className="field w-20 px-1 py-1 text-center"
+            className="field w-24 px-2 py-1 text-right"
           />
           <button
             type="submit"
-            className="rounded-sm bg-gain/15 px-2.5 py-1.5 text-sm font-medium leading-none text-gain hover:bg-gain/25 disabled:opacity-50"
+            className="btn-inline hover:text-positive"
             disabled={busy}
             title="Save"
           >
-            ✓
+            <Check size={14} strokeWidth={1.5} aria-hidden />
           </button>
           <button
             type="button"
-            className="rounded-sm bg-ink-800 px-2.5 py-1.5 text-sm leading-none text-ink-300 hover:bg-ink-700 hover:text-ink-100 disabled:opacity-50"
+            className="btn-inline hover:text-fg"
             onClick={() => setEditing(false)}
             disabled={busy}
             title="Cancel"
           >
-            ×
+            <X size={14} strokeWidth={1.5} aria-hidden />
           </button>
         </div>
-        {error && <p className="text-[10px] text-loss">{error}</p>}
+        {error && <p className="text-[10px] text-negative">{error}</p>}
       </form>
     );
   }
 
   return (
-    <div className="flex items-center justify-center gap-1">
+    <div className="group flex items-center justify-end gap-1">
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className="rounded-sm px-1 py-0.5 hover:bg-ink-800 hover:text-accent"
+        className="num rounded-sm px-1.5 py-0.5 text-fg transition hover:bg-surface-raised hover:text-accent"
         title="Edit this contribution"
       >
         <PlainMoney value={cell.amount} />
@@ -123,10 +124,10 @@ function PivotCell({ cell }: { cell: Cell }) {
         type="button"
         onClick={handleDelete}
         disabled={busy}
-        className="rounded-sm px-1.5 py-0.5 text-sm leading-none text-ink-500 hover:bg-loss/15 hover:text-loss disabled:opacity-50"
+        className="btn-inline-danger"
         title="Delete this contribution"
       >
-        ×
+        <Trash2 size={13} strokeWidth={1.5} aria-hidden />
       </button>
     </div>
   );
@@ -150,28 +151,30 @@ export default function ContributionsPivotTable({
           <tr>
             <th>Month / label</th>
             {contributorNames.map((name) => (
-              <th key={name}>{name}</th>
+              <th key={name} className="text-right">
+                {name}
+              </th>
             ))}
-            <th>Total</th>
+            <th className="text-right">Total</th>
           </tr>
         </thead>
         <tbody>
           {labelRows.map((row) => (
             <tr key={row.label}>
-              <td className="text-ink-300">{row.label}</td>
+              <td className="cell-strong text-sm">{row.label}</td>
               {row.cells.map((cell) => (
-                <td key={cell.name}>
+                <td key={cell.name} className="text-right">
                   <PivotCell cell={cell} />
                 </td>
               ))}
-              <td className="font-medium">
+              <td className="num cell-strong text-right">
                 <PlainMoney value={row.rowTotal} />
               </td>
             </tr>
           ))}
           {labelRows.length === 0 && (
             <tr>
-              <td colSpan={contributorNames.length + 2} className="py-6 text-center text-ink-300">
+              <td colSpan={contributorNames.length + 2} className="py-10 text-center">
                 Nothing here yet — record the first deposit above.
               </td>
             </tr>
@@ -179,14 +182,14 @@ export default function ContributionsPivotTable({
         </tbody>
         {labelRows.length > 0 && (
           <tfoot>
-            <tr className="border-t-2 border-ink-600 font-medium">
-              <td>Total</td>
+            <tr className="border-t border-line-strong">
+              <td className="label border-b-0">Total</td>
               {contributorNames.map((name) => (
-                <td key={name}>
+                <td key={name} className="num cell-strong border-b-0 text-right">
                   <PlainMoney value={contributorTotals[name] ?? 0} />
                 </td>
               ))}
-              <td>
+              <td className="num border-b-0 text-right font-medium text-accent">
                 <PlainMoney value={grandTotal} />
               </td>
             </tr>

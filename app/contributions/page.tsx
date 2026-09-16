@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { Money } from "@/components/SignedNumber";
+import { PlainMoney } from "@/components/SignedNumber";
 import AddContributionForm from "@/components/AddContributionForm";
 import PieChart from "@/components/PieChart";
 import ContributionsPivotTable from "@/components/ContributionsPivotTable";
@@ -89,28 +89,36 @@ export default async function ContributionsPage() {
     .sort((a, b) => b.dateMs - a.dateMs);
 
   return (
-    <div className="flex flex-col gap-8">
-      <div>
-        <p className="text-sm text-ink-300">Total portfolio contributions</p>
-        <p className="num mt-1 text-4xl font-medium">
-          <Money value={grandTotal} />
-        </p>
-      </div>
+    <div className="flex flex-col gap-14">
+      <header className="flex flex-wrap items-end justify-between gap-8">
+        <div>
+          <p className="label">Contributions</p>
+          <h1 className="mt-2 text-3xl font-medium tracking-tight text-fg">Capital in</h1>
+        </div>
+        <div className="text-right">
+          <p className="label">Total contributions</p>
+          <p className="num mt-2 text-4xl font-medium tracking-tight text-accent">
+            <PlainMoney value={grandTotal} />
+          </p>
+        </div>
+      </header>
 
       <section>
-        <h2 className="mb-4 text-sm font-medium text-ink-300">By stakeholder</h2>
-        {contributorRows.length === 0 ? (
-          <p className="text-sm text-ink-300">No contributions recorded yet.</p>
-        ) : (
-          <PieChart
-            slices={contributorRows.map((r) => ({ label: r.name, value: r.total }))}
-          />
-        )}
+        <h2 className="label">By stakeholder</h2>
+        <div className="mt-6">
+          {contributorRows.length === 0 ? (
+            <p className="text-sm text-fg-muted">No contributions recorded yet.</p>
+          ) : (
+            <PieChart
+              slices={contributorRows.map((r) => ({ label: r.name, value: r.total }))}
+            />
+          )}
+        </div>
       </section>
 
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-ink-300">Contribution history</h2>
+      <section className="flex flex-col gap-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h2 className="label">Contribution history</h2>
           <AddContributionForm
             knownContributors={knownContributors}
             nextMonthLabel={nextMonthLabel}

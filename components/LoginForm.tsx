@@ -1,10 +1,9 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 export default function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -24,9 +23,13 @@ export default function LoginForm() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || "Incorrect password");
       }
-      const redirect = searchParams.get("redirect") || "/";
-      router.push(redirect);
-      router.refresh();
+      // Only ever bounce to a same-origin path, never to ``//host``.
+      const requested = searchParams.get("redirect") || "/";
+      const redirect = requested.startsWith("/") && !requested.startsWith("//") ? requested : "/";
+      // A hard navigation (rather than router.push) guarantees the freshly
+      // set auth cookie rides along with the next document request and skips
+      // any client-router cache of the pre-login redirect.
+      window.location.assign(redirect);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -35,24 +38,37 @@ export default function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="panel flex w-full max-w-sm flex-col gap-4 p-6">
+    <form onSubmit={handleSubmit} className="panel flex w-full max-w-sm flex-col gap-6 p-8">
       <div>
-        <p className="text-sm text-ink-300">Investments</p>
-        <p className="text-lg font-medium text-ink-100">Enter password to continue</p>
+        <div className="flex items-center gap-2.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
+          <p className="font-serif text-base tracking-tight text-fg">Investments</p>
+        </div>
+        <h1 className="mt-5 text-xl font-medium tracking-tight text-fg">Enter password</h1>
+        <p className="mt-2 text-sm text-fg-muted">Private ledger — sign in to continue.</p>
       </div>
-      <input
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        autoFocus
-        required
-        className="field"
-        placeholder="Password"
-      />
+
+      <div className="flex flex-col gap-1.5">
+        <label className="label" htmlFor="password">
+          Password
+        </label>
+        <input
+          id="password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoFocus
+          required
+          className="field"
+          placeholder="••••••••"
+        />
+      </div>
+
       <button type="submit" className="btn-primary" disabled={submitting}>
         {submitting ? "Checking…" : "Enter"}
       </button>
-      {error && <p className="text-sm text-loss">{error}</p>}
+
+      {error && <p className="text-sm text-negative">{error}</p>}
     </form>
   );
 }

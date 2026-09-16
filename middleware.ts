@@ -16,5 +16,7 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!login|api/login|_next/static|_next/image|favicon.ico).*)"],
+  // api/logout has to stay reachable while signed out, otherwise the gate
+  // bounces the request that clears the cookie.
+  matcher: ["/((?!login|api/login|api/logout|_next/static|_next/image|favicon.ico).*)"],
 };

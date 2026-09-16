@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Plus } from "lucide-react";
 import { toLocalDateInputValue } from "@/lib/dates";
 
 export default function AddTransactionForm() {
@@ -49,31 +50,35 @@ export default function AddTransactionForm() {
 
   if (!open) {
     return (
-      <button className="btn-primary" onClick={() => setOpen(true)}>
+      <button
+        className="btn-primary inline-flex items-center gap-2"
+        onClick={() => setOpen(true)}
+      >
+        <Plus size={14} strokeWidth={1.5} aria-hidden />
         Log a transaction
       </button>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="panel flex flex-wrap items-end gap-3 p-4">
+    <form onSubmit={handleSubmit} className="panel flex flex-wrap items-end gap-4 p-5">
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Date</label>
+        <label className="label">Date</label>
         <input name="date" type="date" required defaultValue={today} className="field w-36" />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Action</label>
+        <label className="label">Action</label>
         <select name="action" required className="field w-28">
           <option value="Buy">Buy</option>
           <option value="Sell">Sell</option>
         </select>
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Ticker</label>
+        <label className="label">Ticker</label>
         <input name="ticker" required className="field w-24" placeholder="VOO" />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Region</label>
+        <label className="label">Region</label>
         <select name="region" required className="field w-24">
           <option value="US">US</option>
           <option value="SG">SG</option>
@@ -81,7 +86,7 @@ export default function AddTransactionForm() {
         </select>
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Qty</label>
+        <label className="label">Qty</label>
         <input
           name="qty"
           type="number"
@@ -93,7 +98,7 @@ export default function AddTransactionForm() {
         />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Price</label>
+        <label className="label">Price</label>
         <input
           name="price"
           type="number"
@@ -105,7 +110,7 @@ export default function AddTransactionForm() {
         />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Notes</label>
+        <label className="label">Notes</label>
         <input name="notes" className="field w-56" placeholder="Optional" />
       </div>
       <div className="flex gap-2">
@@ -121,7 +126,7 @@ export default function AddTransactionForm() {
           Cancel
         </button>
       </div>
-      {error && <p className="w-full text-sm text-loss">{error}</p>}
+      {error && <p className="w-full text-sm text-negative">{error}</p>}
     </form>
   );
 }

@@ -4,28 +4,72 @@
 
 @layer base {
   html {
-    @apply bg-ink-950 text-ink-100;
+    /* Native controls (date pickers, selects, scrollbars) render dark. */
+    color-scheme: dark;
+    @apply bg-page text-fg;
   }
   body {
-    @apply antialiased;
+    @apply font-sans antialiased;
+    font-variant-ligatures: common-ligatures;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-serif;
   }
   ::selection {
-    @apply bg-accent/30 text-ink-100;
+    @apply bg-accent/25 text-fg;
+  }
+  :focus-visible {
+    @apply outline-none ring-1 ring-accent/40;
+  }
+  /* Quiet, hairline-thin scrollbars so the data surface stays calm. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #2e2e2e transparent;
+  }
+  ::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-line;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-line-strong;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
   }
 }
 
-@layer utilities {
+/* Component classes live in the components layer so ordinary utilities
+   (w-24, px-2, text-right, …) can still override them at the call site. */
+@layer components {
+  /* Every figure in the app: monospace with tabular figures so columns
+     line up exactly, regardless of digit widths. */
   .num {
     @apply font-mono tabular-nums;
   }
+  /* Micro small-caps label — section headings, stat captions, table heads. */
+  .label {
+    @apply text-[11px] font-medium uppercase tracking-label text-fg-subtle;
+  }
   .ledger-table {
-    @apply w-full min-w-[720px] border-separate border-spacing-0 text-center text-sm;
+    /* Alignment is inherited from here (not set on th/td) so individual
+       cells can still override it with a plain text-right utility. */
+    @apply w-full min-w-[760px] border-separate border-spacing-0 text-left text-sm;
   }
   .ledger-table th {
-    @apply sticky top-0 z-10 whitespace-nowrap border-b border-ink-700 bg-ink-950 px-3 py-2 font-medium text-ink-300;
+    @apply sticky top-0 z-10 whitespace-nowrap border-b border-line bg-surface-header px-3.5 py-3 text-[11px] font-medium uppercase tracking-label text-fg-subtle;
   }
   .ledger-table td {
-    @apply border-b border-ink-800 px-3 py-2 align-middle;
+    @apply border-b border-line/70 px-3.5 py-3 align-middle text-fg-muted;
+  }
+  /* Rows are read-only by default: numbers keep the primary text colour
+     by opting in with .cell-strong rather than every cell being bright. */
+  .ledger-table td.cell-strong {
+    @apply text-fg;
   }
   /* The table needs to own its scroll (both axes) for its sticky <thead>
      to actually stick to the top of ITS scrollport — an ancestor with
@@ -34,21 +78,44 @@
      confusing, hard-to-diagnose ways if this box isn't explicit about
      owning both axes itself. */
   .table-scroll {
-    @apply max-h-[70vh] overflow-auto rounded-sm border border-ink-800;
+    @apply max-h-[70vh] overflow-auto rounded-md border border-line bg-surface;
   }
-  .ledger-table tbody tr:hover {
-    @apply bg-ink-900/60;
+  .ledger-table tbody tr:hover td {
+    @apply bg-surface-raised/70;
+  }
+  /* A row whose running quantity went negative (a data error worth
+     spotting) — a wash, not an alarm colour. */
+  .ledger-table tbody tr.row-danger td {
+    @apply bg-negative-wash;
   }
   .panel {
-    @apply border border-ink-700 bg-ink-900;
+    @apply rounded-lg border border-line bg-surface;
   }
   .field {
-    @apply w-full border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100 outline-none focus:border-accent;
+    @apply w-full rounded-md border border-line bg-sunken px-3 py-2 text-sm text-fg transition placeholder:text-fg-subtle focus:border-accent/70 focus:outline-none;
   }
   .btn-primary {
-    @apply bg-accent px-4 py-2 text-sm font-medium text-ink-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply rounded-md bg-accent px-4 py-2 text-sm font-medium text-page transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-ghost {
-    @apply border border-ink-700 px-4 py-2 text-sm font-medium text-ink-100 transition hover:border-ink-500 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply rounded-md border border-line px-4 py-2 text-sm font-medium text-fg-muted transition hover:border-line-strong hover:bg-surface-raised hover:text-fg disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  /* Small inline pills for trade direction — gold for a Buy, hairline
+     for a Sell, so direction reads at a glance without shouting. */
+  .pill {
+    @apply inline-flex items-center rounded-sm px-1.5 py-0.5 text-xs;
+  }
+  .pill-accent {
+    @apply bg-accent-muted/60 text-accent;
+  }
+  .pill-muted {
+    @apply border border-line bg-surface-raised text-fg-muted;
+  }
+  /* Quiet inline icon actions — they only colour on intent. */
+  .btn-inline {
+    @apply rounded-sm p-1 text-fg-subtle transition hover:bg-surface-raised hover:text-accent disabled:opacity-50;
+  }
+  .btn-inline-danger {
+    @apply rounded-sm p-1 text-fg-subtle/60 transition hover:bg-negative/10 hover:text-negative disabled:opacity-50;
   }
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { AlertTriangle, ChevronRight, Info } from "lucide-react";
 import { Percent, PlainPercent, NativeMoney, formatAmount } from "@/components/SignedNumber";
 import { currencySymbol, currencyForRegion, type Currency } from "@/lib/fx";
 import SortableTh from "@/components/SortableTh";
@@ -68,38 +69,47 @@ export default function PositionsTable({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex gap-10">
-        <div>
-          <p className="text-sm text-ink-300">Total holdings ({displayCurrency})</p>
-          <p className="num mt-1 text-3xl font-medium">
+      <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-2">
+        <div className="bg-surface px-6 py-5">
+          <p className="label">Total holdings ({displayCurrency})</p>
+          <p className="num mt-2 text-3xl font-medium tracking-tight text-accent">
             {displaySymbol}
             {formatAmount(totalValueConverted)}
           </p>
         </div>
-        <div>
-          <p className="text-sm text-ink-300">Unrealized P/L ({displayCurrency})</p>
-          <p className="num mt-1 text-3xl font-medium">
+        <div className="bg-surface px-6 py-5">
+          <p className="label">Unrealized P/L ({displayCurrency})</p>
+          <p className="mt-2 text-3xl font-medium tracking-tight">
             <NativeMoney value={totalPLConverted} symbol={displaySymbol} showPlus />
           </p>
         </div>
       </div>
+
       {mixedCurrencies && (
-        <p className="-mt-4 text-xs text-ink-300">
+        <p className="flex items-start gap-2 text-xs text-fg-subtle">
+          <Info size={13} strokeWidth={1.5} className="mt-0.5 shrink-0" aria-hidden />
           Per-row figures below are in each market&apos;s native currency; totals above and
           Portfolio % are converted to {displayCurrency} at the current rate so regions can be
           compared.
         </p>
       )}
+
       {anyPriceUnavailable && (
-        <p className="-mt-4 text-xs text-ink-300">
-          ⚠ One or more tickers below have no live quote available right now (common for HK
-          listings) — those rows show total holdings at cost basis and their unrealized P/L as
-          N/A rather than a possibly-wrong number. The totals above treat those rows as
-          contributing $0 unrealized P/L, so they may understate the true total.
+        <p className="flex items-start gap-2.5 rounded-md border border-line bg-negative-wash/60 px-3.5 py-3 text-xs text-fg-muted">
+          <AlertTriangle size={14} strokeWidth={1.5} className="mt-0.5 shrink-0 text-negative" aria-hidden />
+          <span>
+            One or more tickers below have no live quote available right now (common for HK
+            listings) — those rows show total holdings at cost basis and their unrealized P/L as
+            N/A rather than a possibly-wrong number. The totals above treat those rows as
+            contributing {displayCurrency} 0 unrealized P/L, so they may understate the true total.
+          </span>
         </p>
       )}
 
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-4">
+        <p className="label">
+          {filtered.length} {filtered.length === 1 ? "position" : "positions"}
+        </p>
         <SearchBox value={search} onChange={setSearch} placeholder="Search ticker or region…" />
       </div>
 
@@ -121,46 +131,56 @@ export default function PositionsTable({
               />
               <SortableTh
                 label="Qty"
+                align="right"
                 active={sortKey === "qty"}
                 direction={sortDir}
                 onClick={() => toggleSort("qty")}
               />
               <SortableTh
                 label="Avg cost"
+                align="right"
                 active={sortKey === "avgCost"}
                 direction={sortDir}
                 onClick={() => toggleSort("avgCost")}
               />
               <SortableTh
                 label="Current price"
+                align="right"
                 active={sortKey === "currentPrice"}
                 direction={sortDir}
                 onClick={() => toggleSort("currentPrice")}
               />
               <SortableTh
                 label="Total holdings"
+                align="right"
                 active={sortKey === "totalHoldings"}
                 direction={sortDir}
                 onClick={() => toggleSort("totalHoldings")}
               />
               <SortableTh
                 label={`${REGION_LABEL[displayCurrency]} Portfolio %`}
+                align="right"
                 active={sortKey === "portfolioPct"}
                 direction={sortDir}
                 onClick={() => toggleSort("portfolioPct")}
               />
               <SortableTh
                 label="Unrealized P/L (%)"
+                align="right"
                 active={sortKey === "unrealizedPLPct"}
                 direction={sortDir}
                 onClick={() => toggleSort("unrealizedPLPct")}
               />
               <SortableTh
                 label="Unrealized P/L"
+                align="right"
                 active={sortKey === "unrealizedPL"}
                 direction={sortDir}
                 onClick={() => toggleSort("unrealizedPL")}
               />
+              <th className="w-10 text-right">
+                <span className="sr-only">History</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -170,29 +190,31 @@ export default function PositionsTable({
                 <tr
                   key={`${r.region}-${r.ticker}`}
                   onClick={() => setSelected({ region: r.region, ticker: r.ticker, currentPrice: r.currentPrice })}
-                  className="cursor-pointer hover:bg-ink-900/60"
+                  className="group cursor-pointer"
                   title="View transaction history"
                 >
-                  <td className="text-ink-300">{r.region}</td>
-                  <td className="num">
-                    {r.ticker}
-                    {r.priceUnavailable && (
-                      <span
-                        className="ml-1 text-ink-500"
-                        title="No live quote available for this ticker — price/P&L shown may be stale"
-                      >
-                        ⚠
-                      </span>
-                    )}
+                  <td>{r.region}</td>
+                  <td className="num cell-strong">
+                    <span className="inline-flex items-center gap-1.5">
+                      {r.ticker}
+                      {r.priceUnavailable && (
+                        <AlertTriangle
+                          size={12}
+                          strokeWidth={1.5}
+                          className="text-negative/80"
+                          aria-label="No live quote available for this ticker — price and P/L shown may be stale"
+                        />
+                      )}
+                    </span>
                   </td>
-                  <td className="num">{r.qty}</td>
-                  <td className="num">
+                  <td className="num text-right cell-strong">{r.qty}</td>
+                  <td className="num text-right">
                     {symbol}
                     {formatAmount(r.avgCost)}
                   </td>
-                  <td className="num">
+                  <td className="num text-right">
                     {r.priceUnavailable ? (
-                      <span className="text-ink-500" title="No live quote available">
+                      <span className="text-fg-subtle" title="No live quote available">
                         —
                       </span>
                     ) : (
@@ -202,35 +224,43 @@ export default function PositionsTable({
                       </>
                     )}
                   </td>
-                  <td className="num">
+                  <td className="num text-right cell-strong">
                     {symbol}
                     {formatAmount(r.totalHoldings)}
                   </td>
-                  <td>
+                  <td className="text-right">
                     <PlainPercent value={r.portfolioPct} />
                   </td>
-                  <td>
+                  <td className="text-right">
                     {r.priceUnavailable ? (
-                      <span className="text-ink-500" title="No live quote — can't compute unrealized P/L">
+                      <span className="num text-fg-subtle" title="No live quote — can't compute unrealized P/L">
                         N/A
                       </span>
                     ) : (
                       <Percent value={r.unrealizedPLPct} />
                     )}
                   </td>
-                  <td>
+                  <td className="text-right">
                     {r.priceUnavailable ? (
-                      <span className="text-ink-500">N/A</span>
+                      <span className="num text-fg-subtle">N/A</span>
                     ) : (
                       <NativeMoney value={r.unrealizedPL} symbol={symbol} />
                     )}
+                  </td>
+                  <td className="text-right">
+                    <ChevronRight
+                      size={14}
+                      strokeWidth={1.5}
+                      aria-hidden
+                      className="ml-auto text-fg-subtle/50 transition group-hover:text-accent"
+                    />
                   </td>
                 </tr>
               );
             })}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={9} className="py-6 text-center text-ink-300">
+                <td colSpan={10} className="py-10 text-center">
                   {rows.length === 0
                     ? "No open positions in this region right now."
                     : "No positions match your search."}

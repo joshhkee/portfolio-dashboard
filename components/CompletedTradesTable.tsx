@@ -51,8 +51,11 @@ export default function CompletedTradesTable({ trades }: { trades: CompletedTrad
   const { sorted, sortKey, sortDir, toggleSort } = useSortable(filtered, GETTERS, "sellDate", "desc");
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex justify-end">
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-4">
+        <p className="label">
+          {filtered.length} {filtered.length === 1 ? "closed trade" : "closed trades"}
+        </p>
         <SearchBox value={search} onChange={setSearch} placeholder="Search ticker, region, or notes…" />
       </div>
 
@@ -63,56 +66,57 @@ export default function CompletedTradesTable({ trades }: { trades: CompletedTrad
             <SortableTh label="Sell date" active={sortKey === "sellDate"} direction={sortDir} onClick={() => toggleSort("sellDate")} />
             <SortableTh label="Region" active={sortKey === "region"} direction={sortDir} onClick={() => toggleSort("region")} />
             <SortableTh label="Ticker" active={sortKey === "ticker"} direction={sortDir} onClick={() => toggleSort("ticker")} />
-            <SortableTh label="Qty sold" active={sortKey === "qtySold"} direction={sortDir} onClick={() => toggleSort("qtySold")} />
-            <SortableTh label="Avg cost" active={sortKey === "avgCost"} direction={sortDir} onClick={() => toggleSort("avgCost")} />
-            <SortableTh label="Sell price" active={sortKey === "sellPrice"} direction={sortDir} onClick={() => toggleSort("sellPrice")} />
+            <SortableTh label="Qty sold" align="right" active={sortKey === "qtySold"} direction={sortDir} onClick={() => toggleSort("qtySold")} />
+            <SortableTh label="Avg cost" align="right" active={sortKey === "avgCost"} direction={sortDir} onClick={() => toggleSort("avgCost")} />
+            <SortableTh label="Sell price" align="right" active={sortKey === "sellPrice"} direction={sortDir} onClick={() => toggleSort("sellPrice")} />
             <SortableTh
               label="Realized P/L (native)"
+              align="right"
               active={sortKey === "realizedPL"}
               direction={sortDir}
               onClick={() => toggleSort("realizedPL")}
             />
             <SortableTh
               label="Realized P/L (SGD)"
+              align="right"
               active={sortKey === "realizedPLSGD"}
               direction={sortDir}
               onClick={() => toggleSort("realizedPLSGD")}
             />
-            <SortableTh label="Return %" active={sortKey === "returnPct"} direction={sortDir} onClick={() => toggleSort("returnPct")} />
+            <SortableTh label="Return %" align="right" active={sortKey === "returnPct"} direction={sortDir} onClick={() => toggleSort("returnPct")} />
             <th className="text-left">Notes</th>
           </tr>
         </thead>
         <tbody>
           {sorted.map((t) => {
             const symbol = currencySymbol[currencyForRegion(t.region)];
+            const plClass = t.realizedPL < 0 ? "text-negative" : t.realizedPL > 0 ? "text-positive" : "";
             return (
               <tr key={t.id}>
-                <td className="num text-ink-300">
-                  {formatShortDate(new Date(t.sellDate))}
-                </td>
-                <td className="text-ink-300">{t.region}</td>
-                <td className="num">{t.ticker}</td>
-                <td className="num">{t.qtySold}</td>
-                <td className="num">
+                <td className="num whitespace-nowrap">{formatShortDate(new Date(t.sellDate))}</td>
+                <td>{t.region}</td>
+                <td className="num cell-strong">{t.ticker}</td>
+                <td className="num text-right cell-strong">{t.qtySold}</td>
+                <td className="num text-right">
                   {symbol}
                   {formatAmount(t.avgCost)}
                 </td>
-                <td className="num">
+                <td className="num text-right">
                   {symbol}
                   {formatAmount(t.sellPrice)}
                 </td>
-                <td className="num text-ink-300">
+                <td className={`num text-right ${plClass}`}>
                   {t.realizedPL < 0 ? "-" : t.realizedPL > 0 ? "+" : ""}
                   {symbol}
                   {formatAmount(Math.abs(t.realizedPL))}
                 </td>
-                <td>
+                <td className="text-right">
                   <NativeMoney value={t.realizedPLSGD} symbol={currencySymbol.SGD} showPlus />
                 </td>
-                <td>
+                <td className="text-right">
                   <Percent value={t.returnPct} />
                 </td>
-                <td className="max-w-xs truncate text-left text-ink-300" title={t.notes ?? undefined}>
+                <td className="max-w-xs truncate text-left" title={t.notes ?? undefined}>
                   {t.notes}
                 </td>
               </tr>
@@ -120,7 +124,7 @@ export default function CompletedTradesTable({ trades }: { trades: CompletedTrad
           })}
           {sorted.length === 0 && (
             <tr>
-              <td colSpan={10} className="py-6 text-center text-ink-300">
+              <td colSpan={10} className="py-10 text-center">
                 {trades.length === 0 ? "No closed trades yet." : "No trades match your search."}
               </td>
             </tr>

@@ -8,25 +8,67 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Deep slate/navy base with a single warm accent — avoids the
-        // generic "indigo-500 on white" default Tailwind look.
-        ink: {
-          950: "#0b0f14",
-          900: "#111826",
-          800: "#1a2333",
-          700: "#243043",
-          600: "#334158",
-          500: "#4c5c78",
-          300: "#93a2ba",
-          100: "#e7ecf3",
+        // Base — grey-dark, never pure black.
+        page: "#121212",
+        sunken: "#141414", // input wells / inset areas
+        surface: {
+          DEFAULT: "#1a1a1a", // cards, panels
+          raised: "#212121", // modals, hover states
+          header: "#1d1d1d", // table header row (a step between the two)
         },
-        gain: "#3ecf8e",
-        loss: "#f2545b",
-        accent: "#e8a33d",
+        // Hairline dividers — kept subtle, not high contrast.
+        line: {
+          DEFAULT: "#2e2e2e",
+          strong: "#3a3a3a",
+        },
+        // Text — warm off-white, never pure white/grey.
+        fg: {
+          DEFAULT: "#e8e6e1", // numbers, headings
+          muted: "#a3a099", // labels, captions
+          subtle: "#6b6862", // timestamps, disabled, placeholders
+        },
+        // Muted gold. UI chrome only (CTAs, active nav, key totals) —
+        // deliberately kept out of the charts.
+        accent: {
+          DEFAULT: "#d4a94a",
+          hover: "#e0bb63",
+          muted: "#3a331f",
+        },
+        // Desaturated gain/loss — sage green and brick red, not neon.
+        positive: {
+          DEFAULT: "#7fa87a",
+          wash: "#1c2620",
+        },
+        negative: {
+          DEFAULT: "#b06d64",
+          wash: "#2a1e1c",
+        },
       },
       fontFamily: {
-        sans: ["ui-sans-serif", "system-ui", "Segoe UI", "sans-serif"],
-        mono: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+        // Body copy is serif; Source Serif 4 is loaded in app/layout.tsx
+        // and exposed as --font-serif (falls back to Georgia).
+        sans: ["var(--font-serif)", "Source Serif 4", "Georgia", "Cambria", "serif"],
+        serif: ["var(--font-serif)", "Source Serif 4", "Georgia", "Cambria", "serif"],
+        // Figures only — see the .num utility.
+        mono: [
+          "var(--font-mono)",
+          "JetBrains Mono",
+          "ui-monospace",
+          "SFMono-Regular",
+          "Menlo",
+          "monospace",
+        ],
+      },
+      // Small-caps table headers and micro labels.
+      letterSpacing: {
+        label: "0.12em",
+      },
+      // 6–10px: precise/financial rather than playful.
+      borderRadius: {
+        sm: "4px",
+        DEFAULT: "6px",
+        md: "8px",
+        lg: "10px",
       },
     },
   },

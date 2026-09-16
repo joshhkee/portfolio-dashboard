@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { LogOut } from "lucide-react";
 
 const links = [
   { href: "/", label: "Home" },
@@ -26,35 +27,45 @@ export default function Nav() {
   }
 
   return (
-    <nav className="sticky top-0 z-30 flex h-14 w-full items-center gap-6 border-b border-ink-700 bg-ink-900 px-6">
-      <div className="py-4 pr-2">
-        <p className="text-sm font-semibold tracking-tight text-ink-100">Investments</p>
+    <nav className="sticky top-0 z-30 border-b border-line bg-page/90 backdrop-blur">
+      <div className="mx-auto flex h-16 w-full max-w-[1180px] items-center gap-8 px-6 sm:px-10">
+        <Link href="/" className="flex items-center gap-2.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
+          <span className="font-serif text-base tracking-tight text-fg">Investments</span>
+        </Link>
+
+        <ul className="flex h-16 items-stretch gap-6">
+          {links.map((link) => {
+            const active = pathname === link.href || pathname?.startsWith(link.href + "/");
+            return (
+              <li key={link.href} className="relative">
+                <Link
+                  href={link.href}
+                  className={`flex h-16 items-center text-sm leading-none transition ${
+                    active ? "text-fg" : "text-fg-muted hover:text-fg"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+                <span
+                  aria-hidden
+                  className={`absolute inset-x-0 bottom-0 h-px transition-colors ${
+                    active ? "bg-accent" : "bg-transparent"
+                  }`}
+                />
+              </li>
+            );
+          })}
+        </ul>
+
+        <button
+          onClick={handleLogout}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-fg-subtle transition hover:bg-surface-raised hover:text-fg"
+        >
+          <LogOut size={14} strokeWidth={1.5} aria-hidden />
+          Log out
+        </button>
       </div>
-      <ul className="flex h-full items-stretch gap-1">
-        {links.map((link) => {
-          const active = pathname === link.href || pathname?.startsWith(link.href + "/");
-          return (
-            <li key={link.href}>
-              <Link
-                href={link.href}
-                className={`flex h-full items-center border-b-2 px-3 py-4 text-sm transition ${
-                  active
-                    ? "border-accent text-ink-100"
-                    : "border-transparent text-ink-300 hover:border-ink-500 hover:text-ink-100"
-                }`}
-              >
-                {link.label}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-      <button
-        onClick={handleLogout}
-        className="ml-auto text-sm text-ink-300 hover:text-ink-100"
-      >
-        Log out
-      </button>
     </nav>
   );
 }

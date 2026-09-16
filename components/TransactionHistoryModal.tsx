@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import { currencySymbol, currencyForRegion, convertCurrency, type FxRates } from "@/lib/fx";
 import { formatShortDate } from "@/lib/dates";
 import { formatQty, formatAmount, Percent, NativeMoney } from "@/components/SignedNumber";
@@ -89,8 +90,12 @@ function HeadlinePL({ label, pct }: { label: string; pct: number }) {
   const negative = pct < 0;
   return (
     <div>
-      <p className="text-xs text-ink-300">{label}</p>
-      <p className={`num text-3xl font-semibold ${positive ? "text-gain" : negative ? "text-loss" : "text-ink-100"}`}>
+      <p className="label">{label}</p>
+      <p
+        className={`num mt-1.5 text-3xl font-medium tracking-tight ${
+          positive ? "text-positive" : negative ? "text-negative" : "text-fg"
+        }`}
+      >
         {pct >= 0 ? "+" : ""}
         {(pct * 100).toFixed(2)}%
       </p>
@@ -101,8 +106,8 @@ function HeadlinePL({ label, pct }: { label: string; pct: number }) {
 function CostBox({ label, symbol, value }: { label: string; symbol: string; value: number }) {
   return (
     <div>
-      <p className="text-xs text-ink-300">{label}</p>
-      <p className="num text-base">
+      <p className="label">{label}</p>
+      <p className="num mt-1.5 text-base text-fg">
         {symbol}
         {formatAmount(value)}
       </p>
@@ -113,7 +118,7 @@ function CostBox({ label, symbol, value }: { label: string; symbol: string; valu
 function SubStat({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-4 text-sm">
-      <dt className="text-ink-300">{label}</dt>
+      <dt className="text-fg-muted">{label}</dt>
       <dd className="num">{children}</dd>
     </div>
   );
@@ -144,8 +149,9 @@ function TradeSection({
 
   return (
     <div className="py-6 first:pt-0">
-      <p className="mb-3 text-sm font-medium text-ink-100">
-        {trade.cycle[0]?.ticker} Trade {trade.tradeNumber} ({trade.isOpen ? "open" : "closed"})
+      <p className="mb-4 font-serif text-base text-fg">
+        {trade.cycle[0]?.ticker} Trade {trade.tradeNumber}{" "}
+        <span className="text-fg-subtle">({trade.isOpen ? "open" : "closed"})</span>
       </p>
       <div className="table-scroll">
         <table className="ledger-table">
@@ -153,24 +159,28 @@ function TradeSection({
             <tr>
               <th>Date</th>
               <th>Action</th>
-              <th>Qty</th>
-              <th>Price</th>
-              <th>Running qty</th>
+              <th className="text-right">Qty</th>
+              <th className="text-right">Price</th>
+              <th className="text-right">Running qty</th>
               <th className="text-left">Notes</th>
             </tr>
           </thead>
           <tbody>
             {trade.cycle.map((row) => (
               <tr key={row.id}>
-                <td className="num text-ink-300">{formatShortDate(new Date(row.date))}</td>
-                <td className={row.action === "Buy" ? "text-gain" : "text-loss"}>{row.action}</td>
-                <td className="num">{formatQty(row.qty)}</td>
-                <td className="num">
+                <td className="num whitespace-nowrap">{formatShortDate(new Date(row.date))}</td>
+                <td>
+                  <span className={`pill ${row.action === "Buy" ? "pill-accent" : "pill-muted"}`}>
+                    {row.action}
+                  </span>
+                </td>
+                <td className="num text-right cell-strong">{formatQty(row.qty)}</td>
+                <td className="num text-right">
                   {symbol}
                   {formatAmount(row.price)}
                 </td>
-                <td className="num">{formatQty(row.runningQty)}</td>
-                <td className="max-w-[16rem] truncate text-left text-ink-300" title={row.notes ?? undefined}>
+                <td className="num text-right">{formatQty(row.runningQty)}</td>
+                <td className="max-w-[16rem] truncate text-left" title={row.notes ?? undefined}>
                   {row.notes}
                 </td>
               </tr>
@@ -181,7 +191,7 @@ function TradeSection({
 
       {/* Buy vs sell cost, side by side so the gap between them is easy
           to read at a glance. */}
-      <div className="mt-4 flex gap-8 rounded-sm border border-ink-800 p-3">
+      <div className="mt-5 flex gap-10 rounded-md border border-line bg-sunken px-4 py-3">
         <CostBox label="Avg buy cost" symbol={symbol} value={stats.avgBuyCost} />
         {stats.hasSells && <CostBox label="Avg sell cost" symbol={symbol} value={stats.avgSellCost} />}
       </div>
@@ -302,39 +312,34 @@ export default function TransactionHistoryModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-page/75 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
         className="panel flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-ink-700 px-5 py-4">
+        <div className="flex items-start justify-between border-b border-line px-6 py-4">
           <div>
-            <p className="text-sm text-ink-300">Transaction history</p>
-            <p className="text-lg font-medium text-ink-100">{companyName || ticker}</p>
-            <p className="num text-xs text-ink-300">
+            <p className="label">Transaction history</p>
+            <p className="mt-1 font-serif text-lg text-fg">{companyName || ticker}</p>
+            <p className="num text-xs text-fg-subtle">
               {ticker} · {region}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-ink-300 hover:text-ink-100"
-            title="Close"
-            aria-label="Close"
-          >
-            ✕
+          <button onClick={onClose} className="btn-inline" title="Close" aria-label="Close">
+            <X size={16} strokeWidth={1.5} />
           </button>
         </div>
 
-        <div className="overflow-auto p-5">
-          {error && <p className="text-sm text-loss">{error}</p>}
-          {!error && !rows && <p className="text-sm text-ink-300">Loading…</p>}
+        <div className="overflow-auto p-6">
+          {error && <p className="text-sm text-negative">{error}</p>}
+          {!error && !rows && <p className="text-sm text-fg-muted">Loading…</p>}
           {!error && rows && rows.length === 0 && (
-            <p className="text-sm text-ink-300">No transactions found for this position.</p>
+            <p className="text-sm text-fg-muted">No transactions found for this position.</p>
           )}
           {!error && rows && (
-            <div className="divide-y divide-ink-700">
+            <div className="divide-y divide-line">
               {trades.map((trade) => (
                 <TradeSection
                   key={`${trade.isOpen ? "open" : "closed"}-${trade.tradeNumber}`}

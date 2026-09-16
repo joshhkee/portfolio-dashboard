@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getOpenPositionsFor } from "@/lib/get-positions";
-import { Money, NativeMoney, Percent } from "@/components/SignedNumber";
+import { NativeMoney, Percent, PlainMoney } from "@/components/SignedNumber";
 import PieChart from "@/components/PieChart";
 
 export const dynamic = "force-dynamic";
@@ -37,42 +37,52 @@ export default async function HomePage() {
   }));
 
   return (
-    <div className="flex flex-col gap-10">
-      <div className="grid grid-cols-2 gap-x-8 gap-y-6 sm:grid-cols-4">
+    <div className="flex flex-col gap-14">
+      <header className="flex flex-wrap items-end justify-between gap-8">
         <div>
-          <p className="text-sm text-ink-300">Total invested</p>
-          <p className="num mt-1 text-2xl font-medium">
-            <Money value={totalInvested} />
+          <p className="label">Portfolio</p>
+          <h1 className="mt-2 text-3xl font-medium tracking-tight text-fg">Overview</h1>
+          <p className="mt-2 max-w-md text-sm text-fg-muted">
+            Contributions, live holdings and unrealized P/L across the US, SG and HK ledgers.
           </p>
         </div>
-        <div>
-          <p className="text-sm text-ink-300">Portfolio value (USD)</p>
-          <p className="num mt-1 text-2xl font-medium">
-            <Money value={currentValue} />
+        <div className="text-right">
+          <p className="label">Total invested</p>
+          <p className="num mt-2 text-4xl font-medium tracking-tight text-accent">
+            <PlainMoney value={totalInvested} />
           </p>
         </div>
-        <div>
-          <p className="text-sm text-ink-300">Unrealized P/L (USD)</p>
-          <p className="num mt-1 text-2xl font-medium">
+      </header>
+
+      <section className="grid grid-cols-1 divide-y divide-line overflow-hidden rounded-lg border border-line bg-surface sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <div className="px-6 py-5">
+          <p className="label">Portfolio value (USD)</p>
+          <p className="mt-2 text-2xl font-medium text-fg">
+            <PlainMoney value={currentValue} />
+          </p>
+        </div>
+        <div className="px-6 py-5">
+          <p className="label">Unrealized P/L (USD)</p>
+          <p className="mt-2 text-2xl font-medium">
             <NativeMoney value={totalUnrealizedPL} symbol="$" showPlus />
           </p>
         </div>
-        <div>
-          <p className="text-sm text-ink-300">Growth since inception</p>
-          <p className="num mt-1 text-2xl font-medium">
+        <div className="px-6 py-5">
+          <p className="label">Growth since inception</p>
+          <p className="mt-2 text-2xl font-medium">
             <Percent value={growth} />
           </p>
         </div>
-      </div>
+      </section>
 
       <section>
-        <h2 className="mb-3 text-sm font-medium text-ink-300">Portfolio value by region (USD)</h2>
-        <div className="flex flex-wrap gap-10">
+        <h2 className="label">Portfolio value by region (USD)</h2>
+        <div className="mt-5 grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-3">
           {regionBreakdown.map((r) => (
-            <div key={r.region}>
-              <p className="text-sm text-ink-300">{r.region}</p>
-              <p className="num mt-1 text-xl font-medium">
-                <Money value={r.value} />
+            <div key={r.region} className="bg-surface px-6 py-5">
+              <p className="label">{r.region}</p>
+              <p className="num mt-2 text-xl text-fg">
+                <PlainMoney value={r.value} />
               </p>
             </div>
           ))}
@@ -80,13 +90,20 @@ export default async function HomePage() {
       </section>
 
       <section>
-        <h2 className="mb-4 text-sm font-medium text-ink-300">Contributions by stakeholder</h2>
-        {contributorSlices.length === 0 ? (
-          <p className="text-sm text-ink-300">No contributions recorded yet.</p>
-        ) : (
-          <PieChart slices={contributorSlices} />
-        )}
+        <h2 className="label">Contributions by stakeholder</h2>
+        <div className="mt-6">
+          {contributorSlices.length === 0 ? (
+            <p className="text-sm text-fg-muted">No contributions recorded yet.</p>
+          ) : (
+            <PieChart slices={contributorSlices} />
+          )}
+        </div>
       </section>
+
+      <p className="border-t border-line pt-5 text-xs text-fg-subtle">
+        Live quotes are pulled from Yahoo Finance and converted at the current FX rate — figures are
+        indicative, not executed prices.
+      </p>
     </div>
   );
 }
