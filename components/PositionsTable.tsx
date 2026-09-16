@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { Percent, PlainPercent, NativeMoney, formatAmount } from "@/components/SignedNumber";
+import { TriangleAlert } from "lucide-react";
 import { currencySymbol, currencyForRegion, type Currency } from "@/lib/fx";
+import { formatHoldingPeriod } from "@/lib/dates";
 import SortableTh from "@/components/SortableTh";
 import SearchBox from "@/components/SearchBox";
 import { useSortable } from "@/lib/use-sortable";
@@ -21,6 +23,7 @@ export interface PositionRow {
   unrealizedPLPct: number;
   portfolioPct: number;
   priceUnavailable: boolean;
+  heldSince: Date | null;
 }
 
 const REGION_LABEL: Record<Currency, string> = { USD: "US", SGD: "SG", HKD: "HK" };
@@ -30,6 +33,7 @@ const GETTERS: Record<string, (r: PositionRow) => number | string> = {
   ticker: (r) => r.ticker,
   qty: (r) => r.qty,
   avgCost: (r) => r.avgCost,
+  heldSince: (r) => r.heldSince?.getTime() ?? 0,
   currentPrice: (r) => r.currentPrice,
   totalHoldings: (r) => r.totalHoldings,
   portfolioPct: (r) => r.portfolioPct,
@@ -92,7 +96,7 @@ export default function PositionsTable({
       )}
       {anyPriceUnavailable && (
         <p className="-mt-4 text-xs text-ink-300">
-          ⚠ One or more tickers below have no live quote available right now (common for HK
+          One or more tickers below have no live quote available right now (common for HK
           listings) — those rows show total holdings at cost basis and their unrealized P/L as
           N/A rather than a possibly-wrong number. The totals above treat those rows as
           contributing $0 unrealized P/L, so they may understate the true total.
@@ -124,42 +128,56 @@ export default function PositionsTable({
                 active={sortKey === "qty"}
                 direction={sortDir}
                 onClick={() => toggleSort("qty")}
+                          align="right"
               />
               <SortableTh
                 label="Avg cost"
                 active={sortKey === "avgCost"}
                 direction={sortDir}
                 onClick={() => toggleSort("avgCost")}
+                          align="right"
+              />
+              <SortableTh
+                label="Held"
+                active={sortKey === "heldSince"}
+                direction={sortDir}
+                onClick={() => toggleSort("heldSince")}
+                align="right"
               />
               <SortableTh
                 label="Current price"
                 active={sortKey === "currentPrice"}
                 direction={sortDir}
                 onClick={() => toggleSort("currentPrice")}
+                          align="right"
               />
               <SortableTh
                 label="Total holdings"
                 active={sortKey === "totalHoldings"}
                 direction={sortDir}
                 onClick={() => toggleSort("totalHoldings")}
+                          align="right"
               />
               <SortableTh
                 label={`${REGION_LABEL[displayCurrency]} Portfolio %`}
                 active={sortKey === "portfolioPct"}
                 direction={sortDir}
                 onClick={() => toggleSort("portfolioPct")}
+                          align="right"
               />
               <SortableTh
                 label="Unrealized P/L (%)"
                 active={sortKey === "unrealizedPLPct"}
                 direction={sortDir}
                 onClick={() => toggleSort("unrealizedPLPct")}
+                          align="right"
               />
               <SortableTh
                 label="Unrealized P/L"
                 active={sortKey === "unrealizedPL"}
                 direction={sortDir}
                 onClick={() => toggleSort("unrealizedPL")}
+                          align="right"
               />
             </tr>
           </thead>
@@ -177,20 +195,22 @@ export default function PositionsTable({
                   <td className="num">
                     {r.ticker}
                     {r.priceUnavailable && (
-                      <span
-                        className="ml-1 text-ink-500"
-                        title="No live quote available for this ticker — price/P&L shown may be stale"
-                      >
-                        ⚠
-                      </span>
+                      <TriangleAlert
+                        size={12}
+                        className="ml-1 inline text-ink-500"
+                        aria-label="No live quote available for this ticker — price/P&L shown may be stale"
+                      />
                     )}
                   </td>
-                  <td className="num">{r.qty}</td>
-                  <td className="num">
+                  <td className="num text-right">{r.qty}</td>
+                  <td className="num text-right">
                     {symbol}
                     {formatAmount(r.avgCost)}
                   </td>
-                  <td className="num">
+                  <td className="text-right text-ink-300">
+                    {r.heldSince ? formatHoldingPeriod(r.heldSince) : "—"}
+                  </td>
+                  <td className="num text-right">
                     {r.priceUnavailable ? (
                       <span className="text-ink-500" title="No live quote available">
                         —
@@ -202,14 +222,14 @@ export default function PositionsTable({
                       </>
                     )}
                   </td>
-                  <td className="num">
+                  <td className="num text-right">
                     {symbol}
                     {formatAmount(r.totalHoldings)}
                   </td>
-                  <td>
+                  <td className="text-right">
                     <PlainPercent value={r.portfolioPct} />
                   </td>
-                  <td>
+                  <td className="text-right">
                     {r.priceUnavailable ? (
                       <span className="text-ink-500" title="No live quote — can't compute unrealized P/L">
                         N/A
@@ -218,7 +238,7 @@ export default function PositionsTable({
                       <Percent value={r.unrealizedPLPct} />
                     )}
                   </td>
-                  <td>
+                  <td className="text-right">
                     {r.priceUnavailable ? (
                       <span className="text-ink-500">N/A</span>
                     ) : (
@@ -230,10 +250,10 @@ export default function PositionsTable({
             })}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={9} className="py-6 text-center text-ink-300">
+                <td colSpan={10} className="py-6 text-center text-ink-300">
                   {rows.length === 0
-                    ? "No open positions in this region right now."
-                    : "No positions match your search."}
+                    ? "No holdings in this region right now."
+                    : "No holdings match your search."}
                 </td>
               </tr>
             )}

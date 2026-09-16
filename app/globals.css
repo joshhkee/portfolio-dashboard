@@ -4,7 +4,7 @@
 
 @layer base {
   html {
-    @apply bg-ink-950 text-ink-100;
+    @apply bg-ink-950 text-ink-100 font-serif;
   }
   body {
     @apply antialiased;
@@ -19,13 +19,13 @@
     @apply font-mono tabular-nums;
   }
   .ledger-table {
-    @apply w-full min-w-[720px] border-separate border-spacing-0 text-center text-sm;
+    @apply w-full min-w-[720px] border-separate border-spacing-0 text-left text-sm;
   }
   .ledger-table th {
-    @apply sticky top-0 z-10 whitespace-nowrap border-b border-ink-700 bg-ink-950 px-3 py-2 font-medium text-ink-300;
+    @apply sticky top-0 z-10 whitespace-nowrap border-b border-ink-700 bg-ink-850 px-3 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-300;
   }
   .ledger-table td {
-    @apply border-b border-ink-800 px-3 py-2 align-middle;
+    @apply border-b border-ink-700/60 px-3 py-2.5 align-middle;
   }
   /* The table needs to own its scroll (both axes) for its sticky <thead>
      to actually stick to the top of ITS scrollport — an ancestor with
@@ -34,21 +34,30 @@
      confusing, hard-to-diagnose ways if this box isn't explicit about
      owning both axes itself. */
   .table-scroll {
-    @apply max-h-[70vh] overflow-auto rounded-sm border border-ink-800;
+    @apply max-h-[70vh] overflow-auto rounded-lg border border-ink-700;
   }
   .ledger-table tbody tr:hover {
-    @apply bg-ink-900/60;
+    @apply bg-ink-800/50;
   }
   .panel {
-    @apply border border-ink-700 bg-ink-900;
+    @apply rounded-lg border border-ink-700 bg-ink-900;
   }
   .field {
-    @apply w-full border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100 outline-none focus:border-accent;
+    @apply w-full rounded-md border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100 outline-none transition focus:border-accent;
   }
   .btn-primary {
-    @apply bg-accent px-4 py-2 text-sm font-medium text-ink-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply rounded-md bg-accent px-4 py-2 text-sm font-medium text-ink-950 transition hover:bg-accentHover disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-ghost {
-    @apply border border-ink-700 px-4 py-2 text-sm font-medium text-ink-100 transition hover:border-ink-500 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply rounded-md border border-ink-700 px-4 py-2 text-sm font-medium text-ink-100 transition hover:border-ink-500 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .badge-gain {
+    @apply rounded-full bg-gainBg px-2 py-0.5 text-xs text-gain;
+  }
+  .badge-loss {
+    @apply rounded-full bg-lossBg px-2 py-0.5 text-xs text-loss;
+  }
+  .badge-accent {
+    @apply rounded-full bg-accentMuted px-2 py-0.5 text-xs text-accent;
   }
 }

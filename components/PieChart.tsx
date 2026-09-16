@@ -3,9 +3,11 @@ export interface PieSlice {
   value: number;
 }
 
-// Distinct hues chosen to read clearly against the dark ink background —
-// not reusing gain/loss since this chart isn't a P/L figure.
-const CHART_COLORS = ["#e8a33d", "#4f8fe8", "#3ecf8e", "#b98ae8", "#f2545b", "#5fd0e8"];
+// Muted, desaturated hues drawn from the same palette as the rest of
+// the app (accent gold, sage, terracotta) plus a couple of quiet
+// complements — not the bright rainbow a generic chart library defaults
+// to, to stay in line with the "quiet luxury" direction.
+const CHART_COLORS = ["#d4a94a", "#6b8ca3", "#7fa87a", "#8a7ca8", "#b06d64", "#a3a099"];
 
 function formatAmount(n: number) {
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -27,7 +29,7 @@ export default function PieChart({ slices }: { slices: PieSlice[] }) {
       <div
         className="h-48 w-48 shrink-0 rounded-full"
         style={{
-          background: total === 0 ? "#1a2333" : `conic-gradient(${stops.join(", ")})`,
+          background: total === 0 ? "#212121" : `conic-gradient(${stops.join(", ")})`,
         }}
         role="img"
         aria-label="Contributions by stakeholder"

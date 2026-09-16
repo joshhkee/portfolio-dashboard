@@ -49,25 +49,28 @@ export default function TransactionsTable({ ledger }: { ledger: LedgerRow[] }) {
             <SortableTh label="Action" active={sortKey === "action"} direction={sortDir} onClick={() => toggleSort("action")} />
             <SortableTh label="Ticker" active={sortKey === "ticker"} direction={sortDir} onClick={() => toggleSort("ticker")} />
             <SortableTh label="Region" active={sortKey === "region"} direction={sortDir} onClick={() => toggleSort("region")} />
-            <SortableTh label="Qty" active={sortKey === "qty"} direction={sortDir} onClick={() => toggleSort("qty")} />
-            <SortableTh label="Price" active={sortKey === "price"} direction={sortDir} onClick={() => toggleSort("price")} />
+            <SortableTh label="Qty" active={sortKey === "qty"} direction={sortDir} onClick={() => toggleSort("qty")} align="right" />
+            <SortableTh label="Price" active={sortKey === "price"} direction={sortDir} onClick={() => toggleSort("price")} align="right" />
             <SortableTh
               label="Running qty"
               active={sortKey === "runningQty"}
               direction={sortDir}
               onClick={() => toggleSort("runningQty")}
+              align="right"
             />
             <SortableTh
               label="Running avg cost"
               active={sortKey === "runningAvgCost"}
               direction={sortDir}
               onClick={() => toggleSort("runningAvgCost")}
+              align="right"
             />
             <SortableTh
               label="Txn value"
               active={sortKey === "transactionValue"}
               direction={sortDir}
               onClick={() => toggleSort("transactionValue")}
+              align="right"
             />
             <th className="text-left">Notes</th>
             <th></th>

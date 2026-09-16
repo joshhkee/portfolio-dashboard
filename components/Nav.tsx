@@ -5,9 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 
 const links = [
   { href: "/", label: "Home" },
-  { href: "/contributions", label: "Contributions" },
+  { href: "/outlay", label: "Outlay" },
   { href: "/transactions", label: "Transactions" },
-  { href: "/positions", label: "Open Positions" },
+  { href: "/holdings", label: "Holdings" },
   { href: "/completed-trades", label: "Completed Trades" },
 ];
 

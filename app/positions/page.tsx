@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function PositionsIndexPage() {
-  redirect("/positions/us");
+export default function OldPositionsPage() {
+  redirect("/holdings");
 }

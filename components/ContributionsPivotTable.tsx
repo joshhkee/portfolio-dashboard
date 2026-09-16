@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { PlainMoney } from "@/components/SignedNumber";
+import { Check, X } from "lucide-react";
 
 interface Cell {
   name: string;
@@ -88,20 +89,20 @@ function PivotCell({ cell }: { cell: Cell }) {
           />
           <button
             type="submit"
-            className="rounded-sm bg-gain/15 px-2.5 py-1.5 text-sm font-medium leading-none text-gain hover:bg-gain/25 disabled:opacity-50"
+            className="rounded-md bg-gainBg px-2.5 py-1.5 text-gain hover:brightness-125 disabled:opacity-50"
             disabled={busy}
             title="Save"
           >
-            ✓
+            <Check size={14} strokeWidth={2.5} />
           </button>
           <button
             type="button"
-            className="rounded-sm bg-ink-800 px-2.5 py-1.5 text-sm leading-none text-ink-300 hover:bg-ink-700 hover:text-ink-100 disabled:opacity-50"
+            className="rounded-md bg-ink-800 px-2.5 py-1.5 text-ink-300 hover:bg-ink-700 hover:text-ink-100 disabled:opacity-50"
             onClick={() => setEditing(false)}
             disabled={busy}
             title="Cancel"
           >
-            ×
+            <X size={14} strokeWidth={2.5} />
           </button>
         </div>
         {error && <p className="text-[10px] text-loss">{error}</p>}
@@ -110,7 +111,7 @@ function PivotCell({ cell }: { cell: Cell }) {
   }
 
   return (
-    <div className="flex items-center justify-center gap-1">
+    <div className="flex items-center justify-end gap-1">
       <button
         type="button"
         onClick={() => setEditing(true)}
@@ -123,10 +124,10 @@ function PivotCell({ cell }: { cell: Cell }) {
         type="button"
         onClick={handleDelete}
         disabled={busy}
-        className="rounded-sm px-1.5 py-0.5 text-sm leading-none text-ink-500 hover:bg-loss/15 hover:text-loss disabled:opacity-50"
+        className="rounded-md px-1 py-0.5 text-ink-500 hover:bg-lossBg hover:text-loss disabled:opacity-50"
         title="Delete this contribution"
       >
-        ×
+        <X size={13} strokeWidth={2.5} />
       </button>
     </div>
   );
@@ -150,9 +151,9 @@ export default function ContributionsPivotTable({
           <tr>
             <th>Month / label</th>
             {contributorNames.map((name) => (
-              <th key={name}>{name}</th>
+              <th key={name} className="text-right">{name}</th>
             ))}
-            <th>Total</th>
+            <th className="text-right">Total</th>
           </tr>
         </thead>
         <tbody>
@@ -160,11 +161,11 @@ export default function ContributionsPivotTable({
             <tr key={row.label}>
               <td className="text-ink-300">{row.label}</td>
               {row.cells.map((cell) => (
-                <td key={cell.name}>
+                <td key={cell.name} className="text-right">
                   <PivotCell cell={cell} />
                 </td>
               ))}
-              <td className="font-medium">
+              <td className="text-right font-medium">
                 <PlainMoney value={row.rowTotal} />
               </td>
             </tr>
@@ -182,11 +183,11 @@ export default function ContributionsPivotTable({
             <tr className="border-t-2 border-ink-600 font-medium">
               <td>Total</td>
               {contributorNames.map((name) => (
-                <td key={name}>
+                <td key={name} className="text-right">
                   <PlainMoney value={contributorTotals[name] ?? 0} />
                 </td>
               ))}
-              <td>
+              <td className="text-right">
                 <PlainMoney value={grandTotal} />
               </td>
             </tr>

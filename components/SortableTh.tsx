@@ -1,18 +1,23 @@
 "use client";
 
+import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
+
 export default function SortableTh({
   label,
   active,
   direction,
   onClick,
+  align = "left",
 }: {
   label: string;
   active: boolean;
   direction: "asc" | "desc";
   onClick: () => void;
+  align?: "left" | "right" | "center";
 }) {
+  const Icon = active ? (direction === "asc" ? ChevronUp : ChevronDown) : ChevronsUpDown;
   return (
-    <th>
+    <th className={align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"}>
       <button
         type="button"
         onClick={onClick}
@@ -21,9 +26,7 @@ export default function SortableTh({
         }`}
       >
         {label}
-        <span className="text-[10px] leading-none">
-          {active ? (direction === "asc" ? "▲" : "▼") : "↕"}
-        </span>
+        <Icon size={12} strokeWidth={2} className="shrink-0" />
       </button>
     </th>
   );

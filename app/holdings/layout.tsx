@@ -4,18 +4,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const subLinks = [
-  { href: "/positions/us", label: "US" },
-  { href: "/positions/sg", label: "SG" },
-  { href: "/positions/hk", label: "HK" },
+  { href: "/holdings/cash", label: "Cash" },
+  { href: "/holdings/us", label: "US" },
+  { href: "/holdings/sg", label: "SG" },
+  { href: "/holdings/hk", label: "HK" },
 ];
 
-export default function PositionsLayout({ children }: { children: React.ReactNode }) {
+export default function HoldingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <p className="text-sm text-ink-300">Open positions</p>
+        <p className="text-sm text-ink-300">Holdings</p>
         <ul className="mt-3 flex gap-1 border-b border-ink-700">
           {subLinks.map((link) => {
             const active = pathname === link.href;

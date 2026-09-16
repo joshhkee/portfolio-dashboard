@@ -63,22 +63,24 @@ export default function CompletedTradesTable({ trades }: { trades: CompletedTrad
             <SortableTh label="Sell date" active={sortKey === "sellDate"} direction={sortDir} onClick={() => toggleSort("sellDate")} />
             <SortableTh label="Region" active={sortKey === "region"} direction={sortDir} onClick={() => toggleSort("region")} />
             <SortableTh label="Ticker" active={sortKey === "ticker"} direction={sortDir} onClick={() => toggleSort("ticker")} />
-            <SortableTh label="Qty sold" active={sortKey === "qtySold"} direction={sortDir} onClick={() => toggleSort("qtySold")} />
-            <SortableTh label="Avg cost" active={sortKey === "avgCost"} direction={sortDir} onClick={() => toggleSort("avgCost")} />
-            <SortableTh label="Sell price" active={sortKey === "sellPrice"} direction={sortDir} onClick={() => toggleSort("sellPrice")} />
+            <SortableTh label="Qty sold" active={sortKey === "qtySold"} direction={sortDir} onClick={() => toggleSort("qtySold")} align="right" />
+            <SortableTh label="Avg cost" active={sortKey === "avgCost"} direction={sortDir} onClick={() => toggleSort("avgCost")} align="right" />
+            <SortableTh label="Sell price" active={sortKey === "sellPrice"} direction={sortDir} onClick={() => toggleSort("sellPrice")} align="right" />
             <SortableTh
               label="Realized P/L (native)"
               active={sortKey === "realizedPL"}
               direction={sortDir}
               onClick={() => toggleSort("realizedPL")}
+              align="right"
             />
             <SortableTh
               label="Realized P/L (SGD)"
               active={sortKey === "realizedPLSGD"}
               direction={sortDir}
               onClick={() => toggleSort("realizedPLSGD")}
+              align="right"
             />
-            <SortableTh label="Return %" active={sortKey === "returnPct"} direction={sortDir} onClick={() => toggleSort("returnPct")} />
+            <SortableTh label="Return %" active={sortKey === "returnPct"} direction={sortDir} onClick={() => toggleSort("returnPct")} align="right" />
             <th className="text-left">Notes</th>
           </tr>
         </thead>
@@ -92,24 +94,24 @@ export default function CompletedTradesTable({ trades }: { trades: CompletedTrad
                 </td>
                 <td className="text-ink-300">{t.region}</td>
                 <td className="num">{t.ticker}</td>
-                <td className="num">{t.qtySold}</td>
-                <td className="num">
+                <td className="num text-right">{t.qtySold}</td>
+                <td className="num text-right">
                   {symbol}
                   {formatAmount(t.avgCost)}
                 </td>
-                <td className="num">
+                <td className="num text-right">
                   {symbol}
                   {formatAmount(t.sellPrice)}
                 </td>
-                <td className="num text-ink-300">
+                <td className="num text-right text-ink-300">
                   {t.realizedPL < 0 ? "-" : t.realizedPL > 0 ? "+" : ""}
                   {symbol}
                   {formatAmount(Math.abs(t.realizedPL))}
                 </td>
-                <td>
+                <td className="text-right">
                   <NativeMoney value={t.realizedPLSGD} symbol={currencySymbol.SGD} showPlus />
                 </td>
-                <td>
+                <td className="text-right">
                   <Percent value={t.returnPct} />
                 </td>
                 <td className="max-w-xs truncate text-left text-ink-300" title={t.notes ?? undefined}>

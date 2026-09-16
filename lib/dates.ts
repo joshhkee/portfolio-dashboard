@@ -12,6 +12,19 @@ export function toLocalDateInputValue(d: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+/** Human-readable holding period between two dates, e.g. "3mo", "1y 2mo",
+ * "18d" — used for "how long have I held this" displays. Coarse on
+ * purpose (years/months/days, not exact), since precision to the day
+ * isn't useful once you're holding for months. */
+export function formatHoldingPeriod(from: Date, to: Date = new Date()): string {
+  const days = Math.max(0, Math.floor((to.getTime() - from.getTime()) / 86400000));
+  if (days < 30) return `${days}d`;
+  const years = Math.floor(days / 365);
+  const months = Math.floor((days % 365) / 30);
+  if (years > 0) return months > 0 ? `${years}y ${months}mo` : `${years}y`;
+  return `${months}mo`;
+}
+
 const MONTH_ABBR = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",

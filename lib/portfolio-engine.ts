@@ -29,6 +29,13 @@ export interface OpenPosition {
   ticker: string;
   qty: number;
   avgCost: number;
+  // Date the current (still-open) holding cycle began — the Buy that
+  // first took qty from ~0 to positive, carried forward through later
+  // buys in the same cycle. Reset by a full close; the next Buy after
+  // that starts a fresh holding period. Should always be set for any
+  // position with qty > 0 by construction, but kept nullable rather
+  // than asserted, in case that invariant is ever violated by bad data.
+  heldSince: Date | null;
 }
 
 export interface CompletedTrade {
@@ -97,19 +104,22 @@ export function computeLedger(transactions: RawTransaction[]): EngineResult {
     return a.id - b.id;
   });
 
-  const state = new Map<string, { qty: number; avgCost: number }>();
+  const state = new Map<string, { qty: number; avgCost: number; heldSince: Date | null }>();
   const ledger: LedgerRow[] = [];
   const completedTrades: CompletedTrade[] = [];
 
   for (const t of sorted) {
     const key = groupKey(t);
-    const prev = state.get(key) ?? { qty: 0, avgCost: 0 };
+    const prev = state.get(key) ?? { qty: 0, avgCost: 0, heldSince: null };
 
     if (t.action === "Buy") {
       const newQty = prev.qty + t.qty;
       const newAvgCost =
         newQty === 0 ? 0 : (prev.qty * prev.avgCost + t.qty * t.price) / newQty;
-      state.set(key, { qty: newQty, avgCost: newAvgCost });
+      // Starting fresh from ~0 begins a new holding period; buying more
+      // into an already-open position doesn't reset it.
+      const heldSince = prev.qty <= EPSILON ? t.date : prev.heldSince;
+      state.set(key, { qty: newQty, avgCost: newAvgCost, heldSince });
 
       ledger.push({
         ...t,
@@ -124,8 +134,10 @@ export function computeLedger(transactions: RawTransaction[]): EngineResult {
       const returnPct = avgCostAtSale === 0 ? 0 : (t.price - avgCostAtSale) / avgCostAtSale;
       const newQty = prev.qty - t.qty;
       // Average cost carries forward unchanged (it's meaningless once qty
-      // hits 0 — the next Buy will overwrite it from scratch).
-      state.set(key, { qty: newQty, avgCost: avgCostAtSale });
+      // hits 0 — the next Buy will overwrite it from scratch). Holding
+      // period resets the same way, once the position is fully closed.
+      const heldSince = newQty <= EPSILON ? null : prev.heldSince;
+      state.set(key, { qty: newQty, avgCost: avgCostAtSale, heldSince });
 
       ledger.push({
         ...t,
@@ -153,7 +165,7 @@ export function computeLedger(transactions: RawTransaction[]): EngineResult {
   for (const [key, s] of state.entries()) {
     if (s.qty > EPSILON) {
       const [region, ticker] = key.split("::");
-      openPositions.push({ region, ticker, qty: s.qty, avgCost: s.avgCost });
+      openPositions.push({ region, ticker, qty: s.qty, avgCost: s.avgCost, heldSince: s.heldSince });
     }
   }
 

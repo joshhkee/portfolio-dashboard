@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { currencySymbol, currencyForRegion, convertCurrency, type FxRates } from "@/lib/fx";
-import { formatShortDate } from "@/lib/dates";
+import { X } from "lucide-react";
+import { formatShortDate, formatHoldingPeriod } from "@/lib/dates";
 import { formatQty, formatAmount, Percent, NativeMoney } from "@/components/SignedNumber";
 
 interface HistoryRow {
@@ -142,20 +143,29 @@ function TradeSection({
   const unrealizedPLNative = (currentPrice - stats.avgBuyCost) * stats.remainingQty;
   const unrealizedPLPct = stats.avgBuyCost > 0 ? (currentPrice - stats.avgBuyCost) / stats.avgBuyCost : 0;
 
+  const firstDate = new Date(trade.cycle[0].date);
+  const lastDate = new Date(trade.cycle[trade.cycle.length - 1].date);
+  const holdingPeriod = trade.isOpen
+    ? formatHoldingPeriod(firstDate)
+    : formatHoldingPeriod(firstDate, lastDate);
+
   return (
     <div className="py-6 first:pt-0">
-      <p className="mb-3 text-sm font-medium text-ink-100">
-        {trade.cycle[0]?.ticker} Trade {trade.tradeNumber} ({trade.isOpen ? "open" : "closed"})
-      </p>
+      <div className="mb-3 flex items-baseline justify-between">
+        <p className="text-sm font-medium text-ink-100">
+          {trade.cycle[0]?.ticker} Trade {trade.tradeNumber} ({trade.isOpen ? "open" : "closed"})
+        </p>
+        <p className="text-xs text-ink-300">Held {holdingPeriod}</p>
+      </div>
       <div className="table-scroll">
         <table className="ledger-table">
           <thead>
             <tr>
               <th>Date</th>
               <th>Action</th>
-              <th>Qty</th>
-              <th>Price</th>
-              <th>Running qty</th>
+              <th className="text-right">Qty</th>
+              <th className="text-right">Price</th>
+              <th className="text-right">Running qty</th>
               <th className="text-left">Notes</th>
             </tr>
           </thead>
@@ -164,12 +174,12 @@ function TradeSection({
               <tr key={row.id}>
                 <td className="num text-ink-300">{formatShortDate(new Date(row.date))}</td>
                 <td className={row.action === "Buy" ? "text-gain" : "text-loss"}>{row.action}</td>
-                <td className="num">{formatQty(row.qty)}</td>
-                <td className="num">
+                <td className="num text-right">{formatQty(row.qty)}</td>
+                <td className="num text-right">
                   {symbol}
                   {formatAmount(row.price)}
                 </td>
-                <td className="num">{formatQty(row.runningQty)}</td>
+                <td className="num text-right">{formatQty(row.runningQty)}</td>
                 <td className="max-w-[16rem] truncate text-left text-ink-300" title={row.notes ?? undefined}>
                   {row.notes}
                 </td>
@@ -323,7 +333,7 @@ export default function TransactionHistoryModal({
             title="Close"
             aria-label="Close"
           >
-            ✕
+            <X size={18} strokeWidth={2} />
           </button>
         </div>
 
