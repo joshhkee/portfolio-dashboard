@@ -4,6 +4,7 @@ import { NativeMoney, Percent } from "@/components/SignedNumber";
 import { currencySymbol } from "@/lib/fx";
 import { formatShortDate } from "@/lib/dates";
 import PieChart from "@/components/PieChart";
+import RegionFlag from "@/components/RegionFlag";
 
 export const dynamic = "force-dynamic";
 
@@ -138,7 +139,10 @@ export default async function HomePage() {
         <div className="flex flex-wrap gap-10">
           {regionBreakdown.map((r) => (
             <div key={r.region}>
-              <p className="text-sm text-ink-300">{r.region}</p>
+              <p className="flex items-center gap-1.5 text-sm text-ink-300">
+                <RegionFlag region={r.region} />
+                {r.region}
+              </p>
               <p className="num mt-1 text-xl font-medium">
                 <NativeMoney value={r.value} symbol={sgd} />
               </p>

@@ -5,6 +5,7 @@ import { currencySymbol, currencyForRegion, convertCurrency, type FxRates } from
 import { X } from "lucide-react";
 import { formatShortDate, formatHoldingPeriod } from "@/lib/dates";
 import { formatQty, formatAmount, Percent, NativeMoney } from "@/components/SignedNumber";
+import RegionFlag from "@/components/RegionFlag";
 
 interface HistoryRow {
   id: number;
@@ -21,28 +22,44 @@ interface HistoryRow {
 }
 
 interface Trade {
+  ticker: string;
   cycle: HistoryRow[];
   tradeNumber: number;
   isOpen: boolean;
+  // Only set when this trade has no rows of its own yet — a partial
+  // sell in the previous (closed) trade left shares over with nothing
+  // bought or sold against them since.
+  carry: { qty: number; avgCost: number } | null;
 }
 
 const EPSILON = 1e-6;
 
-/** Splits a ticker's full history into cycles at each point the running
- * qty returns to (about) zero — i.e. the position was fully closed
- * before being bought into again. The last cycle, if non-empty, is
- * still open. */
+/** Splits a ticker's full history into trades. Every trade that ends in
+ * a Sell is "closed", whether or not that sell fully zeroed the
+ * position — selling part of a holding closes that batch's story with
+ * a realized P/L, and whatever's left immediately starts a new trade,
+ * open, carrying over its qty and avg cost even if nothing further has
+ * happened to it yet. A Buy never closes a trade. */
 function splitIntoCycles(rows: HistoryRow[]) {
   const closedCycles: HistoryRow[][] = [];
   let current: HistoryRow[] = [];
+  let carry: { qty: number; avgCost: number } | null = null;
+
   for (const row of rows) {
     current.push(row);
-    if (Math.abs(row.runningQty) <= EPSILON) {
+    if (row.action === "Sell") {
       closedCycles.push(current);
       current = [];
+      carry = row.runningQty > EPSILON ? { qty: row.runningQty, avgCost: row.runningAvgCost } : null;
+    } else {
+      // Real activity (a Buy) in the new trade — its own last row will
+      // carry the correct running qty/avg cost, so the fallback isn't
+      // needed anymore.
+      carry = null;
     }
   }
-  return { closedCycles, openCycle: current };
+
+  return { closedCycles, openCycle: current, carry };
 }
 
 interface CycleStats {
@@ -56,8 +73,10 @@ interface CycleStats {
 
 /** Sell rows don't change the running average, so a Sell row's own
  * runningAvgCost is exactly the cost basis that sale was realized
- * against — matches how the engine computes completedTrades. */
-function computeCycleStats(rows: HistoryRow[]): CycleStats {
+ * against — matches how the engine computes completedTrades. `carry`
+ * is the fallback for a trade with no rows of its own yet (see
+ * splitIntoCycles). */
+function computeCycleStats(rows: HistoryRow[], carry: { qty: number; avgCost: number } | null): CycleStats {
   const sells = rows.filter((r) => r.action === "Sell");
   const last = rows[rows.length - 1];
 
@@ -73,12 +92,12 @@ function computeCycleStats(rows: HistoryRow[]): CycleStats {
   }
 
   return {
-    avgBuyCost: last?.runningAvgCost ?? 0,
+    avgBuyCost: last?.runningAvgCost ?? carry?.avgCost ?? 0,
     hasSells: sells.length > 0,
     avgSellCost: totalSellQty > 0 ? totalSellValue / totalSellQty : 0,
     realizedPLNative: totalRealizedPL,
     realizedPLPct: totalCostBasisSold > 0 ? totalRealizedPL / totalCostBasisSold : 0,
-    remainingQty: last?.runningQty ?? 0,
+    remainingQty: last?.runningQty ?? carry?.qty ?? 0,
   };
 }
 
@@ -133,7 +152,7 @@ function TradeSection({
   region: string;
   currentPrice: number;
 }) {
-  const stats = computeCycleStats(trade.cycle);
+  const stats = computeCycleStats(trade.cycle, trade.carry);
   const sgdSymbol = currencySymbol.SGD;
   const currency = currencyForRegion(region);
   // SG stocks are already natively SGD — showing both the "native" and
@@ -143,51 +162,62 @@ function TradeSection({
   const unrealizedPLNative = (currentPrice - stats.avgBuyCost) * stats.remainingQty;
   const unrealizedPLPct = stats.avgBuyCost > 0 ? (currentPrice - stats.avgBuyCost) / stats.avgBuyCost : 0;
 
-  const firstDate = new Date(trade.cycle[0].date);
-  const lastDate = new Date(trade.cycle[trade.cycle.length - 1].date);
-  const holdingPeriod = trade.isOpen
-    ? formatHoldingPeriod(firstDate)
-    : formatHoldingPeriod(firstDate, lastDate);
+  const hasRows = trade.cycle.length > 0;
+  const firstDate = hasRows ? new Date(trade.cycle[0].date) : null;
+  const lastDate = hasRows ? new Date(trade.cycle[trade.cycle.length - 1].date) : null;
+  const holdingPeriod = firstDate
+    ? trade.isOpen
+      ? formatHoldingPeriod(firstDate)
+      : formatHoldingPeriod(firstDate, lastDate!)
+    : null;
 
   return (
     <div className="py-6 first:pt-0">
       <div className="mb-3 flex items-baseline justify-between">
         <p className="text-sm font-medium text-ink-100">
-          {trade.cycle[0]?.ticker} Trade {trade.tradeNumber} ({trade.isOpen ? "open" : "closed"})
+          {trade.ticker} Trade {trade.tradeNumber} ({trade.isOpen ? "open" : "closed"})
         </p>
-        <p className="text-xs text-ink-300">Held {holdingPeriod}</p>
+        {holdingPeriod && <p className="text-xs text-ink-300">Held {holdingPeriod}</p>}
       </div>
-      <div className="table-scroll">
-        <table className="ledger-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Action</th>
-              <th className="text-right">Qty</th>
-              <th className="text-right">Price</th>
-              <th className="text-right">Running qty</th>
-              <th className="text-left">Notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            {trade.cycle.map((row) => (
-              <tr key={row.id}>
-                <td className="num text-ink-300">{formatShortDate(new Date(row.date))}</td>
-                <td className={row.action === "Buy" ? "text-gain" : "text-loss"}>{row.action}</td>
-                <td className="num text-right">{formatQty(row.qty)}</td>
-                <td className="num text-right">
-                  {symbol}
-                  {formatAmount(row.price)}
-                </td>
-                <td className="num text-right">{formatQty(row.runningQty)}</td>
-                <td className="max-w-[16rem] truncate text-left text-ink-300" title={row.notes ?? undefined}>
-                  {row.notes}
-                </td>
+
+      {hasRows ? (
+        <div className="table-scroll">
+          <table className="ledger-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Action</th>
+                <th className="text-right">Qty</th>
+                <th className="text-right">Price</th>
+                <th className="text-right">Running qty</th>
+                <th className="text-left">Notes</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {trade.cycle.map((row) => (
+                <tr key={row.id}>
+                  <td className="num text-ink-300">{formatShortDate(new Date(row.date))}</td>
+                  <td className={row.action === "Buy" ? "text-gain" : "text-loss"}>{row.action}</td>
+                  <td className="num text-right">{formatQty(row.qty)}</td>
+                  <td className="num text-right">
+                    {symbol}
+                    {formatAmount(row.price)}
+                  </td>
+                  <td className="num text-right">{formatQty(row.runningQty)}</td>
+                  <td className="max-w-[16rem] truncate text-left text-ink-300" title={row.notes ?? undefined}>
+                    {row.notes}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="text-sm text-ink-300">
+          {formatQty(stats.remainingQty)} shares carried over from the previous trade — no new
+          activity yet.
+        </p>
+      )}
 
       {/* Buy vs sell cost, side by side so the gap between them is easy
           to read at a glance. */}
@@ -297,15 +327,19 @@ export default function TransactionHistoryModal({
 
   let trades: Trade[] = [];
   if (rows) {
-    const { closedCycles, openCycle } = splitIntoCycles(rows);
-    const tradeCount = closedCycles.length + (openCycle.length > 0 ? 1 : 0);
+    const { closedCycles, openCycle, carry } = splitIntoCycles(rows);
+    const hasOpenTrade = openCycle.length > 0 || carry !== null;
+    const tradeCount = closedCycles.length + (hasOpenTrade ? 1 : 0);
     const closedTrades: Trade[] = closedCycles.map((cycle, i) => ({
+      ticker,
       cycle,
       tradeNumber: i + 1,
       isOpen: false,
+      carry: null,
     }));
-    const openTrade: Trade[] =
-      openCycle.length > 0 ? [{ cycle: openCycle, tradeNumber: tradeCount, isOpen: true }] : [];
+    const openTrade: Trade[] = hasOpenTrade
+      ? [{ ticker, cycle: openCycle, tradeNumber: tradeCount, isOpen: true, carry }]
+      : [];
     // Flipped order: open position first, then closed trades most-recent-first.
     trades = [...openTrade, ...closedTrades.slice().reverse()];
   }
@@ -324,7 +358,7 @@ export default function TransactionHistoryModal({
             <p className="text-sm text-ink-300">Transaction history</p>
             <p className="text-lg font-medium text-ink-100">{companyName || ticker}</p>
             <p className="num text-xs text-ink-300">
-              {ticker} · {region}
+              {ticker} · <RegionFlag region={region} className="mr-0.5" />{region}
             </p>
           </div>
           <button

@@ -6,6 +6,7 @@ import { ArrowRightLeft, Pencil } from "lucide-react";
 import { currencySymbol, type Currency, type FxRates, convertCurrency } from "@/lib/fx";
 import { formatAmount } from "@/components/SignedNumber";
 import { formatShortDate } from "@/lib/dates";
+import RegionFlag from "@/components/RegionFlag";
 
 const CURRENCIES: Currency[] = ["SGD", "USD", "HKD"];
 const CURRENCY_TO_REGION: Record<Currency, string> = { SGD: "SG", USD: "US", HKD: "HK" };
@@ -56,7 +57,10 @@ function BalanceCard({ currency, balance }: { currency: Currency; balance: numbe
   return (
     <div className="panel flex flex-col gap-2 p-5">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-ink-300">{currency}</p>
+        <p className="flex items-center gap-1.5 text-sm text-ink-300">
+          <RegionFlag region={CURRENCY_TO_REGION[currency]} />
+          {currency}
+        </p>
         {!editing && (
           <button
             onClick={() => setEditing(true)}

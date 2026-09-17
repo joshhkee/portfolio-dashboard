@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import RegionFlag from "@/components/RegionFlag";
 
 const subLinks = [
-  { href: "/holdings/cash", label: "Cash" },
-  { href: "/holdings/us", label: "US" },
-  { href: "/holdings/sg", label: "SG" },
-  { href: "/holdings/hk", label: "HK" },
+  { href: "/holdings/cash", label: "Cash", region: null },
+  { href: "/holdings/us", label: "US", region: "US" },
+  { href: "/holdings/sg", label: "SG", region: "SG" },
+  { href: "/holdings/hk", label: "HK", region: "HK" },
 ];
 
 export default function HoldingsLayout({ children }: { children: React.ReactNode }) {
@@ -24,12 +25,13 @@ export default function HoldingsLayout({ children }: { children: React.ReactNode
               <li key={link.href}>
                 <Link
                   href={link.href}
-                  className={`-mb-px block border-b-2 px-4 py-2 text-sm transition ${
+                  className={`-mb-px flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm transition ${
                     active
                       ? "border-accent text-ink-100"
                       : "border-transparent text-ink-300 hover:border-ink-500 hover:text-ink-100"
                   }`}
                 >
+                  {link.region && <RegionFlag region={link.region} />}
                   {link.label}
                 </Link>
               </li>
