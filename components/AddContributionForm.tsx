@@ -15,7 +15,7 @@ const DEFAULT_MONTHLY_AMOUNTS: Record<string, number> = {
   Zhiming: 500,
 };
 
-type Mode = "closed" | "single" | "default-month";
+type Tab = "group" | "individual";
 
 export default function AddContributionForm({
   knownContributors,
@@ -27,13 +27,19 @@ export default function AddContributionForm({
   nextMonthDate: string;
 }) {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>("closed");
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<Tab>("group");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const today = toLocalDateInputValue(new Date());
 
-  async function handleSingleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  function close() {
+    setOpen(false);
+    setError(null);
+  }
+
+  async function handleIndividualSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     const form = new FormData(e.currentTarget);
@@ -56,7 +62,7 @@ export default function AddContributionForm({
         throw new Error(body.error || "Failed to save contribution");
       }
       (e.target as HTMLFormElement).reset();
-      setMode("closed");
+      close();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -65,7 +71,7 @@ export default function AddContributionForm({
     }
   }
 
-  async function handleDefaultMonthSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleGroupSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     const form = new FormData(e.currentTarget);
@@ -94,7 +100,7 @@ export default function AddContributionForm({
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || "Failed to save contributions");
       }
-      setMode("closed");
+      close();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -103,130 +109,128 @@ export default function AddContributionForm({
     }
   }
 
-  if (mode === "closed") {
+  if (!open) {
     return (
-      <div className="flex gap-2">
-        <button className="btn-primary" onClick={() => setMode("single")}>
-          Record a deposit
-        </button>
-        <button className="btn-ghost" onClick={() => setMode("default-month")}>
-          Add default month
-        </button>
-      </div>
-    );
-  }
-
-  if (mode === "default-month") {
-    return (
-      <form
-        onSubmit={handleDefaultMonthSubmit}
-        className="panel flex flex-col gap-3 p-4"
-      >
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-ink-300">Label</label>
-            <input name="label" required defaultValue={nextMonthLabel} className="field w-36" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-ink-300">Date</label>
-            <input
-              name="date"
-              type="date"
-              required
-              defaultValue={nextMonthDate}
-              className="field w-36"
-            />
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          {knownContributors.map((name) => (
-            <div key={name} className="flex flex-col gap-1">
-              <label className="text-xs text-ink-300">{name}</label>
-              <input
-                name={`amount:${name}`}
-                type="number"
-                step="0.01"
-                min="0"
-                defaultValue={DEFAULT_MONTHLY_AMOUNTS[name] ?? 0}
-                className="field w-24"
-              />
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <button type="submit" className="btn-primary" disabled={submitting}>
-            {submitting ? "Saving…" : "Add month"}
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() => setMode("closed")}
-            disabled={submitting}
-          >
-            Cancel
-          </button>
-        </div>
-        {error && <p className="text-sm text-loss">{error}</p>}
-      </form>
+      <button className="btn-primary" onClick={() => setOpen(true)}>
+        Record a deposit
+      </button>
     );
   }
 
   return (
-    <form onSubmit={handleSingleSubmit} className="panel flex flex-wrap items-end gap-3 p-4">
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Stakeholder</label>
-        <input
-          name="contributorName"
-          list="contributor-list"
-          required
-          className="field w-40"
-          placeholder="e.g. Josh"
-        />
-        <datalist id="contributor-list">
-          {knownContributors.map((name) => (
-            <option key={name} value={name} />
-          ))}
-        </datalist>
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Label</label>
-        <input
-          name="label"
-          required
-          className="field w-36"
-          placeholder="e.g. SEP (2026)"
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Date</label>
-        <input name="date" type="date" required defaultValue={today} className="field w-36" />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Amount</label>
-        <input
-          name="amount"
-          type="number"
-          step="0.01"
-          min="0"
-          required
-          className="field w-32"
-          placeholder="500.00"
-        />
-      </div>
-      <div className="flex gap-2">
-        <button type="submit" className="btn-primary" disabled={submitting}>
-          {submitting ? "Saving…" : "Save"}
+    <div className="panel flex flex-col gap-4 p-4">
+      <div className="flex rounded-md border border-ink-700 p-0.5 text-xs w-fit">
+        <button
+          type="button"
+          onClick={() => setTab("group")}
+          className={`rounded px-3 py-1.5 transition ${tab === "group" ? "bg-accent text-ink-950" : "text-ink-300"}`}
+        >
+          Group
         </button>
         <button
           type="button"
-          className="btn-ghost"
-          onClick={() => setMode("closed")}
-          disabled={submitting}
+          onClick={() => setTab("individual")}
+          className={`rounded px-3 py-1.5 transition ${tab === "individual" ? "bg-accent text-ink-950" : "text-ink-300"}`}
         >
-          Cancel
+          Individual
         </button>
       </div>
-      {error && <p className="w-full text-sm text-loss">{error}</p>}
-    </form>
+
+      {tab === "group" ? (
+        <form onSubmit={handleGroupSubmit} className="flex flex-col gap-3">
+          <p className="text-xs text-ink-500">
+            Prefilled with the next month and the standard split — adjust any amount before
+            saving.
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-ink-300">Label</label>
+              <input name="label" required defaultValue={nextMonthLabel} className="field w-36" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-ink-300">Date</label>
+              <input
+                name="date"
+                type="date"
+                required
+                defaultValue={nextMonthDate}
+                className="field w-36"
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {knownContributors.map((name) => (
+              <div key={name} className="flex flex-col gap-1">
+                <label className="text-xs text-ink-300">{name}</label>
+                <input
+                  name={`amount:${name}`}
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  defaultValue={DEFAULT_MONTHLY_AMOUNTS[name] ?? 0}
+                  className="field w-24"
+                />
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button type="submit" className="btn-primary" disabled={submitting}>
+              {submitting ? "Saving…" : "Add month"}
+            </button>
+            <button type="button" className="btn-ghost" onClick={close} disabled={submitting}>
+              Cancel
+            </button>
+          </div>
+          {error && <p className="text-sm text-loss">{error}</p>}
+        </form>
+      ) : (
+        <form onSubmit={handleIndividualSubmit} className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-ink-300">Stakeholder</label>
+            <input
+              name="contributorName"
+              list="contributor-list"
+              required
+              className="field w-40"
+              placeholder="e.g. Josh"
+            />
+            <datalist id="contributor-list">
+              {knownContributors.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-ink-300">Label</label>
+            <input name="label" required className="field w-36" placeholder="e.g. SEP (2026)" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-ink-300">Date</label>
+            <input name="date" type="date" required defaultValue={today} className="field w-36" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-ink-300">Amount</label>
+            <input
+              name="amount"
+              type="number"
+              step="0.01"
+              min="0"
+              required
+              className="field w-32"
+              placeholder="500.00"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button type="submit" className="btn-primary" disabled={submitting}>
+              {submitting ? "Saving…" : "Save"}
+            </button>
+            <button type="button" className="btn-ghost" onClick={close} disabled={submitting}>
+              Cancel
+            </button>
+          </div>
+          {error && <p className="w-full text-sm text-loss">{error}</p>}
+        </form>
+      )}
+    </div>
   );
 }

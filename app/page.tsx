@@ -1,21 +1,14 @@
 import Link from "next/link";
-import {
-  Wallet,
-  LineChart,
-  CheckCircle2,
-  PiggyBank,
-} from "lucide-react";
+import { Wallet, LineChart, CheckCircle2, PiggyBank, Plus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getOpenPositionsFor } from "@/lib/get-positions";
 import { computeLedger, fromDbRows } from "@/lib/portfolio-engine";
 import { NativeMoney, Percent } from "@/components/SignedNumber";
 import { currencySymbol, convertCurrency, fetchFxRates, type Currency } from "@/lib/fx";
-import { formatShortDate, toLocalDateInputValue } from "@/lib/dates";
+import { formatShortDate } from "@/lib/dates";
 import { xirr } from "@/lib/xirr";
-import AllocationBars from "@/components/AllocationBars";
+import AllocationCards from "@/components/AllocationCards";
 import RegionFlag from "@/components/RegionFlag";
-import AddTransactionForm from "@/components/AddTransactionForm";
-import AddContributionForm from "@/components/AddContributionForm";
 
 export const dynamic = "force-dynamic";
 
@@ -141,43 +134,30 @@ export default async function HomePage() {
   activity.sort((a, b) => b.dateMs - a.dateMs);
   const recentActivity = activity.slice(0, 5);
 
-  // --- Quick-add form data ---
-  const knownContributors = contributorSlices.map((s) => s.label);
-  let latestContribDate = new Date();
-  if (contributions.length > 0) {
-    latestContribDate = contributions[0].date;
-    for (const c of contributions) {
-      if (c.date > latestContribDate) latestContribDate = c.date;
-    }
-  }
-  const nextMonthDateObj = new Date(latestContribDate.getFullYear(), latestContribDate.getMonth() + 1, 1);
-  const nextMonthLabel = `${nextMonthDateObj
-    .toLocaleString("en-US", { month: "short" })
-    .toUpperCase()} (${nextMonthDateObj.getFullYear()})`;
-  const nextMonthDate = toLocalDateInputValue(nextMonthDateObj);
-
   return (
-    <div className="flex flex-col gap-10">
-      {/* Header row: title + collapsible quick actions */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="flex flex-col gap-6">
+      {/* Header row: title + quick links */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <p className="text-sm text-ink-300">Overview</p>
         <div className="flex flex-wrap gap-2">
-          <AddTransactionForm />
-          <AddContributionForm
-            knownContributors={knownContributors}
-            nextMonthLabel={nextMonthLabel}
-            nextMonthDate={nextMonthDate}
-          />
+          <Link href="/transactions" className="btn-primary flex items-center gap-1.5">
+            <Plus size={14} strokeWidth={2.5} />
+            Log a transaction
+          </Link>
+          <Link href="/outlay" className="btn-ghost flex items-center gap-1.5">
+            <Plus size={14} strokeWidth={2.5} />
+            Record a deposit
+          </Link>
         </div>
       </div>
 
       {/* Hero: total portfolio value, inclusive of cash */}
-      <div className="panel p-8">
+      <div className="panel p-6">
         <p className="text-sm text-ink-300">Total Portfolio Value (SGD, incl. cash)</p>
-        <p className="num mt-2 text-5xl font-medium text-ink-100">
+        <p className="num mt-1 text-4xl font-medium text-ink-100">
           <NativeMoney value={totalPortfolioValue} symbol={sgd} />
         </p>
-        <div className="mt-4 flex flex-wrap items-center gap-x-8 gap-y-2">
+        <div className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-1">
           <div>
             <span className="text-xs text-ink-300">Growth vs outlay </span>
             <span className="num text-sm">
@@ -188,27 +168,23 @@ export default async function HomePage() {
             </span>
           </div>
           <div>
-            <span className="text-xs text-ink-300">Annualized return </span>
+            <span className="text-xs text-ink-300">Annualized return (XIRR) </span>
             <span className="num text-sm">
               {annualizedReturn !== null ? <Percent value={annualizedReturn} /> : "—"}
             </span>
           </div>
         </div>
-        <p className="mt-2 text-xs text-ink-500">
-          Annualized return is money-weighted (XIRR) — accounts for when each contribution
-          landed, not just a single lump sum from inception.
-        </p>
       </div>
 
       {/* Total Holding Value + regional breakdown */}
       <div className="panel p-6">
-        <div className="mb-4 flex items-baseline justify-between">
+        <div className="mb-3 flex items-baseline justify-between">
           <p className="text-sm text-ink-300">Total Holding Value (SGD, excl. cash)</p>
-          <p className="num text-xl font-medium text-ink-100">
+          <p className="num text-lg font-medium text-ink-100">
             <NativeMoney value={holdingsValueSgd} symbol={sgd} />
           </p>
         </div>
-        <AllocationBars slices={regionSlices} symbol={sgd} />
+        <AllocationCards slices={regionSlices} symbol={sgd} compact />
       </div>
 
       {/* Sub-page summary cards */}
@@ -264,35 +240,34 @@ export default async function HomePage() {
         </Link>
       </div>
 
-      {/* Outlay by stakeholder */}
-      <section>
-        <h2 className="mb-4 text-sm font-medium text-ink-300">Outlay by stakeholder</h2>
-        {contributorSlices.length === 0 ? (
-          <p className="text-sm text-ink-300">No outlay recorded yet.</p>
-        ) : (
-          <AllocationBars slices={contributorSlices} symbol={sgd} />
-        )}
-      </section>
+      {/* Outlay by stakeholder + Recent activity, side by side on desktop */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <section>
+          <h2 className="mb-3 text-sm font-medium text-ink-300">Outlay by stakeholder</h2>
+          {contributorSlices.length === 0 ? (
+            <p className="text-sm text-ink-300">No outlay recorded yet.</p>
+          ) : (
+            <AllocationCards slices={contributorSlices} symbol={sgd} compact />
+          )}
+        </section>
 
-      {/* Recent activity */}
-      <section>
-        <h2 className="mb-3 text-sm font-medium text-ink-300">Recent activity</h2>
-        {recentActivity.length === 0 ? (
-          <p className="text-sm text-ink-300">Nothing recorded yet.</p>
-        ) : (
-          <ul className="flex flex-col divide-y divide-ink-700">
-            {recentActivity.map((item, i) => (
-              <li key={i} className="flex items-center justify-between gap-4 py-2.5 text-sm">
-                <span className="flex items-baseline gap-2">
-                  <span className="text-ink-500">{formatShortDate(new Date(item.dateMs))}</span>
-                  <span className="text-ink-100">{item.description}</span>
-                </span>
-                <span className="num text-ink-300">{item.amount}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+        <section>
+          <h2 className="mb-3 text-sm font-medium text-ink-300">Recent activity</h2>
+          {recentActivity.length === 0 ? (
+            <p className="text-sm text-ink-300">Nothing recorded yet.</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {recentActivity.map((item, i) => (
+                <div key={i} className="panel flex flex-col gap-1 p-3">
+                  <span className="text-xs text-ink-500">{formatShortDate(new Date(item.dateMs))}</span>
+                  <span className="text-sm text-ink-100">{item.description}</span>
+                  <span className="num text-xs text-ink-300">{item.amount}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

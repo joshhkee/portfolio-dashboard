@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Wallet } from "lucide-react";
 import RegionFlag from "@/components/RegionFlag";
 
 const subLinks = [
-  { href: "/holdings/cash", label: "Cash", region: null },
   { href: "/holdings/us", label: "US", region: "US" },
   { href: "/holdings/sg", label: "SG", region: "SG" },
   { href: "/holdings/hk", label: "HK", region: "HK" },
+  { href: "/holdings/cash", label: "Cash", region: null },
 ];
 
 export default function HoldingsLayout({ children }: { children: React.ReactNode }) {
@@ -31,7 +32,11 @@ export default function HoldingsLayout({ children }: { children: React.ReactNode
                       : "border-transparent text-ink-300 hover:border-ink-500 hover:text-ink-100"
                   }`}
                 >
-                  {link.region && <RegionFlag region={link.region} />}
+                  {link.region ? (
+                    <RegionFlag region={link.region} />
+                  ) : (
+                    <Wallet size={14} strokeWidth={1.75} className="text-ink-500" />
+                  )}
                   {link.label}
                 </Link>
               </li>

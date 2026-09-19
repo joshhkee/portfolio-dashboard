@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { Money } from "@/components/SignedNumber";
 import AddContributionForm from "@/components/AddContributionForm";
-import PieChart from "@/components/PieChart";
+import AllocationCards from "@/components/AllocationCards";
 import ContributionsPivotTable from "@/components/ContributionsPivotTable";
 import { toLocalDateInputValue } from "@/lib/dates";
 
@@ -102,8 +102,9 @@ export default async function ContributionsPage() {
         {contributorRows.length === 0 ? (
           <p className="text-sm text-ink-300">No outlay recorded yet.</p>
         ) : (
-          <PieChart
+          <AllocationCards
             slices={contributorRows.map((r) => ({ label: r.name, value: r.total }))}
+            symbol="S$"
           />
         )}
       </section>
