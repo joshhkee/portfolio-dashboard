@@ -1,16 +1,28 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { toLocalDateInputValue } from "@/lib/dates";
 
 export default function AddTransactionForm() {
   const router = useRouter();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const today = toLocalDateInputValue(new Date());
+
+  // Coming here from the home page's "Log a transaction" shortcut
+  // (?add=1) opens the form immediately instead of landing on a page
+  // where you still have to click a button.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("add")) {
+      setOpen(true);
+      router.replace(pathname);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

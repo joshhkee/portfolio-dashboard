@@ -3,11 +3,10 @@ import { Wallet, LineChart, CheckCircle2, PiggyBank, Plus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getOpenPositionsFor } from "@/lib/get-positions";
 import { computeLedger, fromDbRows } from "@/lib/portfolio-engine";
-import { NativeMoney, Percent } from "@/components/SignedNumber";
+import { NativeMoney, Percent, formatAmount } from "@/components/SignedNumber";
 import { currencySymbol, convertCurrency, fetchFxRates, type Currency } from "@/lib/fx";
 import { formatShortDate } from "@/lib/dates";
 import { xirr } from "@/lib/xirr";
-import AllocationCards from "@/components/AllocationCards";
 import RegionFlag from "@/components/RegionFlag";
 
 export const dynamic = "force-dynamic";
@@ -140,51 +139,74 @@ export default async function HomePage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <p className="text-sm text-ink-300">Overview</p>
         <div className="flex flex-wrap gap-2">
-          <Link href="/transactions" className="btn-primary flex items-center gap-1.5">
+          <Link href="/transactions?add=1" className="btn-primary flex items-center gap-1.5">
             <Plus size={14} strokeWidth={2.5} />
             Log a transaction
           </Link>
-          <Link href="/outlay" className="btn-ghost flex items-center gap-1.5">
+          <Link href="/outlay?add=1" className="btn-ghost flex items-center gap-1.5">
             <Plus size={14} strokeWidth={2.5} />
             Record a deposit
           </Link>
         </div>
       </div>
 
-      {/* Hero: total portfolio value, inclusive of cash */}
-      <div className="panel p-6">
-        <p className="text-sm text-ink-300">Total Portfolio Value (SGD, incl. cash)</p>
-        <p className="num mt-1 text-4xl font-medium text-ink-100">
-          <NativeMoney value={totalPortfolioValue} symbol={sgd} />
-        </p>
-        <div className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-1">
-          <div>
-            <span className="text-xs text-ink-300">Growth vs outlay </span>
-            <span className="num text-sm">
-              <NativeMoney value={growthAbsolute} symbol={sgd} showPlus />
-            </span>{" "}
-            <span className="num text-sm">
-              (<Percent value={growth} />)
-            </span>
-          </div>
-          <div>
-            <span className="text-xs text-ink-300">Annualized return (XIRR) </span>
-            <span className="num text-sm">
-              {annualizedReturn !== null ? <Percent value={annualizedReturn} /> : "—"}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Total Holding Value + regional breakdown */}
-      <div className="panel p-6">
-        <div className="mb-3 flex items-baseline justify-between">
-          <p className="text-sm text-ink-300">Total Holding Value (SGD, excl. cash)</p>
-          <p className="num text-lg font-medium text-ink-100">
-            <NativeMoney value={holdingsValueSgd} symbol={sgd} />
+      {/* Hero + Total Holding Value, side by side */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="panel p-6">
+          <p className="text-sm text-ink-300">Total Portfolio Value (SGD, incl. cash)</p>
+          <p className="num mt-1 text-4xl font-medium text-ink-100">
+            <NativeMoney value={totalPortfolioValue} symbol={sgd} />
           </p>
+          <div className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-1">
+            <div>
+              <span className="text-xs text-ink-300">Growth vs outlay </span>
+              <span className="num text-sm">
+                <NativeMoney value={growthAbsolute} symbol={sgd} showPlus />
+              </span>{" "}
+              <span className="num text-sm">
+                (<Percent value={growth} />)
+              </span>
+            </div>
+            <div>
+              <span className="text-xs text-ink-300">Annualized return (XIRR) </span>
+              <span className="num text-sm">
+                {annualizedReturn !== null ? <Percent value={annualizedReturn} /> : "—"}
+              </span>
+            </div>
+          </div>
         </div>
-        <AllocationCards slices={regionSlices} symbol={sgd} compact />
+
+        <div className="panel p-6">
+          <div className="mb-4 flex items-baseline justify-between">
+            <p className="text-sm text-ink-300">Total Holding Value (SGD, excl. cash)</p>
+            <p className="num text-lg font-medium text-ink-100">
+              <NativeMoney value={holdingsValueSgd} symbol={sgd} />
+            </p>
+          </div>
+          <div className="flex flex-col gap-3">
+            {regionSlices.map((s) => {
+              const pct = holdingsValueSgd === 0 ? 0 : (s.value / holdingsValueSgd) * 100;
+              return (
+                <div key={s.label} className="flex items-center gap-3">
+                  <span className="flex w-11 shrink-0 items-center gap-1.5 text-sm text-ink-100">
+                    {s.icon}
+                    {s.label}
+                  </span>
+                  <div className="h-1 flex-1 overflow-hidden rounded-full bg-ink-800">
+                    <div className="h-full rounded-full bg-accent/70" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="num shrink-0 text-sm text-ink-100">
+                    {sgd}
+                    {formatAmount(s.value)}
+                  </span>
+                  <span className="num w-11 shrink-0 text-right text-xs text-ink-500">
+                    {pct.toFixed(1)}%
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Sub-page summary cards */}
@@ -241,27 +263,44 @@ export default async function HomePage() {
       </div>
 
       {/* Outlay by stakeholder + Recent activity, side by side on desktop */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section>
-          <h2 className="mb-3 text-sm font-medium text-ink-300">Outlay by stakeholder</h2>
+          <h2 className="mb-2 text-sm font-medium text-ink-300">Outlay by stakeholder</h2>
           {contributorSlices.length === 0 ? (
             <p className="text-sm text-ink-300">No outlay recorded yet.</p>
           ) : (
-            <AllocationCards slices={contributorSlices} symbol={sgd} compact />
+            <div className="panel divide-y divide-ink-700 px-4">
+              {contributorSlices.map((s) => {
+                const pct = totalOutlay === 0 ? 0 : (s.value / totalOutlay) * 100;
+                return (
+                  <div key={s.label} className="flex items-center justify-between gap-3 py-2 text-sm">
+                    <span className="text-ink-100">{s.label}</span>
+                    <span className="num text-ink-300">
+                      {sgd}
+                      {formatAmount(s.value)} · {pct.toFixed(1)}%
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </section>
 
         <section>
-          <h2 className="mb-3 text-sm font-medium text-ink-300">Recent activity</h2>
+          <h2 className="mb-2 text-sm font-medium text-ink-300">Recent activity</h2>
           {recentActivity.length === 0 ? (
             <p className="text-sm text-ink-300">Nothing recorded yet.</p>
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="panel divide-y divide-ink-700 px-4">
               {recentActivity.map((item, i) => (
-                <div key={i} className="panel flex flex-col gap-1 p-3">
-                  <span className="text-xs text-ink-500">{formatShortDate(new Date(item.dateMs))}</span>
-                  <span className="text-sm text-ink-100">{item.description}</span>
-                  <span className="num text-xs text-ink-300">{item.amount}</span>
+                <div key={i} className="flex items-center justify-between gap-3 py-2 text-sm">
+                  <span className="flex min-w-0 items-baseline gap-2">
+                    <span className="shrink-0 text-xs text-ink-500">
+                      {formatShortDate(new Date(item.dateMs))}
+                    </span>
+                    <span className="truncate text-ink-100">{item.description}</span>
+                  </span>
+                  <span className="num shrink-0 text-xs text-ink-300">{item.amount}</span>
                 </div>
               ))}
             </div>

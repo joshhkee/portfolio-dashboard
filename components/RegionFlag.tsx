@@ -40,6 +40,17 @@ function SGFlag() {
     <FlagSvg>
       <rect width="20" height="7" fill={MUTED_RED} />
       <rect y="7" width="20" height="7" fill={MUTED_CREAM} />
+      {/* Crescent moon (a cream circle with a red circle overlapping to
+          "bite" a crescent out of it) plus five stars, simplified to
+          small dots at this size — distinguishes it from Indonesia's
+          flag, which is the same red-over-white without these. */}
+      <circle cx="4.2" cy="3.4" r="2.1" fill={MUTED_CREAM} />
+      <circle cx="5.1" cy="2.9" r="1.8" fill={MUTED_RED} />
+      <circle cx="8.3" cy="1.7" r="0.4" fill={MUTED_CREAM} />
+      <circle cx="10" cy="2.9" r="0.4" fill={MUTED_CREAM} />
+      <circle cx="9.4" cy="4.8" r="0.4" fill={MUTED_CREAM} />
+      <circle cx="7.2" cy="4.8" r="0.4" fill={MUTED_CREAM} />
+      <circle cx="6.6" cy="2.9" r="0.4" fill={MUTED_CREAM} />
     </FlagSvg>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { toLocalDateInputValue } from "@/lib/dates";
 
 // The standard monthly split observed in the contribution history —
@@ -27,12 +27,24 @@ export default function AddContributionForm({
   nextMonthDate: string;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("group");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const today = toLocalDateInputValue(new Date());
+
+  // Coming here from the home page's "Record a deposit" shortcut
+  // (?add=1) opens the form immediately instead of landing on a page
+  // where you still have to click a button.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("add")) {
+      setOpen(true);
+      router.replace(pathname);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function close() {
     setOpen(false);
