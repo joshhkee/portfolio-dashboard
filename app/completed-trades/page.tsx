@@ -34,6 +34,18 @@ export default async function CompletedTradesPage() {
         </p>
       </div>
 
+      <div className="flex justify-end">
+        {/* API download, not a page navigation — <a download> is correct here. */}
+        <a
+          href="/api/export/completed-trades"
+          download
+          className="btn-ghost"
+          title="Download all completed trades as CSV"
+        >
+          Export CSV
+        </a>
+      </div>
+
       <CompletedTradesTable trades={tradesWithSGD} />
     </div>
   );

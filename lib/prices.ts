@@ -7,8 +7,16 @@
 // provider (e.g. Alpha Vantage, Finnhub, Twelve Data) without touching
 // anything else in the app.
 
+/** Prices are keyed by "REGION::TICKER" (compound key) — a ticker
+ * alone is NOT unique: the same symbol can legitimately be held in two
+ * regions (e.g. a US-listed ETF and an SG-listed fund sharing a name),
+ * and a ticker-only map would silently collapse them into one price. */
+export function priceKey(region: string, ticker: string): string {
+  return `${region}::${ticker}`;
+}
+
 export interface PriceMap {
-  [ticker: string]: number;
+  [compoundKey: string]: number;
 }
 
 /** Map a (region, ticker) pair from your ledger to the symbol Yahoo expects. */
@@ -73,30 +81,72 @@ export async function fetchCompanyName(yahooSymbol: string): Promise<string | nu
   }
 }
 
+export interface HistoricalCloses {
+  /** Map of "YYYY-MM-DD" (UTC calendar day) -> closing price. */
+  [date: string]: number;
+}
+
+/**
+ * Daily closing prices for a symbol over a date range, from the same
+ * Yahoo chart endpoint fetchQuote uses (its range/interval params
+ * return historical bars). Keys are UTC "YYYY-MM-DD" strings. Returns
+ * an empty map on failure — history is cosmetic-adjacent data and the
+ * snapshot series tolerates missing days.
+ */
+export async function fetchHistoricalCloses(
+  yahooSymbol: string,
+  range: string
+): Promise<HistoricalCloses> {
+  try {
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
+        yahooSymbol
+      )}?range=${encodeURIComponent(range)}&interval=1d`,
+      { next: { revalidate: 3600 } } // historical bars don't change; cache a while
+    );
+    if (!res.ok) return {};
+    const data = await res.json();
+    const result = data?.chart?.result?.[0];
+    const timestamps: number[] | undefined = result?.timestamp;
+    const closes: (number | null)[] | undefined =
+      result?.indicators?.quote?.[0]?.close;
+    const map: HistoricalCloses = {};
+    if (!timestamps || !closes) return map;
+    for (let i = 0; i < timestamps.length; i++) {
+      const close = closes[i];
+      if (typeof close !== "number") continue;
+      const day = new Date(timestamps[i] * 1000).toISOString().slice(0, 10);
+      map[day] = close;
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
 /**
  * Fetch current prices for a set of (region, ticker) positions.
- * Returns a map keyed by ticker (not region+ticker) since the sheet's
- * tickers are unique within your actual holdings — if you ever hold
- * the same symbol in two regions this will need a compound key.
+ * Returns a map keyed by compound "REGION::TICKER" (see priceKey) —
+ * safe even if the same symbol is held in two regions.
  */
 export async function fetchQuotesForPositions(
   positions: { region: string; ticker: string }[]
 ): Promise<PriceMap> {
   const unique = Array.from(
-    new Map(positions.map((p) => [`${p.region}::${p.ticker}`, p])).values()
+    new Map(positions.map((p) => [priceKey(p.region, p.ticker), p])).values()
   );
 
   const results = await Promise.all(
     unique.map(async (p) => {
       const symbol = toYahooSymbol(p.region, p.ticker);
       const price = await fetchQuote(symbol);
-      return { ticker: p.ticker, price };
+      return { key: priceKey(p.region, p.ticker), price };
     })
   );
 
   const map: PriceMap = {};
   for (const r of results) {
-    if (r.price !== null) map[r.ticker] = r.price;
+    if (r.price !== null) map[r.key] = r.price;
   }
   return map;
 }

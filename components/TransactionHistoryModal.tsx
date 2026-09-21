@@ -5,7 +5,7 @@ import { currencySymbol, currencyForRegion, convertCurrency, type FxRates } from
 import { X } from "lucide-react";
 import RegionFlag from "@/components/RegionFlag";
 import { formatShortDate, formatHoldingPeriod } from "@/lib/dates";
-import { formatQty, formatAmount, Percent, NativeMoney } from "@/components/SignedNumber";
+import { formatQty, formatAmount, NativeMoney } from "@/components/SignedNumber";
 
 interface HistoryRow {
   id: number;

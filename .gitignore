@@ -8,15 +8,15 @@
 # production
 /build
 
-# env files
+# env files — .env.example is NOT ignored: it's the template and must be committed
 .env
-.env.example
 .env*.local
 
 # misc
 .DS_Store
 *.pem
 npm-debug.log*
+*.tsbuildinfo
 
 # prisma
 prisma/dev.db

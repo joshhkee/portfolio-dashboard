@@ -20,7 +20,13 @@ export default async function TransactionsPage() {
           <p className="text-sm text-ink-300">Transaction ledger</p>
           <p className="mt-1 text-2xl font-medium">{ledger.length} entries</p>
         </div>
-        <AddTransactionForm />
+        <div className="flex items-center gap-2">
+          {/* API download — rule only wants page navigations in <Link>. */}
+          <a href="/api/export/transactions" download className="btn-ghost" title="Download the full ledger as CSV">
+            Export CSV
+          </a>
+          <AddTransactionForm />
+        </div>
       </div>
 
       {negativeRows.length > 0 && (
