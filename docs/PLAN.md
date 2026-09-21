@@ -44,14 +44,12 @@ part DONE on a partial pass — leave it IN PROGRESS with a note instead.
 **State:** parts 1–4 finished and verified. Next action: **Part 5 (benchmark
 comparison + alpha/beta)**.
 
-**Git:** `3fbc564` (pushed) holds parts 1–3. Part 4 is **uncommitted** in the
-working tree — `lib/performance.ts`, `tests/performance.test.ts`,
-`components/{PortfolioPerformance,DrawdownChart,YearlyReturnsTable}.tsx` (new),
-plus `app/page.tsx`, `components/PortfolioValueChart.tsx`,
-`app/globals.css`, `lib/snapshots.ts`, `docs/PLAN.md`. Those same files also
-carry the owner's deliberate reversal of the Part 3 bar colour (proportion bars
-are back on gold). Commit or stash before starting Part 5 so there is a clean
-fallback point.
+**Git:** all of parts 1–4 are committed and pushed. `d90c065` is the tip
+(Part 4: TWR, drawdown chart, range selectors, per-year returns, plus the
+owner's reversal of the Part 3 bar colour — proportion bars are back on gold);
+`3fbc564` was parts 1–3. The working tree is clean and the branch is pushed to
+`origin`; **no pull request is open** for it, by the owner's choice. Part 5
+therefore starts from a clean fallback point.
 
 **Verification on the current tree (all four ran green at the end of this
 session):**
