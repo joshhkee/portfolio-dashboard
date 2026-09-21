@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { computeLedger, fromDbRows, withLivePrices } from "@/lib/portfolio-engine";
-import { fetchQuotesForPositions } from "@/lib/prices";
+import { fetchPositionQuotes, priceKey, type QuoteMeta } from "@/lib/prices";
+import { ensureTickerMeta, getNameMap, type TickerMetaEntry } from "@/lib/ticker-meta";
 import { fetchFxRates, convertCurrency, type Currency } from "@/lib/fx";
 
 export async function getOpenPositionsFor(regions: string[], displayCurrency: Currency = "USD") {
@@ -11,11 +12,34 @@ export async function getOpenPositionsFor(regions: string[], displayCurrency: Cu
   const { openPositions } = computeLedger(fromDbRows(raw));
 
   const filtered = openPositions.filter((p) => regions.includes(p.region));
-  const [prices, rates] = await Promise.all([
-    fetchQuotesForPositions(filtered),
+
+  // Prices and descriptive metadata come back from the SAME chart call, so
+  // this costs exactly what price-only fetching cost before. Cache the
+  // metadata (never overwriting a hand-edited name) so subsequent renders
+  // need no lookup at all.
+  const [quoteData, rates, cachedNames] = await Promise.all([
+    fetchPositionQuotes(filtered),
     fetchFxRates(),
+    getNameMap(),
   ]);
-  const withPrices = withLivePrices(filtered, prices);
+  const metaEntries: TickerMetaEntry[] = [];
+  for (const p of filtered) {
+    const meta: QuoteMeta | undefined = quoteData.meta[priceKey(p.region, p.ticker)];
+    if (meta) metaEntries.push({ region: p.region, ticker: p.ticker, meta });
+  }
+  await ensureTickerMeta(metaEntries);
+
+  const withPrices = withLivePrices(filtered, quoteData.prices).map((p) => ({
+    ...p,
+    // Cached name if we have one, else whatever this fetch reported — the
+    // cache write above and this read can race within the same render, so
+    // prefer the freshly fetched value when the cache is still empty.
+    name:
+      cachedNames[priceKey(p.region, p.ticker)] ??
+      quoteData.meta[priceKey(p.region, p.ticker)]?.name ??
+      null,
+    instrumentType: quoteData.meta[priceKey(p.region, p.ticker)]?.instrumentType ?? null,
+  }));
 
   // Convert to a single display currency before computing each row's share
   // of the group total — when a page mixes currencies (or just isn't in

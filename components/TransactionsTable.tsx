@@ -19,7 +19,14 @@ const GETTERS: Record<string, (t: LedgerRow) => number | string> = {
   transactionValue: (t) => t.transactionValue,
 };
 
-export default function TransactionsTable({ ledger }: { ledger: LedgerRow[] }) {
+export default function TransactionsTable({
+  ledger,
+  names = {},
+}: {
+  ledger: LedgerRow[];
+  /** Compound "REGION::TICKER" -> display name, from the ticker-meta cache. */
+  names?: Record<string, string>;
+}) {
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -78,7 +85,11 @@ export default function TransactionsTable({ ledger }: { ledger: LedgerRow[] }) {
         </thead>
         <tbody>
           {sorted.map((t) => (
-            <EditableTransactionRow key={t.id} t={t} />
+            <EditableTransactionRow
+              key={t.id}
+              t={t}
+              name={names[`${t.region}::${t.ticker}`] ?? null}
+            />
           ))}
           {sorted.length === 0 && (
             <tr>

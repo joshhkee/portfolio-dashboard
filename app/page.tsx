@@ -209,7 +209,7 @@ export default async function HomePage() {
                     {s.label}
                   </span>
                   <div className="h-1 flex-1 overflow-hidden rounded-full bg-ink-800">
-                    <div className="h-full rounded-full bg-accent/70" style={{ width: `${pct}%` }} />
+                    <div className="h-full rounded-full bg-data/70" style={{ width: `${pct}%` }} />
                   </div>
                   <span className="num shrink-0 text-sm text-ink-100">
                     {sgd}

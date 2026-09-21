@@ -99,6 +99,32 @@ model WatchlistItem {
   @@unique([region, ticker])
 }
 
+// Descriptive reference data for a traded instrument — the company/fund
+// name, instrument type (equity vs ETF), exchange and trading currency.
+//
+// This is CACHE, not ledger: it's populated from the same Yahoo chart call
+// that already supplies the live price, and it exists so the app never has
+// to ask a user to hand-type "VOO - Vanguard S&P 500 ETF" into a note (a
+// habit that also produced a "Proctor & Gamble" typo). Nothing here is
+// authoritative — if the upstream name is wrong or missing, `nameOverridden`
+// lets the owner correct it by hand and the fetch will then leave it alone.
+model TickerMeta {
+  id             Int       @id @default(autoincrement())
+  region         String // "US" | "SG" | "HK"
+  ticker         String
+  name           String?
+  instrumentType String? // "EQUITY" | "ETF" | ...
+  exchange       String?
+  currency       String?
+  // Set when the owner edits `name` by hand. Auto-lookup must never
+  // overwrite a name once this is true.
+  nameOverridden Boolean   @default(false)
+  fetchedAt      DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([region, ticker])
+}
+
 model CashExchange {
   id           Int      @id @default(autoincrement())
   date         DateTime @default(now())

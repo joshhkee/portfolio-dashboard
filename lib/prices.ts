@@ -39,46 +39,76 @@ export function toYahooSymbol(region: string, ticker: string): string {
   }
 }
 
-export async function fetchQuote(yahooSymbol: string): Promise<number | null> {
+/**
+ * Everything we read out of a chart-endpoint response. The chart endpoint
+ * returns the instrument's name, type, exchange and currency in the same
+ * `meta` block as the price — so a single call per ticker yields both the
+ * quote and the descriptive fields, and the app never needs a second
+ * endpoint for names.
+ */
+export interface QuoteMeta {
+  price: number | null;
+  name: string | null;
+  instrumentType: string | null;
+  exchange: string | null;
+  currency: string | null;
+}
+
+/**
+ * Pure parser for a chart-endpoint payload. Exported so it can be tested
+ * against real response shapes without a network call.
+ *
+ * `longName` is preferred over `shortName` because the short form is often
+ * an abbreviated trading name; both are absent for some symbols (notably
+ * FX pairs like "SGD=X"), which is why every field is nullable rather than
+ * assumed present.
+ */
+export function parseChartMeta(data: unknown): QuoteMeta | null {
+  const meta = (data as { chart?: { result?: { meta?: Record<string, unknown> }[] } })?.chart
+    ?.result?.[0]?.meta;
+  if (!meta) return null;
+
+  const rawName = meta.longName ?? meta.shortName;
+  const name = typeof rawName === "string" && rawName.trim().length > 0 ? rawName.trim() : null;
+
+  return {
+    price: typeof meta.regularMarketPrice === "number" ? meta.regularMarketPrice : null,
+    name,
+    instrumentType: typeof meta.instrumentType === "string" ? meta.instrumentType : null,
+    exchange: typeof meta.fullExchangeName === "string" ? meta.fullExchangeName : null,
+    currency: typeof meta.currency === "string" ? meta.currency : null,
+  };
+}
+
+/**
+ * One chart-endpoint call, returning the price plus the descriptive fields.
+ *
+ * This replaces the old fetchCompanyName(), which called Yahoo's v7 quote
+ * endpoint. That endpoint now returns 401 for unauthenticated callers, so
+ * every name lookup silently failed and the UI fell back to bare tickers —
+ * while the chart endpoint it already depends on was returning `longName`
+ * and `instrumentType` the whole time. Reading them here removes a network
+ * call per ticker instead of adding one.
+ */
+export async function fetchQuoteMeta(yahooSymbol: string): Promise<QuoteMeta | null> {
   try {
     const res = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
-        yahooSymbol
-      )}`,
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}`,
       // Revalidate every 60s server-side so repeated page loads don't
       // hammer Yahoo on every request.
       { next: { revalidate: 60 } }
     );
     if (!res.ok) return null;
-    const data = await res.json();
-    const price = data?.chart?.result?.[0]?.meta?.regularMarketPrice;
-    return typeof price === "number" ? price : null;
+    return parseChartMeta(await res.json());
   } catch {
     return null;
   }
 }
 
-/**
- * Full company/fund name for a ticker (e.g. "Xiaomi Corporation"), for
- * display only. Uses a different, less reliable Yahoo endpoint than
- * fetchQuote (the chart endpoint doesn't return a name at all) — this
- * one is known to occasionally 401, so treat it as cosmetic and fail
- * silently rather than let a missing name break anything.
- */
-export async function fetchCompanyName(yahooSymbol: string): Promise<string | null> {
-  try {
-    const res = await fetch(
-      `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(yahooSymbol)}`,
-      { next: { revalidate: 3600 } }
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    const quote = data?.quoteResponse?.result?.[0];
-    const name = quote?.longName ?? quote?.shortName;
-    return typeof name === "string" && name.length > 0 ? name : null;
-  } catch {
-    return null;
-  }
+/** Just the price. Thin delegate over fetchQuoteMeta so every caller shares
+ * one code path (and one cache entry) for a given symbol. */
+export async function fetchQuote(yahooSymbol: string): Promise<number | null> {
+  return (await fetchQuoteMeta(yahooSymbol))?.price ?? null;
 }
 
 export interface HistoricalCloses {
@@ -124,29 +154,51 @@ export async function fetchHistoricalCloses(
   }
 }
 
+/** Descriptive fields per compound "REGION::TICKER" key. */
+export interface MetaMap {
+  [compoundKey: string]: QuoteMeta;
+}
+
 /**
- * Fetch current prices for a set of (region, ticker) positions.
- * Returns a map keyed by compound "REGION::TICKER" (see priceKey) —
- * safe even if the same symbol is held in two regions.
+ * Current price AND descriptive metadata for a set of (region, ticker)
+ * positions, in one pass — the chart endpoint returns both from a single
+ * request, so fetching them together costs exactly what fetching prices
+ * alone used to cost.
+ *
+ * Both maps are keyed by compound "REGION::TICKER" (see priceKey) so the
+ * same symbol held in two regions can't collide.
  */
-export async function fetchQuotesForPositions(
+export async function fetchPositionQuotes(
   positions: { region: string; ticker: string }[]
-): Promise<PriceMap> {
+): Promise<{ prices: PriceMap; meta: MetaMap }> {
   const unique = Array.from(
     new Map(positions.map((p) => [priceKey(p.region, p.ticker), p])).values()
   );
 
   const results = await Promise.all(
     unique.map(async (p) => {
-      const symbol = toYahooSymbol(p.region, p.ticker);
-      const price = await fetchQuote(symbol);
-      return { key: priceKey(p.region, p.ticker), price };
+      const key = priceKey(p.region, p.ticker);
+      const meta = await fetchQuoteMeta(toYahooSymbol(p.region, p.ticker));
+      return { key, meta };
     })
   );
 
-  const map: PriceMap = {};
+  const prices: PriceMap = {};
+  const meta: MetaMap = {};
   for (const r of results) {
-    if (r.price !== null) map[r.key] = r.price;
+    if (!r.meta) continue;
+    if (r.meta.price !== null) prices[r.key] = r.meta.price;
+    meta[r.key] = r.meta;
   }
-  return map;
+  return { prices, meta };
+}
+
+/**
+ * Prices only. Kept for callers that need nothing else (the watchlist);
+ * it shares the same cache entries as fetchPositionQuotes.
+ */
+export async function fetchQuotesForPositions(
+  positions: { region: string; ticker: string }[]
+): Promise<PriceMap> {
+  return (await fetchPositionQuotes(positions)).prices;
 }

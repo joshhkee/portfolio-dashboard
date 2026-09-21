@@ -9,10 +9,14 @@ import SortableTh from "@/components/SortableTh";
 import SearchBox from "@/components/SearchBox";
 import { useSortable } from "@/lib/use-sortable";
 import TransactionHistoryModal from "@/components/TransactionHistoryModal";
+import TickerName from "@/components/TickerName";
 
 export interface PositionRow {
   region: string;
   ticker: string;
+  // Descriptive reference data from the ticker-meta cache (see
+  // lib/ticker-meta.ts) — display only, never affects the numbers.
+  name: string | null;
   qty: number;
   avgCost: number;
   currentPrice: number;
@@ -192,15 +196,20 @@ export default function PositionsTable({
                   title="View transaction history"
                 >
                   <td className="text-ink-300">{r.region}</td>
-                  <td className="num">
-                    {r.ticker}
-                    {r.priceUnavailable && (
-                      <TriangleAlert
-                        size={12}
-                        className="ml-1 inline text-ink-500"
-                        aria-label="No live quote available for this ticker — price/P&L shown may be stale"
-                      />
-                    )}
+                  <td>
+                    <span className="num">
+                      {r.ticker}
+                      {r.priceUnavailable && (
+                        <TriangleAlert
+                          size={12}
+                          className="ml-1 inline text-ink-500"
+                          aria-label="No live quote available for this ticker — price/P&L shown may be stale"
+                        />
+                      )}
+                    </span>
+                    {/* The company/fund name, so the ledger is readable
+                        without hand-typing it into a note. */}
+                    <TickerName region={r.region} ticker={r.ticker} name={r.name} />
                   </td>
                   <td className="num text-right">{r.qty}</td>
                   <td className="num text-right">
