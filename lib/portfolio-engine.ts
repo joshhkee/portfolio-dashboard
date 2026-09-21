@@ -185,7 +185,9 @@ export function withLivePrices(
   prices: Record<string, number>
 ) {
   return positions.map((p) => {
-    const livePrice = prices[p.ticker];
+    // Prices map is keyed by compound "REGION::TICKER" (see lib/prices.ts
+    // priceKey) — a bare ticker isn't unique across regions.
+    const livePrice = prices[`${p.region}::${p.ticker}`];
     const priceUnavailable = livePrice === undefined;
     // Fall back to cost basis when there's no live quote (e.g. HK
     // tickers, which Yahoo's free endpoint doesn't reliably cover) —
@@ -219,14 +221,21 @@ export function findNegativeQtyAfter(
   existing: RawTransaction[],
   candidate: RawTransaction
 ): number | null {
-  const { openPositions, ledger } = computeLedger([...existing, candidate]);
+  const { ledger } = computeLedger([...existing, candidate]);
   const key = groupKey(candidate);
-  // openPositions only lists qty > 0, so look at the full ledger's last
-  // row for this key to get the true (possibly negative) resulting qty.
-  const rowsForKey = ledger.filter((r) => groupKey(r) === key);
-  const last = rowsForKey[rowsForKey.length - 1];
-  if (last && last.runningQty < -EPSILON) return last.runningQty;
-  return null;
+  // Check EVERY row for this key, not just the last: a backdated Sell
+  // can dip the running quantity negative mid-replay (before a later
+  // Buy recovers it), and a final-qty check would miss that — silently
+  // admitting a ledger that the replay itself treats as having sold
+  // shares that didn't exist yet. Return the deepest dip found.
+  let worst: number | null = null;
+  for (const row of ledger) {
+    if (groupKey(row) !== key) continue;
+    if (row.runningQty < -EPSILON && (worst === null || row.runningQty < worst)) {
+      worst = row.runningQty;
+    }
+  }
+  return worst;
 }
 
 /**

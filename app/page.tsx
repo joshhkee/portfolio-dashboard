@@ -8,6 +8,8 @@ import { currencySymbol, convertCurrency, fetchFxRates, type Currency } from "@/
 import { formatShortDate } from "@/lib/dates";
 import { xirr } from "@/lib/xirr";
 import RegionFlag from "@/components/RegionFlag";
+import { recordTodaySnapshot, getSnapshots, maxDrawdown } from "@/lib/snapshots";
+import PortfolioValueChart from "@/components/PortfolioValueChart";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +23,12 @@ interface ActivityItem {
 }
 
 export default async function HomePage() {
-  const [contributions, cashRows, rates, allPositions, recentTransactions, allTransactions, exchanges] =
+  // Opportunistically record today's snapshot (idempotent, one row per
+  // UTC day, fails soft). Done before the parallel reads so the chart
+  // includes today even on the first load of the day.
+  await recordTodaySnapshot();
+
+  const [contributions, cashRows, rates, allPositions, recentTransactions, allTransactions, exchanges, snapshots] =
     await Promise.all([
       prisma.contribution.findMany({ include: { contributor: true }, orderBy: { date: "desc" } }),
       prisma.cashBalance.findMany(),
@@ -33,6 +40,7 @@ export default async function HomePage() {
       prisma.transaction.findMany({ orderBy: { date: "desc" }, take: 10 }),
       prisma.transaction.findMany({ orderBy: [{ date: "asc" }, { id: "asc" }] }),
       prisma.cashExchange.findMany({ orderBy: { date: "desc" }, take: 3 }),
+      getSnapshots(),
     ]);
 
   // --- Outlay totals + stakeholder breakdown ---
@@ -81,6 +89,8 @@ export default async function HomePage() {
   }
   if (cashflows.length > 0) cashflows.push({ amount: totalPortfolioValue, date: new Date() });
   const annualizedReturn = xirr(cashflows);
+
+  const maxDrawdownPct = maxDrawdown(snapshots);
 
   // --- Completed trades, last 6 months (SGD) ---
   const { completedTrades } = computeLedger(fromDbRows(allTransactions));
@@ -173,6 +183,12 @@ export default async function HomePage() {
                 {annualizedReturn !== null ? <Percent value={annualizedReturn} /> : "—"}
               </span>
             </div>
+            {maxDrawdownPct !== null && (
+              <div>
+                <span className="text-xs text-ink-300">Max drawdown </span>
+                <span className="num text-sm text-loss">{(maxDrawdownPct * 100).toFixed(1)}%</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -208,6 +224,9 @@ export default async function HomePage() {
           </div>
         </div>
       </div>
+
+      {/* Portfolio value over time */}
+      <PortfolioValueChart data={snapshots} />
 
       {/* Sub-page summary cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

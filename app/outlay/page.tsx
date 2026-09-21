@@ -90,11 +90,17 @@ export default async function ContributionsPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
-        <p className="text-sm text-ink-300">Total outlay</p>
-        <p className="num mt-1 text-4xl font-medium">
-          <Money value={grandTotal} />
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm text-ink-300">Total outlay</p>
+          <p className="num mt-1 text-4xl font-medium">
+            <Money value={grandTotal} />
+          </p>
+        </div>
+        {/* API download — rule only wants page navigations in <Link>. */}
+        <a href="/api/export/contributions" download className="btn-ghost" title="Download all contributions as CSV">
+          Export CSV
+        </a>
       </div>
 
       <section>

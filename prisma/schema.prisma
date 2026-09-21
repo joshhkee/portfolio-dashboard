@@ -70,6 +70,35 @@ model CashBalance {
   updatedAt DateTime @updatedAt
 }
 
+// One row per calendar day, written on first page load of that day and
+// by the backfill script for days before the app existed. Values are in
+// SGD so the series is directly chartable. Like everything else except
+// CashBalance, this is DERIVED data — but a snapshot is only written
+// once per day (and backfilled from the ledger + historical prices), so
+// it captures what the portfolio was worth THAT day, which the live
+// ledger can never reconstruct after the fact.
+model DailySnapshot {
+  id              Int      @id @default(autoincrement())
+  date            DateTime @unique // UTC midnight of the calendar day
+  holdingsValueSgd Float
+  cashValueSgd    Float
+  totalValueSgd   Float
+  costBasisSgd    Float // total outlay (contributions) recorded as of that date
+  createdAt       DateTime @default(now())
+
+  @@index([date])
+}
+
+model WatchlistItem {
+  id        Int      @id @default(autoincrement())
+  ticker    String
+  region    String // "US" | "SG" | "HK"
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@unique([region, ticker])
+}
+
 model CashExchange {
   id           Int      @id @default(autoincrement())
   date         DateTime @default(now())
