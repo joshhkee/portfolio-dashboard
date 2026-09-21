@@ -58,10 +58,21 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: Tooltip
   );
 }
 
-/** Portfolio value over time, with outlay as a reference line. Data
- * colors are deliberately NOT the gold accent — per the palette's own
- * note, gold is UI chrome, not data. Value is a muted steel blue; the
- * outlay line is neutral ink. */
+/** Portfolio value over time, with outlay as a reference line.
+ *
+ * The value series is gold (#d4a94a) by the owner's choice, superseding
+ * the palette's earlier "gold is chrome, not data" note. It was measured
+ * against every element it must coexist with and is the MORE legible of
+ * the two candidates: 8.54:1 on the page background vs 6.20:1 for the
+ * steel blue (#7d97b3) it replaced, and 6.19:1 against the gridlines so
+ * the data clearly leads the chart furniture.
+ *
+ * The outlay reference line is intentionally NOT the muted ink-500 grey
+ * it used to be: gold-vs-ink-500 only separated at 2.53:1, under the 3:1
+ * non-text contrast guideline. #5f5c57 lifts that to 3.03:1 while still
+ * receding 2.81:1 against the page, and the dashed pattern plus the
+ * 2px/1px stroke-weight difference keep the two series separable even
+ * for viewers who can't rely on hue. */
 export default function PortfolioValueChart({ data }: { data: SnapshotPoint[] }) {
   if (data.length < 2) {
     return (
@@ -103,8 +114,8 @@ export default function PortfolioValueChart({ data }: { data: SnapshotPoint[] })
           <AreaChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="valueFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#7d97b3" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="#7d97b3" stopOpacity={0.02} />
+                <stop offset="0%" stopColor="#d4a94a" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="#d4a94a" stopOpacity={0.02} />
               </linearGradient>
             </defs>
             <CartesianGrid stroke="#2e2e2e" strokeDasharray="3 3" vertical={false} />
@@ -133,17 +144,17 @@ export default function PortfolioValueChart({ data }: { data: SnapshotPoint[] })
                 visual for "am I above or below what I put in". */}
             <ReferenceLine
               y={points[points.length - 1].costBasisSgd}
-              stroke="#6b6862"
+              stroke="#5f5c57"
               strokeDasharray="4 4"
             />
             <Area
               type="monotone"
               dataKey="totalValueSgd"
-              stroke="#7d97b3"
+              stroke="#d4a94a"
               strokeWidth={2}
               fill="url(#valueFill)"
               dot={false}
-              activeDot={{ r: 3, fill: "#7d97b3" }}
+              activeDot={{ r: 3, fill: "#d4a94a" }}
             />
           </AreaChart>
         </ResponsiveContainer>

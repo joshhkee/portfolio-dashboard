@@ -7,6 +7,7 @@ import { formatShortDate } from "@/lib/dates";
 import SortableTh from "@/components/SortableTh";
 import SearchBox from "@/components/SearchBox";
 import { useSortable } from "@/lib/use-sortable";
+import TickerName from "@/components/TickerName";
 
 export interface CompletedTradeRow {
   id: number;
@@ -34,7 +35,14 @@ const GETTERS: Record<string, (t: CompletedTradeRow) => number | string> = {
   returnPct: (t) => t.returnPct,
 };
 
-export default function CompletedTradesTable({ trades }: { trades: CompletedTradeRow[] }) {
+export default function CompletedTradesTable({
+  trades,
+  names = {},
+}: {
+  trades: CompletedTradeRow[];
+  /** Compound "REGION::TICKER" -> display name, from the ticker-meta cache. */
+  names?: Record<string, string>;
+}) {
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -93,7 +101,14 @@ export default function CompletedTradesTable({ trades }: { trades: CompletedTrad
                   {formatShortDate(new Date(t.sellDate))}
                 </td>
                 <td className="text-ink-300">{t.region}</td>
-                <td className="num">{t.ticker}</td>
+                <td>
+                  <span className="num">{t.ticker}</span>
+                  <TickerName
+                    region={t.region}
+                    ticker={t.ticker}
+                    name={names[`${t.region}::${t.ticker}`] ?? null}
+                  />
+                </td>
                 <td className="num text-right">{t.qtySold}</td>
                 <td className="num text-right">
                   {symbol}

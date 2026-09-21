@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { computeLedger, fromDbRows, findNegativeQtyAfter } from "@/lib/portfolio-engine";
 import { fetchFxRates, currencyForRegion } from "@/lib/fx";
-import { fetchCompanyName, toYahooSymbol } from "@/lib/prices";
+import { resolveName } from "@/lib/ticker-meta";
 import { adjustCashBalance } from "@/lib/cash";
 
 export async function GET(req: NextRequest) {
@@ -24,10 +24,11 @@ export async function GET(req: NextRequest) {
 
   // Only needed by the transaction-history modal (region+ticker filtered
   // case), but cheap enough to include either way and keeps the response
-  // shape consistent.
+  // shape consistent. resolveName() reads the cache first and only hits
+  // Yahoo on a miss, so opening the modal repeatedly costs one lookup.
   const [rates, companyName] = await Promise.all([
     fetchFxRates(),
-    region && ticker ? fetchCompanyName(toYahooSymbol(region.toUpperCase(), ticker.toUpperCase())) : null,
+    region && ticker ? resolveName(region.toUpperCase(), ticker.toUpperCase()) : null,
   ]);
 
   return NextResponse.json({ ledger: filtered, rates, companyName });

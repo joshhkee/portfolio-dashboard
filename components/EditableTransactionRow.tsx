@@ -6,8 +6,15 @@ import type { LedgerRow } from "@/lib/portfolio-engine";
 import { currencySymbol, currencyForRegion } from "@/lib/fx";
 import { formatQty, formatAmount } from "@/components/SignedNumber";
 import { formatShortDate } from "@/lib/dates";
+import TickerName from "@/components/TickerName";
 
-export default function EditableTransactionRow({ t }: { t: LedgerRow }) {
+export default function EditableTransactionRow({
+  t,
+  name = null,
+}: {
+  t: LedgerRow;
+  name?: string | null;
+}) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -145,7 +152,12 @@ export default function EditableTransactionRow({ t }: { t: LedgerRow }) {
         {formatShortDate(new Date(t.date))}
       </td>
       <td className={t.action === "Buy" ? "text-gain" : "text-loss"}>{t.action}</td>
-      <td className="num">{t.ticker}</td>
+      <td>
+        <span className="num">{t.ticker}</span>
+        {/* Company/fund name — previously the owner hand-typed this into
+            the notes field on every row. */}
+        <TickerName region={t.region} ticker={t.ticker} name={name} />
+      </td>
       <td className="text-ink-300">{t.region}</td>
       <td className="num text-right">{formatQty(t.qty)}</td>
       <td className="num text-right">

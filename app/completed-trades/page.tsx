@@ -3,6 +3,7 @@ import { computeLedger, fromDbRows } from "@/lib/portfolio-engine";
 import { fetchFxRates, convertCurrency } from "@/lib/fx";
 import { NativeMoney } from "@/components/SignedNumber";
 import CompletedTradesTable from "@/components/CompletedTradesTable";
+import { ensureNamesFor, getNameMap } from "@/lib/ticker-meta";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,11 @@ export default async function CompletedTradesPage() {
 
   const { completedTrades } = computeLedger(fromDbRows(raw));
   const rates = await fetchFxRates();
+
+  // Names for tickers that were sold and so never appear in the (open-only)
+  // holdings path. One lookup per unseen ticker; cached thereafter.
+  await ensureNamesFor(completedTrades.map((t) => ({ region: t.region, ticker: t.ticker })));
+  const names = await getNameMap();
 
   const tradesWithSGD = completedTrades.map((t) => ({
     ...t,
@@ -46,7 +52,7 @@ export default async function CompletedTradesPage() {
         </a>
       </div>
 
-      <CompletedTradesTable trades={tradesWithSGD} />
+      <CompletedTradesTable trades={tradesWithSGD} names={names} />
     </div>
   );
 }

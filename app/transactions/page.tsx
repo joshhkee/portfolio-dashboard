@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { computeLedger, fromDbRows } from "@/lib/portfolio-engine";
+import { ensureNamesFor, getNameMap } from "@/lib/ticker-meta";
 import AddTransactionForm from "@/components/AddTransactionForm";
 import TransactionsTable from "@/components/TransactionsTable";
 
@@ -12,6 +13,12 @@ export default async function TransactionsPage() {
 
   const { ledger } = computeLedger(fromDbRows(raw));
   const negativeRows = ledger.filter((t) => t.runningQty < 0);
+  // Display names for every ticker in the ledger. The holdings path only
+  // caches what's currently held, so this also fills in any closed position
+  // that has never been seen — a bounded lookup per unseen ticker, then a
+  // plain DB read on every later render.
+  await ensureNamesFor(ledger.map((t) => ({ region: t.region, ticker: t.ticker })));
+  const names = await getNameMap();
 
   return (
     <div className="flex flex-col gap-4">
@@ -38,7 +45,7 @@ export default async function TransactionsPage() {
         </div>
       )}
 
-      <TransactionsTable ledger={ledger} />
+      <TransactionsTable ledger={ledger} names={names} />
     </div>
   );
 }
