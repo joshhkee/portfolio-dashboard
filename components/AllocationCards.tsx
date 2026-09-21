@@ -48,7 +48,9 @@ export default function AllocationCards({
               <p className="text-xs text-ink-500">{pct.toFixed(1)}%</p>
             </div>
             <div className="h-1 w-full overflow-hidden rounded-full bg-ink-800">
-              <div className="h-full rounded-full bg-data/70" style={{ width: `${pct}%` }} />
+              {/* Gold by the owner's explicit choice — see the `data` palette
+                  note in docs/PLAN.md before changing this. */}
+              <div className="h-full rounded-full bg-accent/70" style={{ width: `${pct}%` }} />
             </div>
           </div>
         );

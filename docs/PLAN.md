@@ -32,10 +32,54 @@ part DONE on a partial pass — leave it IN PROGRESS with a note instead.
 | 2 | Stock name lookup from chart meta, cached + override | **DONE** |
 | 3 | Contrast corrections + gold-as-data fix | **DONE** |
 | 3b | Multi-series data palette | DEFERRED (belongs with Part 5) |
-| 4 | TWR, underwater chart, range selectors | TODO |
-| 5 | Benchmark comparison + alpha/beta | TODO |
+| 4 | TWR, underwater chart, range selectors | **DONE** |
+| 5 | Benchmark comparison + alpha/beta | TODO — **start here** |
 | 6 | Per-stakeholder performance view | TODO |
 | 7 | Sparklines + command palette | TODO |
+
+---
+
+## Resume checkpoint — 2026-09-22 (end of session)
+
+**State:** parts 1–4 finished and verified. Next action: **Part 5 (benchmark
+comparison + alpha/beta)**.
+
+**Git:** `3fbc564` (pushed) holds parts 1–3. Part 4 is **uncommitted** in the
+working tree — `lib/performance.ts`, `tests/performance.test.ts`,
+`components/{PortfolioPerformance,DrawdownChart,YearlyReturnsTable}.tsx` (new),
+plus `app/page.tsx`, `components/PortfolioValueChart.tsx`,
+`app/globals.css`, `lib/snapshots.ts`, `docs/PLAN.md`. Those same files also
+carry the owner's deliberate reversal of the Part 3 bar colour (proportion bars
+are back on gold). Commit or stash before starting Part 5 so there is a clean
+fallback point.
+
+**Verification on the current tree (all four ran green at the end of this
+session):**
+
+```
+npm test                            -> 6 files, 72 tests passed
+npx tsc --noEmit                    -> clean
+npx eslint app components lib tests -> clean
+npm run build                      -> succeeded (all routes compiled)
+```
+
+**Live preview:** `http://localhost:52422` (dev server from this worktree). The
+port matters — see the env notes; restart with `npm run dev -- -p 52422`.
+
+**What to do first tomorrow:**
+
+1. `npm install` if `node_modules` is missing, then confirm `.env` exists (copy
+   from the main checkout) and that `DATABASE_URL` is quoted **around** the
+   whole URL including any query string — see the env note below, this cost
+   real debugging time.
+2. `npm run dev` and confirm the home page renders (TWR, drawdown chart, and
+   the calendar-year table should all show).
+3. Read the Part 5 section, follow its acceptance criteria, then run the
+   checkpoint protocol.
+
+**Open items deliberately not done:** part 3b's six-colour multi-series palette
+(unused until Part 5 adds a second chart series — add it as part of Part 5),
+and committing part 4.
 
 ---
 
@@ -72,6 +116,14 @@ part DONE on a partial pass — leave it IN PROGRESS with a note instead.
 - Supabase's pooler caps session clients at 15; a running dev server can exhaust
   it and break migrations (`EMAXCONNSESSION`). Stop the dev server or add
   `?connection_limit=5` to `DATABASE_URL`.
+- **If you add `?connection_limit=5`, the closing quote must come AFTER the
+  query string:** `DATABASE_URL="postgresql://.../postgres?connection_limit=5"`.
+  Putting it before (`"...postgres"?connection_limit=5`) makes Next's env loader
+  read a value whose path is `postgres"` (%22) and every DB page 500s with
+  `Database postgres%22 does not exist`. `node --env-file` parses such a file
+  fine, so the failure only shows up in the Next app — verify with
+  `require('@next/env').loadEnvConfig()` and `new URL(process.env.DATABASE_URL)`
+  rather than trusting a Node one-liner.
 - `npm run dev` may pick a random high port if 3000 is taken — read the
   "Local:" line from the startup log.
 - `next lint` is broken in this version; call `npx eslint` directly.
@@ -168,22 +220,25 @@ What was actually done:
   on the loss badge background, so `#c07f74` was used instead — ≥5.0:1 in every
   context. Gains/losses also always carry an explicit +/− sign, so they never
   depend on hue alone.
-- Added a `data` colour token (`#7d97b3`, 5.76:1 on panels) and moved the two
-  proportion bars off `bg-accent/70` (`app/page.tsx` region bars,
-  `AllocationCards.tsx` stakeholder bars). Gold now only ever means
-  "interactive": the remaining `bg-accent` uses are the contribution-form tab
-  and the cash exchange-mode toggles, both genuine controls.
+- Proportion bars briefly moved off gold onto a `data` token (`#7d97b3`), on
+  the argument that gold should only mean "interactive". **The owner reversed
+  this: the holding-value region bars (`app/page.tsx`) and the outlay
+  stakeholder bars (`AllocationCards.tsx`) use `bg-accent/70` (gold) by
+  explicit preference.** Do not "correct" them back to a data colour — the
+  `data` token was removed again for that reason. Gold on the `ink-800` track
+  measures ~7.5:1, comfortably above the 3:1 floor for graphics, so there is
+  no accessibility argument for changing it either.
 
 Deliberately NOT done: the six-colour multi-series palette. With one chart
 series in the app there is nothing to colour, so those tokens would sit unused
 until Part 5 introduces a second series. Add them there.
 
-**Acceptance met:** the two failing pairs now pass AA in every context they
-appear; data fills no longer use the chrome accent.
+**Acceptance met:** the two failing pairs pass AA in every context they appear.
+The proportion-bar colour is intentionally gold, per the owner.
 
 ---
 
-## Part 4 — TWR, underwater chart, range selectors
+## Part 4 — TWR, underwater chart, range selectors — DONE
 
 - Time-weighted return alongside XIRR, chained from `DailySnapshot`
   (`totalValueSgd` + `costBasisSgd`), neutralizing contribution timing. XIRR is
@@ -195,6 +250,45 @@ appear; data fills no longer use the chrome accent.
 
 **Acceptance:** TWR differs from XIRR when contributions are uneven and matches
 it for a single lump sum (prove with a unit test).
+
+What was actually done:
+
+- **`lib/performance.ts`** (new, pure — no DB, no network): `filterByRange`,
+  `timeWeightedReturn`, `annualizeReturn`, `drawdownSeries`, `yearlyReturns`,
+  the `PerfPoint` / `RangeKey` types and `RANGE_KEYS`. Per-day return is
+  `(V_t − V_{t−1} − newMoney_t) / V_{t−1}`, where `newMoney` is the day-over-day
+  rise in cumulative outlay — which is exactly why `DailySnapshot` stores
+  `costBasisSgd` next to the value, so no extra query is needed. Guards: a
+  zero/negative base is skipped, a single day worse than −100% is clamped (a
+  data artefact must not flip the compounded sign), and a span under 30 days
+  refuses to annualize.
+- **`maxDrawdown()` in `lib/snapshots.ts` was refactored to delegate to
+  `drawdownSeries`**, so the headline number and the underwater curve cannot
+  drift apart. A test pins `min(drawdownSeries) === maxDrawdown()`.
+- New components: `PortfolioPerformance.tsx` (range picker + both charts),
+  `DrawdownChart.tsx` (underwater curve, terracotta — it is a loss shape, so it
+  is not gold), `YearlyReturnsTable.tsx` (factsheet-style calendar-year table).
+  Wired into `app/page.tsx`; `PortfolioValueChart` now accepts a pre-filtered
+  series so one picker drives both charts.
+- **Hero now shows XIRR and TWR side by side**, which is the whole point: on
+  this real data they read **+16.99% XIRR vs +8.92% TWR**. The gap is the
+  contribution-timing effect — XIRR is money-weighted and credits the owner for
+  *when* money landed, TWR strips that out and describes the strategy.
+- `tests/performance.test.ts` (new, 12 tests) covers lump-sum equivalence, a
+  contribution that must NOT register as growth, chained multiplication,
+  drawdown/`maxDrawdown` agreement, every range selector, and the guards.
+- **Fixed during verification:** the calendar-year table inherited
+  `.ledger-table`'s `min-w-[720px]`, so a five-column summary table scrolled
+  sideways inside its own panel. Added a `.table-compact` variant in
+  `app/globals.css` (declared after `.ledger-table` so it wins by source order
+  inside the layer — a `min-w-0` utility does NOT reliably override it, because
+  the bundler may emit utilities before components). Measured overflow at a
+  470px container: 250px → 55px (min-width removed) → 14px (tighter
+  padding, `px-2`) → **0px** (`text-xs` on this table's cells).
+
+**Acceptance met.** TWR is pinned against XIRR by unit tests for both the
+single-lump-sum case and the uneven-contribution case, and the divergence is
+visible on the live page (+16.99% vs +8.92%).
 
 ## Part 5 — Benchmark comparison
 

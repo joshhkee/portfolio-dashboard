@@ -39,6 +39,23 @@
   .ledger-table tbody tr:hover {
     @apply bg-ink-800/50;
   }
+  /* Compact variant for short summary tables (calendar-year returns).
+     .ledger-table forces a 720px min-width because the ledger genuinely
+     needs that many columns; a five-column summary inheriting it just
+     scrolls sideways on a narrow window for no reason. Declared AFTER
+     .ledger-table so it wins by source order inside this layer — relying
+     on a `min-w-0` utility to override it instead is not reliable, because
+     the bundler may emit the utilities layer before the components layer. */
+  .table-compact {
+    @apply min-w-0;
+  }
+  /* Denser cells than the ledger: this table is five columns of short
+     numbers, so the ledger's generous padding plus text-sm pushes it past
+     its container and adds a pointless horizontal scrollbar. */
+  .table-compact th,
+  .table-compact td {
+    @apply px-2 text-xs;
+  }
   .panel {
     @apply rounded-lg border border-ink-700 bg-ink-900;
   }

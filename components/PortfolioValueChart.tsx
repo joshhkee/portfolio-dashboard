@@ -11,11 +11,11 @@ import {
   ReferenceLine,
 } from "recharts";
 
-export interface SnapshotPoint {
-  date: string; // "YYYY-MM-DD"
-  totalValueSgd: number;
-  costBasisSgd: number;
-}
+import type { PerfPoint } from "@/lib/performance";
+
+/** Alias kept for callers that predate lib/performance.ts — the value chart and
+ * the performance math read the same snapshot shape. */
+export type SnapshotPoint = PerfPoint;
 
 function shortDate(key: string): string {
   const [, m, d] = key.split("-");
