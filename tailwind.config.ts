@@ -43,12 +43,6 @@ const config: Config = {
         accent: "#d4a94a", // muted gold — UI chrome only, not charts/data
         accentHover: "#e0bb63",
         accentMuted: "#3a331f",
-        // Colour for data-visualisation fills (proportion bars). Deliberately
-        // NOT the gold accent: gold in this UI means "interactive" — active
-        // nav underline, primary buttons, save actions — so painting a
-        // proportion bar gold made one colour mean two unrelated things.
-        // 5.76:1 on panels, well clear of the 3:1 floor for graphics.
-        data: "#7d97b3",
       },
       fontFamily: {
         // Base UI font is serif per the brand direction — Source Serif 4

@@ -9,7 +9,9 @@ import { formatShortDate } from "@/lib/dates";
 import { xirr } from "@/lib/xirr";
 import RegionFlag from "@/components/RegionFlag";
 import { recordTodaySnapshot, getSnapshots, maxDrawdown } from "@/lib/snapshots";
-import PortfolioValueChart from "@/components/PortfolioValueChart";
+import { annualizeReturn, timeWeightedReturn, yearlyReturns } from "@/lib/performance";
+import PortfolioPerformance from "@/components/PortfolioPerformance";
+import YearlyReturnsTable from "@/components/YearlyReturnsTable";
 
 export const dynamic = "force-dynamic";
 
@@ -91,6 +93,19 @@ export default async function HomePage() {
   const annualizedReturn = xirr(cashflows);
 
   const maxDrawdownPct = maxDrawdown(snapshots);
+
+  // Time-weighted return, the counterpart to XIRR above. XIRR is money-weighted:
+  // it answers "what did my dollars earn", so it's moved by WHEN contributions
+  // landed. TWR strips contribution timing out entirely and answers "how did
+  // the strategy do" — the number to compare against a benchmark. With monthly
+  // deposits across five stakeholders, the two can differ noticeably, which is
+  // exactly why both are shown.
+  const twrTotal = timeWeightedReturn(snapshots);
+  const twrAnnualized =
+    twrTotal !== null && snapshots.length >= 2
+      ? annualizeReturn(twrTotal, snapshots[0].date, snapshots[snapshots.length - 1].date)
+      : null;
+  const yearReturns = yearlyReturns(snapshots);
 
   // --- Completed trades, last 6 months (SGD) ---
   const { completedTrades } = computeLedger(fromDbRows(allTransactions));
@@ -183,6 +198,15 @@ export default async function HomePage() {
                 {annualizedReturn !== null ? <Percent value={annualizedReturn} /> : "—"}
               </span>
             </div>
+            <div>
+              <span className="text-xs text-ink-300">Annualized return (TWR) </span>
+              <span
+                className="num text-sm"
+                title="Time-weighted: contribution timing removed, so this reflects the strategy rather than the deposit schedule."
+              >
+                {twrAnnualized !== null ? <Percent value={twrAnnualized} /> : "—"}
+              </span>
+            </div>
             {maxDrawdownPct !== null && (
               <div>
                 <span className="text-xs text-ink-300">Max drawdown </span>
@@ -209,7 +233,10 @@ export default async function HomePage() {
                     {s.label}
                   </span>
                   <div className="h-1 flex-1 overflow-hidden rounded-full bg-ink-800">
-                    <div className="h-full rounded-full bg-data/70" style={{ width: `${pct}%` }} />
+                    {/* Gold by the owner's explicit choice — see the note on
+                        the `data` palette decision in docs/PLAN.md before
+                        "correcting" this back to a data colour. */}
+                    <div className="h-full rounded-full bg-accent/70" style={{ width: `${pct}%` }} />
                   </div>
                   <span className="num shrink-0 text-sm text-ink-100">
                     {sgd}
@@ -225,8 +252,8 @@ export default async function HomePage() {
         </div>
       </div>
 
-      {/* Portfolio value over time */}
-      <PortfolioValueChart data={snapshots} />
+      {/* Portfolio value over time + underwater curve, driven by one range picker */}
+      <PortfolioPerformance data={snapshots} />
 
       {/* Sub-page summary cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -280,6 +307,9 @@ export default async function HomePage() {
           <p className="text-xs text-ink-300">{contributorSlices.length} stakeholders</p>
         </Link>
       </div>
+
+      {/* Factsheet-style per-year breakdown */}
+      <YearlyReturnsTable years={yearReturns} />
 
       {/* Outlay by stakeholder + Recent activity, side by side on desktop */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

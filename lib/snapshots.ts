@@ -22,6 +22,7 @@ import {
 } from "@/lib/portfolio-engine";
 import { fetchHistoricalCloses, toYahooSymbol, type HistoricalCloses } from "@/lib/prices";
 import { convertCurrency, fetchFxRates, type FxRates } from "@/lib/fx";
+import { drawdownSeries, type PerfPoint } from "@/lib/performance";
 
 /** UTC-midnight Date for a "YYYY-MM-DD" string, and the reverse. */
 export function dayKey(d: Date): string {
@@ -174,18 +175,17 @@ export async function getSnapshots() {
   }));
 }
 
-/** Simple max drawdown over the total-value series: the largest peak-to-
- * trough decline, as a negative fraction. Returns null with < 2 points. */
-export function maxDrawdown(values: { totalValueSgd: number }[]): number | null {
-  if (values.length < 2) return null;
-  let peak = values[0].totalValueSgd;
-  let worst = 0;
-  for (const v of values) {
-    if (v.totalValueSgd > peak) peak = v.totalValueSgd;
-    if (peak > 0) {
-      const dd = (v.totalValueSgd - peak) / peak;
-      if (dd < worst) worst = dd;
-    }
-  }
+/** Largest peak-to-trough decline as a negative fraction. Returns null with
+ * fewer than 2 points, or when the portfolio never went below a high.
+ *
+ * Deliberately computed from drawdownSeries() rather than walking the series
+ * again: the underwater chart plots that same series, and the headline number
+ * on the home page must always equal the lowest point of the chart beneath it.
+ */
+export function maxDrawdown(points: PerfPoint[]): number | null {
+  if (points.length < 2) return null;
+  const series = drawdownSeries(points);
+  if (series.length === 0) return null;
+  const worst = Math.min(...series.map((s) => s.drawdown));
   return worst === 0 ? null : worst;
 }
