@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Plus, Pencil } from "lucide-react";
+import { X, Plus, Pencil, ChevronRight, ChevronDown } from "lucide-react";
 import { currencySymbol, currencyForRegion } from "@/lib/fx";
 import { priceKey } from "@/lib/prices";
 import { PlainMoney, Percent } from "@/components/SignedNumber";
 import Sparkline from "@/components/Sparkline";
 import TickerName from "@/components/TickerName";
+import RangeBar, { rangePositionLabel } from "@/components/RangeBar";
+import WatchlistSignals from "@/components/WatchlistSignals";
 import type { WatchlistRow } from "@/lib/watchlist";
+import type { EntrySignals } from "@/lib/entry-signals";
 
 export default function WatchlistPanel({ initialRows }: { initialRows: WatchlistRow[] }) {
   const router = useRouter();
@@ -18,15 +21,18 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
   const [error, setError] = useState<string | null>(null);
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const [signals, setSignals] = useState<Record<string, EntrySignals> | null>(null);
 
   // One batched request for every row's 30-day trend, exactly as the positions
   // tables do — see app/api/sparklines/route.ts. Keyed by priceKey(), which is
   // both what the response is keyed by and what the request is built from.
   const [trends, setTrends] = useState<Record<string, number[]>>({});
-  const trendKeys = useMemo(
-    () => rows.map((r) => priceKey(r.region, r.ticker)).join(","),
+  const keyList = useMemo(
+    () => rows.map((r) => priceKey(r.region, r.ticker)),
     [rows]
   );
+  const trendKeys = useMemo(() => keyList.join(","), [keyList]);
 
   useEffect(() => {
     if (!trendKeys) return;
@@ -44,8 +50,28 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
     };
   }, [trendKeys]);
 
-  // Refresh quotes every 60s while the tab is open. Names and trends ride along
-  // in the same response, so a row never half-updates.
+  // The entry-timing signals, from a year of daily closes — one request for
+  // every row, after paint, so a year of bars per ticker can never hold up the
+  // prices above it. They are NOT part of the row: the page and the refresh
+  // route have no business fetching a year of history to render a price.
+  useEffect(() => {
+    if (!trendKeys) return;
+    let cancelled = false;
+    fetch(`/api/watchlist/signals?keys=${encodeURIComponent(trendKeys)}`)
+      .then((res) => (res.ok ? res.json() : { signals: {} }))
+      .then((data) => {
+        if (!cancelled) setSignals(data.signals ?? {});
+      })
+      .catch(() => {
+        if (!cancelled) setSignals({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [trendKeys]);
+
+  // Refresh quotes every 60s while the tab is open. Names ride along in the
+  // same response, so a row never half-updates.
   useEffect(() => {
     async function refresh() {
       try {
@@ -182,9 +208,9 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
 
       {/* `table-compact` (min-w-0) rather than the ledger's 720px floor: this is
           a handful of short columns, and the ledger's minimum made a phone
-          scroll sideways for no reason. The trend column drops below `sm` and
-          the reason column below `md`, so nothing is ever clipped — each of
-          them is one hover (or one column) away from what remains. */}
+          scroll sideways for no reason. The range and trend columns drop below
+          `md` / `sm` and the reason column below `md`, so nothing is ever
+          clipped — each of them is one click (or one hover) from what remains. */}
       <div className="panel overflow-x-auto">
         {rows.length === 0 ? (
           <p className="p-6 text-center text-sm text-ink-300">
@@ -196,12 +222,18 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
               {/* Every column but `Why` is pinned to a width, so the slack in a
                   full-width table lands on the one column whose contents
                   actually vary — a reason can be a sentence, and a price is
-                  always seven characters. Without this the instrument column
-                  absorbed ~560px of whitespace and the reason got 264px. */}
+                  always seven characters. */}
               <tr>
-                <th className="w-[24rem]">Ticker</th>
+                <th className="w-6" />
+                <th className="w-[22rem]">Ticker</th>
                 <th className="w-[7rem] text-right">Price</th>
                 <th className="w-[6rem] text-right">Today</th>
+                <th
+                  className="hidden w-[7rem] text-right md:table-cell"
+                  title="Where the price sits between its 1-year low and high"
+                >
+                  1y range
+                </th>
                 <th
                   className="hidden w-[6rem] text-right sm:table-cell"
                   title="Price trend over the last 30 days"
@@ -215,102 +247,147 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
             <tbody>
               {rows.map((r) => {
                 const symbol = currencySymbol[currencyForRegion(r.region)];
+                const key = priceKey(r.region, r.ticker);
+                const signal = signals?.[key] ?? null;
+                const isOpen = expanded === r.id;
                 return (
-                  <tr key={r.id}>
-                    <td>
-                      <span className="num">{r.ticker}</span>
-                      {/* Region is a cell's worth of width for two letters; it
-                          rides on the name line instead. */}
-                      {/* A roomier budget than the ledger's 13rem: this table has
-                          five columns, so a long fund name has somewhere to go
-                          and truncating it next to empty space reads as a bug. */}
-                      <TickerName
-                        region={r.region}
-                        ticker={r.ticker}
-                        name={r.name}
-                        maxWidthClass="max-w-[10rem] sm:max-w-[22rem]"
-                      />
-                      <span className="num ml-2 text-xs text-ink-500">{r.region}</span>
-                    </td>
-                    <td className="num text-right">
-                      {r.price !== null ? (
-                        <PlainMoney value={r.price} symbol={symbol} />
-                      ) : (
-                        <span className="text-ink-500" title="No live quote available">
-                          —
-                        </span>
-                      )}
-                    </td>
-                    {/* The only figure on the row that carries colour, because it
-                        is the only one that means up or down. */}
-                    <td className="num text-right">
-                      {r.dayChangePct !== null ? (
-                        <Percent value={r.dayChangePct} />
-                      ) : (
-                        <span className="text-ink-500">—</span>
-                      )}
-                    </td>
-                    <td className="hidden sm:table-cell">
-                      {trends[priceKey(r.region, r.ticker)] ? (
-                        <Sparkline values={trends[priceKey(r.region, r.ticker)]} />
-                      ) : (
-                        <span className="text-xs text-ink-500" title="No recent history available">
-                          —
-                        </span>
-                      )}
-                    </td>
-                    <td className="hidden max-w-[22rem] md:table-cell">
-                      {editing === r.id ? (
-                        <form
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            saveNote(r.id, String(new FormData(e.currentTarget).get("notes") ?? ""));
-                          }}
-                        >
-                          <input
-                            name="notes"
-                            defaultValue={r.notes ?? ""}
-                            autoFocus
-                            placeholder="What you're waiting for"
-                            className="field px-1.5 py-0.5 text-xs"
-                            onKeyDown={(e) => {
-                              if (e.key === "Escape") setEditing(null);
-                            }}
-                            // Clicking away settles it, the same rule the
-                            // exposure tag chips use, so a row can never show a
-                            // value it did not store.
-                            onBlur={(e) => saveNote(r.id, e.currentTarget.value)}
-                          />
-                        </form>
-                      ) : (
+                  <Fragment key={r.id}>
+                    <tr>
+                      <td className="pr-0">
                         <button
                           type="button"
-                          onClick={() => setEditing(r.id)}
-                          className="group/why flex w-full items-center gap-1.5 text-left"
-                          title={r.notes ?? "Add a reason for watching this"}
+                          onClick={() => setExpanded(isOpen ? null : r.id)}
+                          aria-expanded={isOpen}
+                          aria-label={`${isOpen ? "Hide" : "Show"} entry signals for ${r.ticker}`}
+                          title={isOpen ? "Hide entry signals" : "Show entry signals"}
+                          className="text-ink-500 transition hover:text-ink-100"
                         >
-                          <span className={`min-w-0 truncate ${r.notes ? "text-ink-100" : "text-ink-500"}`}>
-                            {r.notes ?? "Add a reason"}
-                          </span>
-                          <Pencil
-                            size={10}
-                            strokeWidth={2}
-                            className="shrink-0 text-ink-500 opacity-0 transition group-hover/why:opacity-100"
-                          />
+                          {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         </button>
-                      )}
-                    </td>
-                    <td className="text-right">
-                      <button
-                        onClick={() => handleRemove(r.id)}
-                        disabled={busy}
-                        className="text-ink-500 transition hover:text-loss"
-                        title={`Remove ${r.ticker} from watchlist`}
-                      >
-                        <X size={14} strokeWidth={2} />
-                      </button>
-                    </td>
-                  </tr>
+                      </td>
+                      <td>
+                        <span className="num">{r.ticker}</span>
+                        {/* Region is a cell's worth of width for two letters; it
+                            rides on the name line instead. */}
+                        {/* A roomier budget than the ledger's 13rem: this table has
+                            six columns, so a long fund name has somewhere to go
+                            and truncating it next to empty space reads as a bug. */}
+                        <TickerName
+                          region={r.region}
+                          ticker={r.ticker}
+                          name={r.name}
+                          maxWidthClass="max-w-[10rem] sm:max-w-[22rem]"
+                        />
+                        <span className="num ml-2 text-xs text-ink-500">{r.region}</span>
+                      </td>
+                      <td className="num text-right">
+                        {r.price !== null ? (
+                          <PlainMoney value={r.price} symbol={symbol} />
+                        ) : (
+                          <span className="text-ink-500" title="No live quote available">
+                            —
+                          </span>
+                        )}
+                      </td>
+                      {/* The only figure on the row that carries colour, because it
+                          is the only one that means up or down. */}
+                      <td className="num text-right">
+                        {r.dayChangePct !== null ? (
+                          <Percent value={r.dayChangePct} />
+                        ) : (
+                          <span className="text-ink-500">—</span>
+                        )}
+                      </td>
+                      <td className="hidden text-right md:table-cell">
+                        {signal?.rangePosition != null && signal.rangeLow !== null && signal.rangeHigh !== null ? (
+                          <RangeBar
+                            position={signal.rangePosition}
+                            label={`${rangePositionLabel(signal.rangePosition)} — ${symbol}${signal.rangeLow.toFixed(2)} to ${symbol}${signal.rangeHigh.toFixed(2)}`}
+                          />
+                        ) : signal ? (
+                          <span className="text-xs text-ink-500" title="Not enough history for a 1-year range">
+                            —
+                          </span>
+                        ) : (
+                          <span className="text-xs text-ink-500">…</span>
+                        )}
+                      </td>
+                      <td className="hidden sm:table-cell">
+                        {trends[key] ? (
+                          <Sparkline values={trends[key]} />
+                        ) : (
+                          <span className="text-xs text-ink-500" title="No recent history available">
+                            —
+                          </span>
+                        )}
+                      </td>
+                      <td className="hidden max-w-[22rem] md:table-cell">
+                        {editing === r.id ? (
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              saveNote(r.id, String(new FormData(e.currentTarget).get("notes") ?? ""));
+                            }}
+                          >
+                            <input
+                              name="notes"
+                              defaultValue={r.notes ?? ""}
+                              autoFocus
+                              placeholder="What you're waiting for"
+                              className="field px-1.5 py-0.5 text-xs"
+                              onKeyDown={(e) => {
+                                if (e.key === "Escape") setEditing(null);
+                              }}
+                              // Clicking away settles it, the same rule the
+                              // exposure tag chips use, so a row can never show a
+                              // value it did not store.
+                              onBlur={(e) => saveNote(r.id, e.currentTarget.value)}
+                            />
+                          </form>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setEditing(r.id)}
+                            className="group/why flex w-full items-center gap-1.5 text-left"
+                            title={r.notes ?? "Add a reason for watching this"}
+                          >
+                            <span className={`min-w-0 truncate ${r.notes ? "text-ink-100" : "text-ink-500"}`}>
+                              {r.notes ?? "Add a reason"}
+                            </span>
+                            <Pencil
+                              size={10}
+                              strokeWidth={2}
+                              className="shrink-0 text-ink-500 opacity-0 transition group-hover/why:opacity-100"
+                            />
+                          </button>
+                        )}
+                      </td>
+                      <td className="text-right">
+                        <button
+                          onClick={() => handleRemove(r.id)}
+                          disabled={busy}
+                          className="text-ink-500 transition hover:text-loss"
+                          title={`Remove ${r.ticker} from watchlist`}
+                        >
+                          <X size={14} strokeWidth={2} />
+                        </button>
+                      </td>
+                    </tr>
+                    {isOpen && (
+                      <tr className="bg-ink-850/60">
+                        {/* `whitespace-normal` because `.ledger-table td` is
+                            nowrap — without it the prose below cannot wrap and
+                            the detail row sets the width of the whole table. */}
+                        <td colSpan={8} className="whitespace-normal px-4 py-4">
+                          {signal ? (
+                            <WatchlistSignals signals={signal} symbol={symbol} />
+                          ) : (
+                            <p className="text-sm text-ink-300">Loading signals…</p>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
             </tbody>

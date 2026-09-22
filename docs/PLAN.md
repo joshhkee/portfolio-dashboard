@@ -102,10 +102,11 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 24 | Exposure tags as a set-once chip; site-wide text pass; late-deposit notices removed | **DONE** |
 | 25 | Notes: the ledger derives its own line, and the 64 stored notes cleaned up against the owner's verdicts | **DONE** |
 | 26 | Watchlist: names and today's move from the full quote pipeline, a 30-day trend, and the notes column repurposed to "why I'm watching this" | **DONE** |
+| 27 | Watchlist entry signals (1y range position, % off high, RSI, 50/200-day trend) + the trade-history modal redesigned onto one scroll container | **DONE** |
 
 ---
 
-## Resume checkpoint — 2026-09-23 (after Part 26)
+## Resume checkpoint — 2026-09-23 (after Part 27)
 
 **State:** parts 1–7, 9–17 and 19–21 were already done, plus **Part 22** (Today's
 movers, the colour rule, a shorter attention list), **Part 23** (a prominent
@@ -124,6 +125,13 @@ palette), shows a 30-day sparkline from the batched `/api/sparklines` endpoint,
 and its `notes` column means "why I am watching this" rather than doubling as a
 name. See the Part 26 section for the two wrong attempts at getting a free
 month of prices out of the quote payload.
+
+**Part 27** then made the watchlist answer the question it exists for — *when is
+this a good buy* — with four signals from a year of daily closes (range
+position, % off the 1y high, Wilder RSI(14), price vs the 50/200-day average),
+shown one click below the row rather than as four more columns. It also
+redesigned the trade-history modal onto a **single** scroll container, with a
+position summary strip and one card per trade cycle.
 
 **The colour rule, now written down because it was violated in four places:**
 colour means *up or down*. Gains, losses, returns, and percentages carry
@@ -2345,3 +2353,122 @@ stored `notes`.
 is new; the price tests lost the series-parsing cases when that parser was
 reverted), `npx tsc --noEmit` clean, `npx eslint .` clean, `npx next build`
 clean, no console errors, one sparklines request per page load.
+
+---
+
+## Part 27 — the watchlist answers "when should I buy", and the trade-history
+modal comes onto the current design (DONE)
+
+Two requests, and the owner picked the scope of both before any code was
+written: **Standard** signals (not Light, not Full) and a **redesign plus a
+structural fix** of the trade-history modal (not a visual-only pass, and not
+new data).
+
+### The signals, and why they are one click down
+
+`lib/entry-signals.ts` (new) turns a year of daily closes into four facts:
+
+- **`sma(values, n)`** — the simple average of the **last** n, or null when
+there are fewer. A 200-day average from 30 sessions is not a 200-day average,
+and a shorter one would quietly mislabel the trend.
+- **`rsiWilder(closes, period)`** — Wilder's smoothing, seeded from the first
+  `period` changes and then `(prev * (period - 1) + new) / period`. Pinned by a
+  hand-computed case: `[10, 11, 10, 11, 10]` over period 3 gives **44.444**,
+  where a plain mean of gains and losses gives exactly 50 — so the test fails if
+  anyone "simplifies" it. Reads 100 with no down change, 0 with no up change,
+  and 50 on a flat series rather than dividing by zero.
+- **`rsiZone`** — the conventional 30/70 bands in words. Deliberately only two
+  bands: a third ("strong", "extended") would be a judgement dressed as a
+  measurement.
+- **`entrySignals(closes)`** — range low/high, position in that range, % below
+the high, RSI, both averages, price against each, and a `trend` of
+  `up` / `down` / `mixed`. **Mixed is a real answer**, not a failure to decide:
+  price below its 50-day while the 50-day is above the 200-day is neither an
+  uptrend nor a downtrend.
+
+Two rules shape the whole module: **no composite score** (a number with no units
+nobody can check) and **absent beats invented** — under `MIN_SESSIONS` (200, the
+longest single window any signal needs) the function returns the session count
+and nulls everything else, one guard for the whole set instead of each field
+answering for itself.
+
+`app/api/watchlist/signals/route.ts` is the batched caller: one request for
+every row, four fetches in flight at a time through `mapWithConcurrency`, an
+hour of TTL cache (daily bars change once a day, and `fetchHistoricalCloses`
+already sits behind Next's hour of fetch cache), and a 60-symbol cap. That is
+the same shape as `app/api/sparklines/route.ts`, for the same reason — a request
+per row is a waterfall — and **no new data source**: it is a second caller of
+the history fetch the benchmarks already use.
+
+**Where it shows, and why not as columns.** The row gained a chevron and a
+narrow **1y range** column (a gold track with a marker — gold because the
+position in a range is not a gain or a loss, and the colour rule says colour
+means up or down). The four signals themselves live in an expanded strip under
+the row, because this table has six columns already and the owner has twice
+asked for no horizontal scrolling: the row stays the snapshot, the deliberation
+lives a click below it. Measured at 1470×900: header and rows identical at
+`x = 33 / 417 / 529 / 625 / 721 / 1405`, document overflow 0, no inner scrollers.
+
+**One rounding fix worth recording:** at 0.9954 of the range a rounded
+"100%" sat next to "0.3% below its high" and contradicted it. `RangeBar` now
+exports `rangePositionLabel`, to one decimal, and both the row's tooltip and the
+detail use it — so the bar's accessible name and the words beside it cannot
+disagree.
+
+### The modal: one scroll container, a summary, and one card per cycle
+
+`components/TransactionHistoryModal.tsx` was rebuilt around three changes:
+
+1. **The nested scroll is gone.** Each cycle's table was a `.table-scroll` —
+   `max-h-[70vh] overflow-auto` — inside a modal body that also scrolled, which
+   is where a wheel gesture goes to the wrong element. The cycle table is now
+   `overflow-x-auto` only (horizontal is unavoidable for six columns on a
+   phone) and **nothing inside the modal has a `max-h`**; the modal body is the
+   one vertical scroller. Verified live: zero inner scroll containers, and the
+   cycle tables' header and row cells are pixel-identical (`96 / 80 / 72 / 112 /
+   104 / 373`), with the slack on the Note column.
+2. **A summary strip above the cycles.** Current price, avg cost of the open
+   cycle, unrealised and realised P/L. Every figure was already computed for one
+   cycle or another — the strip is a reorganisation, not an input the app did
+   not have. The combined realised percentage now needs a real weight, so
+   `computeCycleStats` returns **`costBasisSold`** and the strip sums by it,
+   rather than recovering the basis by dividing P/L by its own percentage (which
+   silently loses a cycle with no gain).
+3. **Each trade is a bordered card** with the headline P/L in its header — open
+   ones show unrealised, closed ones realised — because that number is the
+   reason the modal was opened and it used to sit below a six-row table.
+
+Also: `role="dialog"`, `aria-modal`, an `aria-label` naming the instrument, and
+focus moved to the dialog on open so Escape and the scroll keys work without a
+click first. The backdrop now matches the command palette (`bg-black/70` +
+`backdrop-blur-[2px]`) instead of being the one overlay that did not.
+
+**A signed-amount fix:** the SGD line under a negative return was shown as a
+magnitude (`S$161.19` beneath `-3.70%`), which reads as a gain. It carries its
+sign now, while the colour stays on the percentage alone.
+
+### Verification
+
+- `npm test` **21 files / 324 tests** — 17 new in `tests/entry-signals.test.ts`:
+  the hand-computed Wilder case, the degenerate RSI readings, the
+  last-n semantics of `sma`, the `MIN_SESSIONS` boundary, `mixed` trend, NaN
+  handling, and `parseSignalKeys` for both separators and the cap.
+- `npx tsc --noEmit`, `npx eslint app components lib tests`, `npx next build`
+  clean; the build registers `/api/watchlist/signals`.
+- **In the running app, with the real data.** XLV reads *86.7% of the 1-year
+  range · 3.1% below its high · RSI 55.2 (neutral) · Uptrend, +1.8% vs 50-day,
+  +9.0% vs 200-day* from 252 daily closes; CRWD reads *99.5% of the range · 0.3%
+  off its high · RSI 64.2 · Uptrend, +18.6% and +67.8%*. The endpoint answers in
+  one request for both keys.
+- **The trade-history modal** opened by clicking a position row: `role=dialog`,
+  `aria-modal=true`, labelled **"Transaction history for Barrick Mining
+  Corporation"**, focused, **zero inner scrollers**, cards reading *Trade 3 open
+  · Held 9mo · Unrealised −3.70%*, *Trade 2 closed · Realised +37.31%*, *Trade 1
+  closed · Held 2mo · Realised +15.13%*, summary *+25.62% realised / −S$161.19
+  unrealised*.
+- **The degenerate paths, exercised rather than assumed**, using a throwaway
+  ticker added through the UI form and removed again (which also closes Part
+  26's unverified add/remove gap): a ticker with no history renders *"Not enough
+  history to read yet — 0 trading sessions, and these signals need 200"* and
+  every cell shows `—` with an explanatory tooltip. The watchlist was back to its
+  real **2 rows** afterwards.
