@@ -95,19 +95,43 @@ export default function PortfolioValueChart({ data }: { data: SnapshotPoint[] })
   const last = points[points.length - 1];
   const change = last.totalValueSgd - first.totalValueSgd;
   const changePct = first.totalValueSgd > 0 ? (change / first.totalValueSgd) * 100 : 0;
+  // How much of that change was simply money paid IN. Outlay only steps on
+  // contribution days, so the difference between the window's two outlay values
+  // is exactly the deposits made inside the window.
+  const windowDeposits = last.costBasisSgd - first.costBasisSgd;
+  const windowMarket = change - windowDeposits;
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
         <p className="text-sm text-ink-300">Portfolio value over time</p>
-        <p className="num text-sm text-ink-100">
-          {compactSgd(last.totalValueSgd)}
-          <span className={`ml-2 ${change >= 0 ? "text-gain" : "text-loss"}`}>
-            {change >= 0 ? "+" : "-"}
-            {compactSgd(Math.abs(change)).replace("S$", "S$")} ({changePct >= 0 ? "+" : ""}
-            {changePct.toFixed(1)}%) since {shortDate(first.date)}
-          </span>
-        </p>
+        <div className="flex flex-col gap-0.5">
+          <p className="num text-sm text-ink-100">
+            {compactSgd(last.totalValueSgd)}
+            <span className={`ml-2 ${change >= 0 ? "text-gain" : "text-loss"}`}>
+              {change >= 0 ? "+" : "-"}
+              {compactSgd(Math.abs(change))} ({changePct >= 0 ? "+" : ""}
+              {changePct.toFixed(1)}%) since {shortDate(first.date)}
+            </span>
+          </p>
+          {/* A change in VALUE is not a return, but sitting right under a gain
+              figure it reads as one — a +506% next to "+21.5% since
+              inception" is the same number meaning two different things. So
+              the deposits inside the window are named, and what is left is the
+              market's part. */}
+          {windowDeposits > 1 && (
+            <p className="text-xs text-ink-500">
+              Value change, not return — {compactSgd(windowDeposits)} of it is deposits paid in over
+              this window
+              {Math.abs(windowMarket) > 1
+                ? `, and ${windowMarket < 0 ? "−" : ""}${compactSgd(
+                    Math.abs(windowMarket)
+                  )} is the market`
+                : ""}
+              .
+            </p>
+          )}
+        </div>
       </div>
       <div className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">

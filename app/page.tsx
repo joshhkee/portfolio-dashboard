@@ -1,462 +1,387 @@
 import Link from "next/link";
-import { Wallet, LineChart, CheckCircle2, PiggyBank, Plus } from "lucide-react";
+import { Plus, TriangleAlert, CheckCircle2, ChevronRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getOpenPositionsFor } from "@/lib/get-positions";
-import { computeLedger, fromDbRows } from "@/lib/portfolio-engine";
 import { NativeMoney, Percent, formatAmount } from "@/components/SignedNumber";
-import { currencySymbol, convertCurrency, fetchFxRates, type Currency } from "@/lib/fx";
+import { currencySymbol, convertCurrency, fetchFxRates } from "@/lib/fx";
 import { formatShortDate } from "@/lib/dates";
-import { xirr } from "@/lib/xirr";
-import RegionFlag from "@/components/RegionFlag";
-import { recordTodaySnapshot, getSnapshots, maxDrawdown } from "@/lib/snapshots";
-import {
-  annualizeReturn,
-  portfolioDailyReturns,
-  timeWeightedReturn,
-  yearlyReturns,
-} from "@/lib/performance";
-import {
-  RISK_FREE_RATE,
-  annualizedVolatility,
-  concentration,
-  largestMove,
-  rollingAnnualizedReturn,
-  sharpeRatio,
-} from "@/lib/risk";
-import { BENCHMARKS, getBenchmarkCloses } from "@/lib/benchmarks";
-import { alignCloses, priceKey } from "@/lib/prices";
+import { dayKey, getSnapshots, recordTodaySnapshot } from "@/lib/snapshots";
+import { depositSchedule } from "@/lib/schedule";
+import { getTickerMetaMaps } from "@/lib/ticker-meta";
+import { priceKey } from "@/lib/prices";
+import { readVisit } from "@/lib/session";
 import PortfolioPerformance from "@/components/PortfolioPerformance";
-import YearlyReturnsTable from "@/components/YearlyReturnsTable";
-import RiskPanel from "@/components/RiskPanel";
+import TopPositions from "@/components/TopPositions";
 
 export const dynamic = "force-dynamic";
 
 const sgd = currencySymbol.SGD;
 const CURRENCY_TO_REGION: Record<string, string> = { SGD: "SG", USD: "US", HKD: "HK" };
+const DAY_MS = 86_400_000;
 
-interface ActivityItem {
-  dateMs: number;
-  description: string;
-  amount: string;
+interface AttentionItem {
+  tone: "warn" | "info";
+  text: string;
+  href: string;
+  linkLabel: string;
 }
 
-export default async function HomePage() {
-  // Opportunistically record today's snapshot (idempotent, one row per UTC
-  // day, throttled, fails soft). Done before the parallel reads so the chart
-  // includes today even on the first load of the day.
+/**
+ * Today — the dashboard.
+ *
+ * It used to be a factsheet: twelve panels, three and a half screens, every
+ * number the app can compute (risk stats, the calendar-year table, the
+ * stakeholder split, the correlation matrix, recent activity) stacked in the
+ * order the parts were built. It answered "what is everything" to someone whose
+ * actual question on opening it is "what is it worth, am I on schedule, and does
+ * anything need me".
+ *
+ * So this page is built around those three questions and nothing else:
+ *
+ *   the value, and what changed since you last looked
+ *   a list of things that need a decision, drawn from data the app already has
+ *   one chart, the deposit schedule as a single line, the largest positions
+ *
+ * Everything that used to be here still exists — it moved to the page that owns
+ * it: the statistics and risk panel to /performance, attribution to
+ * /performance/attribution, the stakeholder split and deposit schedule to
+ * /money, the full ledger to /positions/trades. Nothing was deleted, and all of
+ * it is a keystroke away in the command palette.
+ */
+export default async function TodayPage() {
+  // Who is looking, and when they last did. Must be read BEFORE the snapshot
+  // writer touches the stored rows, so the baseline is genuinely the previous
+  // visit rather than this one.
+  const visit = await readVisit();
+
+  // Opportunistic, idempotent, throttled, fails soft — and deliberately on the
+  // dashboard only. This is the page that gates "the series is current"; a
+  // lens like /performance should not be writing rows as a side effect of being
+  // looked at.
   await recordTodaySnapshot();
 
-  // Every read here is a round trip to a remote pooler at 250-700ms each, so
-  // the ledger is read ONCE and shared: getOpenPositionsFor() replays the very
-  // same rows, and the recent-activity list is the tail of them. This page used
-  // to issue four separate reads of `transaction` (and two of `contribution`,
-  // via the snapshot writer) and paid full latency for every duplicate.
-  const [allTransactions, contributions, cashRows, rates, exchanges, snapshots] =
-    await Promise.all([
-      prisma.transaction.findMany({ orderBy: [{ date: "asc" }, { id: "asc" }] }),
-      prisma.contribution.findMany({ include: { contributor: true }, orderBy: { date: "desc" } }),
-      prisma.cashBalance.findMany(),
-      fetchFxRates(),
-      prisma.cashExchange.findMany({ orderBy: { date: "desc" }, take: 3 }),
-      getSnapshots(),
-    ]);
+  // Every read is a round trip to a remote pooler, so they go out together and
+  // the ledger is read ONCE and shared: getOpenPositionsFor() replays the same
+  // rows this page already fetched.
+  const [allTransactions, contributions, cashRows, rates, snapshots, meta] = await Promise.all([
+    prisma.transaction.findMany({ orderBy: [{ date: "asc" }, { id: "asc" }] }),
+    prisma.contribution.findMany({ orderBy: { date: "asc" } }),
+    prisma.cashBalance.findMany(),
+    fetchFxRates(),
+    getSnapshots(),
+    getTickerMetaMaps(),
+  ]);
 
-  // The 10 newest, newest first — the tail of the ledger already in hand rather
-  // than a second `take: 10` query over the same table.
-  const recentTransactions = allTransactions.slice(-10).reverse();
+  const positions = await getOpenPositionsFor(["US", "SG", "HK"], "SGD", rates, allTransactions);
 
-  // `rates` is handed over rather than left to be re-fetched: two FX quotes
-  // taken moments apart differ in the fourth decimal, which is enough to make
-  // two figures on one page disagree about the same money.
-  const allPositions = await getOpenPositionsFor(["US", "SG", "HK"], "SGD", rates, allTransactions);
-
-  // Benchmark indices for the comparison chart. getBenchmarkCloses() caches
-  // for 15 minutes and single-flights, so this costs three Yahoo requests per
-  // quarter hour rather than three per page load — and the point of the
-  // cache is that the number of calls is bounded by the NUMBER OF INDICES,
-  // never by the number of positions or days. Skipped entirely until there
-  // are two snapshots to compare.
-  const benchmarkCloses =
-    snapshots.length >= 2
-      ? await Promise.all(BENCHMARKS.map((b) => getBenchmarkCloses(b.symbol)))
-      : [];
-  const snapshotDates = snapshots.map((s) => s.date);
-  const benchmarkSeries: Record<string, (number | null)[]> = {};
-  for (let i = 0; i < BENCHMARKS.length; i++) {
-    // Aligned 1:1 with `snapshots` so the client can slice both by the same
-    // offset when the range changes (see PortfolioPerformance).
-    benchmarkSeries[BENCHMARKS[i].key] = alignCloses(snapshotDates, benchmarkCloses[i] ?? {});
-  }
-
-  // --- Outlay totals + stakeholder breakdown ---
-  let totalOutlay = 0;
-  const totalsByContributor = new Map<string, number>();
-  for (const c of contributions) {
-    totalOutlay += c.amount;
-    totalsByContributor.set(
-      c.contributor.name,
-      (totalsByContributor.get(c.contributor.name) ?? 0) + c.amount
-    );
-  }
-  const contributorSlices = Array.from(totalsByContributor.entries())
-    .map(([label, value]) => ({ label, value }))
-    .sort((a, b) => b.value - a.value);
-
-  // --- Cash (SGD-converted) ---
+  const holdingsValueSgd = positions.reduce((sum, p) => sum + p.totalHoldingsConverted, 0);
   let cashTotalSgd = 0;
   for (const row of cashRows) {
     cashTotalSgd += convertCurrency(row.balance, CURRENCY_TO_REGION[row.currency], "SGD", rates);
   }
-
-  // --- Holdings (positions only, SGD) + regional breakdown ---
-  const holdingsValueSgd = allPositions.reduce((sum, p) => sum + p.totalHoldingsConverted, 0);
-  const holdingsUnrealizedPL = allPositions.reduce((sum, p) => sum + p.unrealizedPLConverted, 0);
-  const regionSlices = ["US", "SG", "HK"].map((region) => ({
-    label: region,
-    value: allPositions
-      .filter((p) => p.region === region)
-      .reduce((sum, p) => sum + p.totalHoldingsConverted, 0),
-    icon: <RegionFlag region={region} />,
-  }));
-
-  // --- Hero: total portfolio value inclusive of cash ---
   const totalPortfolioValue = holdingsValueSgd + cashTotalSgd;
-  const growth = totalOutlay > 0 ? (totalPortfolioValue - totalOutlay) / totalOutlay : 0;
+
+  const totalOutlay = contributions.reduce((sum, c) => sum + c.amount, 0);
   const growthAbsolute = totalPortfolioValue - totalOutlay;
+  const growth = totalOutlay > 0 ? growthAbsolute / totalOutlay : 0;
 
-  // Money-weighted annualized return (XIRR): each contribution as money
-  // in, today's total portfolio value (incl. cash) as the final "cash
-  // out" — accounts for WHEN each contribution landed, unlike a
-  // lump-sum CAGR from a single inception date.
-  const cashflows: { amount: number; date: Date }[] = [];
-  for (let i = contributions.length - 1; i >= 0; i--) {
-    cashflows.push({ amount: -contributions[i].amount, date: contributions[i].date });
-  }
-  if (cashflows.length > 0) cashflows.push({ amount: totalPortfolioValue, date: new Date() });
-  const annualizedReturn = xirr(cashflows);
-
-  const maxDrawdownPct = maxDrawdown(snapshots);
-
-  // Time-weighted return, the counterpart to XIRR above. XIRR is money-weighted:
-  // it answers "what did my dollars earn", so it's moved by WHEN contributions
-  // landed. TWR strips contribution timing out entirely and answers "how did
-  // the strategy do" — the number to compare against a benchmark. With monthly
-  // deposits across five stakeholders, the two can differ noticeably, which is
-  // exactly why both are shown.
-  const twrTotal = timeWeightedReturn(snapshots);
-  const twrAnnualized =
-    twrTotal !== null && snapshots.length >= 2
-      ? annualizeReturn(twrTotal, snapshots[0].date, snapshots[snapshots.length - 1].date)
-      : null;
-  const yearReturns = yearlyReturns(snapshots);
-
-  // --- Risk & concentration ---
-  // Computed over ALL history rather than the chart range picker above:
-  // volatility and the Sharpe ratio are estimates, and a one-month window
-  // makes them swing wildly without meaning anything. The rolling line inside
-  // the panel is what shows how the statistic has moved over time.
+  // --- What changed since this person last looked ---------------------------
   //
-  // Concentration counts positions only, never cash — cash genuinely lowers
-  // the risk of the portfolio, but it is not a position, and folding it in
-  // would flatter every concentration number.
-  const riskSlices = allPositions.map((p) => ({
-    key: priceKey(p.region, p.ticker),
-    ticker: p.ticker,
-    name: p.name,
-    value: p.totalHoldingsConverted,
-    weight: p.portfolioPct,
-  }));
-  const concentrationStats = concentration(riskSlices.map((s) => s.value));
-  const dailyReturns = portfolioDailyReturns(snapshots);
-  const volatility = annualizedVolatility(dailyReturns);
-  const sharpe = sharpeRatio(twrAnnualized, volatility);
-  // Returns are between consecutive snapshots, so they align with snapshots
-  // from the second one onwards.
-  const biggestDay = largestMove(
-    dailyReturns,
-    snapshots.slice(1).map((s) => s.date)
-  );
-  // Drop the leading nulls (no full year behind them yet) so the line starts
-  // on the first day the window is actually complete.
-  const rollingPoints = rollingAnnualizedReturn(snapshots).flatMap((value, i) =>
-    value === null ? [] : [{ date: snapshots[i].date, value }]
-  );
+  // The baseline is a STORED daily value, not a live one, because a live value
+  // from a previous visit was never recorded and cannot be invented. So the
+  // comparison is deliberately day-precise: "since your last visit on 21 Sep",
+  // against the value stored for that day.
+  //
+  // Without an account (the shared-password gate carries no identity) there is
+  // no honest "last visit" at all, so it falls back to the previous recorded
+  // day and says so, rather than pretending.
+  const snapshotsAsc = snapshots;
+  const latestDay = snapshotsAsc.length > 0 ? snapshotsAsc[snapshotsAsc.length - 1].date : null;
+  const visitDay = visit.previousSeenAt ? dayKey(visit.previousSeenAt) : null;
 
-  // --- Completed trades, last 6 months (SGD) ---
-  const { completedTrades } = computeLedger(fromDbRows(allTransactions));
-  const sixMonthsAgo = new Date();
-  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-  let completedTradesPLSgd = 0;
-  let completedTradesCount = 0;
-  for (const t of completedTrades) {
-    if (t.sellDate >= sixMonthsAgo) {
-      completedTradesPLSgd += convertCurrency(t.realizedPL, t.region, "SGD", rates);
-      completedTradesCount++;
-    }
+  const baseline = visitDay
+    ? snapshotsAsc.filter((s) => s.date <= visitDay).pop() ?? snapshotsAsc[0] ?? null
+    : snapshotsAsc.length >= 2
+      ? snapshotsAsc[snapshotsAsc.length - 2]
+      : null;
+
+  const sinceChange = baseline ? totalPortfolioValue - baseline.totalValueSgd : null;
+  const sincePct =
+    baseline && baseline.totalValueSgd > 0 && sinceChange !== null
+      ? sinceChange / baseline.totalValueSgd
+      : null;
+  // New money is not a return. When deposits landed since the baseline, the part
+  // of the change that is simply more contributions is separated out, so a
+  // deposit month cannot read as a good month.
+  const sinceNewMoney = baseline ? Math.max(0, totalOutlay - baseline.costBasisSgd) : 0;
+
+  const baselineCaption =
+    sinceChange === null || !baseline
+      ? null
+      : visitDay === null
+        ? `since the last recorded day (${formatShortDate(new Date(`${baseline.date}T00:00:00Z`))})`
+        : baseline.date === latestDay
+          ? "since the value stored earlier today"
+          : `since your last visit on ${formatShortDate(new Date(`${baseline.date}T00:00:00Z`))}`;
+
+  // --- The deposit schedule, as one line --------------------------------
+  const schedule = depositSchedule(
+    contributions.map((c) => ({ label: c.label, date: c.date, paidOn: c.paidOn }))
+  );
+  const latestMonth = schedule.rows[schedule.rows.length - 1] ?? null;
+  const nextMonth = latestMonth
+    ? (() => {
+        const [y, m] = latestMonth.month.split("-").map(Number);
+        const start = Date.UTC(y, m, 1); // one month after the latest recorded
+        const end = Date.UTC(y, m + 1, 0);
+        return { label: new Date(start).toISOString().slice(0, 7), dueBy: end };
+      })()
+    : null;
+  const nextOverdue = nextMonth ? Date.now() > nextMonth.dueBy : false;
+
+  // --- What needs a decision -------------------------------------------
+  const attention: AttentionItem[] = [];
+
+  if (nextMonth && nextOverdue) {
+    attention.push({
+      tone: "warn",
+      text: `No deposit recorded for ${formatMonthKey(nextMonth.label)} — the month has closed.`,
+      href: "/money",
+      linkLabel: "Record it",
+    });
+  }
+  if (schedule.lateMonths > 0) {
+    attention.push({
+      tone: "info",
+      text: `${schedule.lateMonths} of ${schedule.measuredMonths} scheduled months arrived after the month closed${
+        schedule.worstLate ? ` — worst ${schedule.worstLate.label} at ${schedule.worstLate.daysLate} days` : ""
+      }.`,
+      href: "/money",
+      linkLabel: "See the schedule",
+    });
+  }
+  const untagged = positions.filter((p) => !meta.sectors[priceKey(p.region, p.ticker)]);
+  if (untagged.length > 0) {
+    const untaggedValue = untagged.reduce((sum, p) => sum + p.totalHoldingsConverted, 0);
+    attention.push({
+      tone: "info",
+      text: `${untagged.length} position${untagged.length === 1 ? "" : "s"} (${(
+        (untaggedValue / Math.max(holdingsValueSgd, 1)) *
+        100
+      ).toFixed(0)}% of holdings) still have no sector tag.`,
+      href: "/positions/exposure",
+      linkLabel: "Tag them",
+    });
+  }
+  const unpriced = positions.filter((p) => p.priceUnavailable);
+  if (unpriced.length > 0) {
+    attention.push({
+      tone: "info",
+      text: `${unpriced.length} position${unpriced.length === 1 ? "" : "s"} have no live quote and are counted at cost (${unpriced
+        .map((p) => p.ticker)
+        .slice(0, 3)
+        .join(", ")}${unpriced.length > 3 ? "…" : ""}).`,
+      href: `/positions/${unpriced[0].region.toLowerCase()}`,
+      linkLabel: "See them",
+    });
+  }
+  const lastTrade = allTransactions[allTransactions.length - 1] ?? null;
+  const daysSinceTrade = lastTrade
+    ? Math.floor((Date.now() - lastTrade.date.getTime()) / DAY_MS)
+    : null;
+  if (cashTotalSgd > 0 && daysSinceTrade !== null && daysSinceTrade >= 45) {
+    attention.push({
+      tone: "info",
+      text: `S$${formatAmount(cashTotalSgd)} has sat in cash for ${daysSinceTrade} days since the last trade.`,
+      href: "/money/cash",
+      linkLabel: "Look at cash",
+    });
   }
 
-  // --- Recent activity: transactions itemized, outlay aggregated by month ---
-  const activity: ActivityItem[] = [];
-  for (const t of recentTransactions) {
-    const currency = t.region === "US" ? "USD" : t.region === "SG" ? "SGD" : "HKD";
-    activity.push({
-      dateMs: t.date.getTime(),
-      description: `${t.action} ${t.ticker} (${t.region})`,
-      amount: `${t.qty} @ ${currencySymbol[currency as Currency]}${t.price.toFixed(2)}`,
-    });
-  }
-  const outlayByMonth = new Map<string, { dateMs: number; total: number }>();
-  for (const c of contributions) {
-    const key = `${c.date.getFullYear()}-${c.date.getMonth()}`;
-    const existing = outlayByMonth.get(key);
-    if (existing) {
-      existing.total += c.amount;
-      if (c.date.getTime() < existing.dateMs) existing.dateMs = c.date.getTime();
-    } else {
-      outlayByMonth.set(key, { dateMs: c.date.getTime(), total: c.amount });
-    }
-  }
-  for (const { dateMs, total } of outlayByMonth.values()) {
-    activity.push({
-      dateMs,
-      description: `Outlay`,
-      amount: `${sgd}${total.toFixed(2)}`,
-    });
-  }
-  for (const ex of exchanges) {
-    activity.push({
-      dateMs: ex.date.getTime(),
-      description: `Exchange ${ex.fromCurrency} \u2192 ${ex.toCurrency}`,
-      amount: `${currencySymbol[ex.fromCurrency as Currency]}${ex.fromAmount.toFixed(2)} \u2192 ${currencySymbol[ex.toCurrency as Currency]}${ex.toAmount.toFixed(2)}`,
-    });
-  }
-  activity.sort((a, b) => b.dateMs - a.dateMs);
-  const recentActivity = activity.slice(0, 5);
+  const top = [...positions]
+    .sort((a, b) => b.totalHoldingsConverted - a.totalHoldingsConverted)
+    .slice(0, 5)
+    .map((p) => ({
+      region: p.region,
+      ticker: p.ticker,
+      name: p.name,
+      valueSgd: p.totalHoldingsConverted,
+      plPct: p.unrealizedPLPct,
+      priceUnavailable: p.priceUnavailable,
+    }));
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Header row: title + quick links */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <p className="text-sm text-ink-300">Overview</p>
+        <div>
+          <h1 className="text-sm text-ink-300">Today</h1>
+          <p className="text-xs text-ink-500">
+            {positions.length} position{positions.length === 1 ? "" : "s"} · S$
+            {formatAmount(cashTotalSgd)} cash
+            {visit.account ? ` · signed in as ${visit.account.username}` : ""}
+          </p>
+        </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/transactions?add=1" className="btn-primary flex items-center gap-1.5">
+          <Link href="/positions/trades?add=1" className="btn-primary flex items-center gap-1.5">
             <Plus size={14} strokeWidth={2.5} />
-            Log a transaction
+            Log a trade
           </Link>
-          <Link href="/outlay?add=1" className="btn-ghost flex items-center gap-1.5">
+          <Link href="/money?add=1" className="btn-ghost flex items-center gap-1.5">
             <Plus size={14} strokeWidth={2.5} />
             Record a deposit
           </Link>
         </div>
       </div>
 
-      {/* Hero + Total Holding Value, side by side */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="panel p-6">
-          <p className="text-sm text-ink-300">Total Portfolio Value (SGD, incl. cash)</p>
-          <p className="num mt-1 text-4xl font-medium text-ink-100">
-            <NativeMoney value={totalPortfolioValue} symbol={sgd} />
-          </p>
-          <div className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-1">
-            <div>
-              <span className="text-xs text-ink-300">Growth vs outlay </span>
-              <span className="num text-sm">
+      {/* The value, and the change since this person was last here — the two
+          things someone opening the dashboard actually came for. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="panel flex flex-col gap-4 p-6 lg:col-span-2">
+          <div>
+            <p className="text-xs text-ink-300">Total portfolio value (S$, holdings + cash)</p>
+            <p className="num mt-1 text-4xl font-medium text-ink-100">
+              <NativeMoney value={totalPortfolioValue} symbol={sgd} />
+            </p>
+          </div>
+
+          {sinceChange !== null && baselineCaption && (
+            <div className="flex flex-col gap-1">
+              <p className="num text-lg">
+                <NativeMoney value={sinceChange} symbol={sgd} showPlus />
+                {sincePct !== null && (
+                  <span className="ml-2 text-sm">
+                    (<Percent value={sincePct} />)
+                  </span>
+                )}
+              </p>
+              <p className="text-xs text-ink-500">
+                {baselineCaption}
+                {sinceNewMoney > 0.5 && (
+                  <>
+                    {" — of which S$"}
+                    {formatAmount(sinceNewMoney)} is new deposits, so the rest is market movement
+                  </>
+                )}
+                .
+              </p>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-baseline gap-x-8 gap-y-1 border-t border-ink-700 pt-4">
+            <p className="text-xs text-ink-300">
+              Since inception{" "}
+              <span className="num ml-1 text-sm text-ink-100">
                 <NativeMoney value={growthAbsolute} symbol={sgd} showPlus />
               </span>{" "}
               <span className="num text-sm">
                 (<Percent value={growth} />)
               </span>
-            </div>
-            <div>
-              <span className="text-xs text-ink-300">Annualized return (XIRR) </span>
-              <span className="num text-sm">
-                {annualizedReturn !== null ? <Percent value={annualizedReturn} /> : "—"}
-              </span>
-            </div>
-            <div>
-              <span className="text-xs text-ink-300">Annualized return (TWR) </span>
-              <span
-                className="num text-sm"
-                title="Time-weighted: contribution timing removed, so this reflects the strategy rather than the deposit schedule."
-              >
-                {twrAnnualized !== null ? <Percent value={twrAnnualized} /> : "—"}
-              </span>
-            </div>
-            {maxDrawdownPct !== null && (
-              <div>
-                <span className="text-xs text-ink-300">Max drawdown </span>
-                <span className="num text-sm text-loss">{(maxDrawdownPct * 100).toFixed(1)}%</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="panel p-6">
-          <div className="mb-4 flex items-baseline justify-between">
-            <p className="text-sm text-ink-300">Total Holding Value (SGD, excl. cash)</p>
-            <p className="num text-lg font-medium text-ink-100">
-              <NativeMoney value={holdingsValueSgd} symbol={sgd} />
+            </p>
+            <p className="text-xs text-ink-300">
+              Contributed{" "}
+              <span className="num ml-1 text-sm text-ink-100">
+                {sgd}
+                {formatAmount(totalOutlay)}
+              </span>{" "}
+              across {new Set(contributions.map((c) => c.contributorId)).size} people
             </p>
           </div>
-          <div className="flex flex-col gap-3">
-            {regionSlices.map((s) => {
-              const pct = holdingsValueSgd === 0 ? 0 : (s.value / holdingsValueSgd) * 100;
-              return (
-                <div key={s.label} className="flex items-center gap-3">
-                  <span className="flex w-11 shrink-0 items-center gap-1.5 text-sm text-ink-100">
-                    {s.icon}
-                    {s.label}
+        </div>
+
+        {/* Things that need a decision, drawn from the app's own data. An empty
+            list is a real state and gets said plainly rather than left blank. */}
+        <div className="panel flex flex-col gap-3 p-6">
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-300">Needs attention</p>
+          {attention.length === 0 ? (
+            <p className="flex items-center gap-2 text-sm text-ink-300">
+              <CheckCircle2 size={15} strokeWidth={1.75} className="text-gain" />
+              Nothing needs you today.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {attention.map((item) => (
+                <li key={item.text} className="flex items-start gap-2">
+                  {item.tone === "warn" ? (
+                    <TriangleAlert size={14} strokeWidth={2} className="mt-0.5 shrink-0 text-loss" />
+                  ) : (
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-ink-500" />
+                  )}
+                  <span className="flex flex-col gap-0.5">
+                    <span className="text-sm text-ink-100">{item.text}</span>
+                    <Link
+                      href={item.href}
+                      className="text-xs text-ink-500 transition hover:text-accent motion-reduce:transition-none"
+                    >
+                      {item.linkLabel} →
+                    </Link>
                   </span>
-                  <div className="h-1 flex-1 overflow-hidden rounded-full bg-ink-800">
-                    {/* Gold by the owner's explicit choice — see the note on
-                        the `data` palette decision in docs/PLAN.md before
-                        "correcting" this back to a data colour. */}
-                    <div className="h-full rounded-full bg-accent/70" style={{ width: `${pct}%` }} />
-                  </div>
-                  <span className="num shrink-0 text-sm text-ink-100">
-                    {sgd}
-                    {formatAmount(s.value)}
-                  </span>
-                  <span className="num w-11 shrink-0 text-right text-xs text-ink-500">
-                    {pct.toFixed(1)}%
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 
-      {/* Portfolio value over time, underwater curve and benchmark
-          comparison, all driven by one range picker */}
-      <PortfolioPerformance
-        data={snapshots}
-        benchmarks={BENCHMARKS}
-        benchmarkSeries={benchmarkSeries}
-      />
-
-      {/* Concentration, risk-adjusted return and the correlation matrix */}
-      {concentrationStats && snapshots.length >= 2 ? (
-        <RiskPanel
-          concentration={concentrationStats}
-          slices={riskSlices.slice(0, 8)}
-          hiddenCount={Math.max(0, riskSlices.length - 8)}
-          volatility={volatility}
-          sharpe={sharpe}
-          annualReturn={twrAnnualized}
-          riskFreeRate={RISK_FREE_RATE}
-          largestMove={biggestDay}
-          rolling={rollingPoints}
-          rollingWindowDays={365}
-          windowLabel={`${formatShortDate(new Date(snapshots[0].date))} – ${formatShortDate(
-            new Date(snapshots[snapshots.length - 1].date)
-          )}`}
-          days={snapshots.length}
-          totalSgd={holdingsValueSgd}
-        />
-      ) : null}
-
-      {/* Sub-page summary cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Link href="/holdings" className="panel flex flex-col gap-2 p-5 transition hover:border-ink-500">
-          <div className="flex items-center gap-2 text-ink-300">
-            <LineChart size={16} strokeWidth={1.75} />
-            <span className="text-sm">Holdings</span>
-          </div>
-          <p className="num text-xl font-medium text-ink-100">
-            <NativeMoney value={holdingsValueSgd} symbol={sgd} />
-          </p>
-          <p className="text-xs text-ink-300">
-            {allPositions.length} position{allPositions.length === 1 ? "" : "s"} ·{" "}
-            <NativeMoney value={holdingsUnrealizedPL} symbol={sgd} showPlus /> unrealized
-          </p>
-        </Link>
-
-        <Link href="/holdings/cash" className="panel flex flex-col gap-2 p-5 transition hover:border-ink-500">
-          <div className="flex items-center gap-2 text-ink-300">
-            <Wallet size={16} strokeWidth={1.75} />
-            <span className="text-sm">Cash</span>
-          </div>
-          <p className="num text-xl font-medium text-ink-100">
-            <NativeMoney value={cashTotalSgd} symbol={sgd} />
-          </p>
-          <p className="text-xs text-ink-300">Across SGD, USD, HKD</p>
-        </Link>
-
+      {/* The schedule, in one line: what arrived, what is due, how often it was
+          late. The late flag is quiet on purpose — money sitting in the account
+          earns nothing here, so a late month is a note, not an alarm. */}
+      {latestMonth && nextMonth && (
         <Link
-          href="/completed-trades"
-          className="panel flex flex-col gap-2 p-5 transition hover:border-ink-500"
+          href="/money"
+          className="panel flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3 text-xs transition hover:border-ink-500 motion-reduce:transition-none"
         >
-          <div className="flex items-center gap-2 text-ink-300">
-            <CheckCircle2 size={16} strokeWidth={1.75} />
-            <span className="text-sm">Completed Trades</span>
-          </div>
-          <p className="num text-xl font-medium text-ink-100">
-            <NativeMoney value={completedTradesPLSgd} symbol={sgd} showPlus />
-          </p>
-          <p className="text-xs text-ink-300">{completedTradesCount} trades · last 6 months</p>
+          <span className="font-medium uppercase tracking-wide text-ink-300">Deposits</span>
+          <span className="text-ink-100">
+            {latestMonth.label} arrived{" "}
+            {latestMonth.paidOn === null
+              ? "on an unrecorded date"
+              : latestMonth.daysLate > 0
+                ? `${latestMonth.daysLate} days after the month closed`
+                : "on time"}
+          </span>
+          <span className="text-ink-500">·</span>
+          <span className={nextOverdue ? "text-loss" : "text-ink-300"}>
+            {formatMonthKey(nextMonth.label)} {nextOverdue ? "is overdue" : "due by"}{" "}
+            {formatShortDate(new Date(nextMonth.dueBy))}
+          </span>
+          {schedule.lateMonths > 0 && (
+            <>
+              <span className="text-ink-500">·</span>
+              <span className="text-ink-500">
+                {schedule.lateMonths} of {schedule.measuredMonths} months late
+              </span>
+            </>
+          )}
+          <ChevronRight size={13} strokeWidth={2} className="ml-auto text-ink-500" />
         </Link>
+      )}
 
-        <Link href="/outlay" className="panel flex flex-col gap-2 p-5 transition hover:border-ink-500">
-          <div className="flex items-center gap-2 text-ink-300">
-            <PiggyBank size={16} strokeWidth={1.75} />
-            <span className="text-sm">Outlay</span>
-          </div>
-          <p className="num text-xl font-medium text-ink-100">
-            <NativeMoney value={totalOutlay} symbol={sgd} />
-          </p>
-          <p className="text-xs text-ink-300">{contributorSlices.length} stakeholders</p>
-        </Link>
+      {/* ONE chart on the dashboard, not three: the value line with the
+          contributed reference under it. The drawdown and the index comparison
+          are the performance page's subject, not this page's. */}
+      <div className="flex flex-col gap-2">
+        <PortfolioPerformance data={snapshots} charts="value" />
+        <p className="text-right text-xs">
+          <Link
+            href="/performance"
+            className="text-ink-500 transition hover:text-accent motion-reduce:transition-none"
+          >
+            Returns, risk and the benchmark comparison →
+          </Link>
+        </p>
       </div>
 
-      {/* Factsheet-style per-year breakdown */}
-      <YearlyReturnsTable years={yearReturns} />
-
-      {/* Outlay by stakeholder + Recent activity, side by side on desktop */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <section>
-          <h2 className="mb-2 text-sm font-medium text-ink-300">Outlay by stakeholder</h2>
-          {contributorSlices.length === 0 ? (
-            <p className="text-sm text-ink-300">No outlay recorded yet.</p>
-          ) : (
-            <div className="panel divide-y divide-ink-700 px-4">
-              {contributorSlices.map((s) => {
-                const pct = totalOutlay === 0 ? 0 : (s.value / totalOutlay) * 100;
-                return (
-                  <div key={s.label} className="flex items-center justify-between gap-3 py-2 text-sm">
-                    <span className="text-ink-100">{s.label}</span>
-                    <span className="num text-ink-300">
-                      {sgd}
-                      {formatAmount(s.value)} · {pct.toFixed(1)}%
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        <section>
-          <h2 className="mb-2 text-sm font-medium text-ink-300">Recent activity</h2>
-          {recentActivity.length === 0 ? (
-            <p className="text-sm text-ink-300">Nothing recorded yet.</p>
-          ) : (
-            <div className="panel divide-y divide-ink-700 px-4">
-              {recentActivity.map((item, i) => (
-                <div key={i} className="flex items-center justify-between gap-3 py-2 text-sm">
-                  <span className="flex min-w-0 items-baseline gap-2">
-                    <span className="shrink-0 text-xs text-ink-500">
-                      {formatShortDate(new Date(item.dateMs))}
-                    </span>
-                    <span className="truncate text-ink-100">{item.description}</span>
-                  </span>
-                  <span className="num shrink-0 text-xs text-ink-300">{item.amount}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
+      <TopPositions rows={top} totalCount={positions.length} hiddenCount={top.length} />
     </div>
   );
+}
+
+/** "2026-10" -> "Oct 2026", for a month label the schedule talks in. */
+function formatMonthKey(key: string): string {
+  const [y, m] = key.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en-US", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 }

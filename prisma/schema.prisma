@@ -152,3 +152,31 @@ model CashExchange {
 
   @@index([date])
 }
+
+// A sign-in account.
+//
+// Exists to answer "who is this", not "what may they see" — every account
+// sees the same dashboard. The alternative was a single shared password,
+// which can answer "is this person allowed in" and nothing else, so anything
+// that needs to remember something PER PERSON had nowhere to keep it. The
+// first consumer is the dashboard's "since you last looked" line; preferences
+// are the next obvious one.
+//
+// `username` is stored already normalised (lowercased, trimmed — see
+// normalizeUsername in lib/auth.ts) so that one person cannot end up with two
+// accounts by capitalising their own name differently.
+//
+// `passwordHash` is a scrypt hash with its own salt and cost parameters
+// embedded (lib/password.ts). Nothing anywhere stores or logs a plaintext
+// password, and the create-user script types it without echoing it.
+//
+// `lastSeenAt` is written lazily by whichever page asks for it, throttled, and
+// is deliberately nullable: NULL means "never seen", which the dashboard reads
+// as "unknown baseline" rather than "just now".
+model User {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  lastSeenAt   DateTime?
+}

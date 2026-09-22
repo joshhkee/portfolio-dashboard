@@ -86,28 +86,57 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 13 | Range-selector transitions + load-time optimisation | **DONE** |
 | 14a | Deposit schedule: `Contribution.paidOn` + a quiet late flag | **DONE** |
 | 14b | Currency reporting: price-only P&L, realized FX, foreign cash | **REMOVAL DONE** (purchase-date FX split deleted); the two replacement panels are still TODO — see the Part 14b section |
+| 15 | IA: five objects, lenses nested, old URLs redirected | **DONE** |
+| 16 | Accounts: username + password, per-account `lastSeenAt` | **DONE** — no account created yet; make the first one at `/accounts` (Part 19) or `npm run user:add` (the shared-password gate still works) |
+| 17 | Today: hero + since-last-visit, needs-attention, schedule line, one chart, largest positions | **DONE** |
+| 18 | Activity: the four ledgers merged into one filterable timeline | TODO — proposed, not built |
+| 19 | Accounts UI: add / reset / remove accounts at `/accounts` | **DONE** — the app is back to **0 accounts**, so the first real account is the owner's to create on `/accounts` |
 
 ---
 
-## Resume checkpoint — 2026-09-22 (after Part 14b)
+## Resume checkpoint — 2026-09-22 (after Part 19)
 
-**State:** parts 1–7 and 9–14a finished and verified, plus the **removal half of
-14b** — the `/exposure` purchase-date FX split is gone, along with the machinery
-and tests behind it, and every SGD figure in the app now carries an `S$` instead
-of a bare `$`. The four smaller fixes from the same round are in too: the
-attribution table's pinned Instrument column no longer scrolls away, its Total
-column carries the symbol, Keng's S$3,900 top-up is attributed to April 2025,
-and the late-deposit flag is a dim clock glyph whose tooltip names the month and
-the date it landed.
+**State:** parts 1–7 and 9–17 finished and verified, plus **Part 19** — the
+accounts UI (`/accounts`: create, reset, remove), with the bootstrap rule that
+lets the shared-password visitor create the very first account in the browser
+instead of a shell. Earlier this round: the **14b removal** (the `/exposure`
+purchase-date FX split and its machinery are gone), consistent `S$` labelling,
+the **five-object IA** with the old URLs redirected, **accounts**, and the
+**dashboard rebuilt as Today** — 12 panels to 4, 4 charts to 1, 448 rendered
+figures to 31.
 
-**Next action:** whichever of these the owner picks —
-**14b's two remaining panels** (realized FX on the 25 conversions; unrealized FX
-on the foreign cash), **Part 8** (notes redesign, still blocked on an owner
-decision), or part 15 onward from the backlog. Part 12's responsive work and
-part 13's load-time fix are both done and merged into this branch's open PR.
-(This heading said "after Part 11" until 14a landed, and "after Part 14a" until
-the 14b removal landed; the body below is kept because its environment notes and
-data-quality findings are still current.)
+**Next action:** whichever the owner picks —
+**Part 18 the `/activity` ledger**, **14b's two remaining panels** (realized FX
+on the 25 conversions; unrealized FX on the foreign cash), the **monolith split**
+(`app/page.tsx` and `lib/portfolio-engine.ts` are both large enough that a
+maintainer would flag them), or **Part 8** (notes redesign, still blocked on an
+owner decision).
+
+**The accounts state to be aware of before touching auth again:** the `User`
+table is **empty** — every verification account was deleted after it was used,
+and the count was checked back to 0. That is deliberate: the bootstrap rule only
+exists while the count is 0, so the owner's own account should be the first one
+created, from `/accounts`. Once they create it, only an account can add more,
+and the shared password can still sign in but can no longer manage accounts.
+
+**Environment notes that are easy to lose:**
+- The database is SHARED with the main checkout, so a migration or an account
+  created here is already live for the deployed app.
+- `AUTH_SECRET` is optional. With it unset the signing secret falls back to
+  `SITE_PASSWORD` (so changing the shared password signs every account out);
+  set it before rotating the shared password if that matters.
+- `npm run user:add` can run with the dev server up — it uses its own Prisma
+  client. Only `npm run build` collides with a running server (the Windows
+  Prisma engine DLL lock documented in the run doc). Since Part 19 the CLI is
+  the fallback: `/accounts` does the same job in the browser, and is the only
+  way to reach it when you have no account yet.
+- The `User` table being empty is load-bearing (see the checkpoint note above):
+  it is what makes `/accounts` reachable with the shared password.
+- `npx tsc --noEmit` reads generated route types from `.next`, so it reports
+  phantom errors about deleted routes until `.next` is rebuilt after a move.
+(This heading has tracked each batch — "after Part 11", "after Part 14a", "after
+Part 14b" — and the body below is kept because its data-quality findings are
+still current.)
 
 **Part 10 needs no further action on the database:** migration
 `20260922140000_add_ticker_sector` is applied and the column exists. No sector
@@ -119,10 +148,9 @@ correctly reads Unclassified 100% until the owner tags instruments on
 (`6a357af`, `c166bf0`, `c6071c5`); the Ctrl+K / benchmark-explainer notes plus
 the parts 8–12 backlog through #7; part 9 through #6. Both #6 and #7 are MERGED,
 so part 10 onward rides a fresh pull request (see below) — check the open PR's
-number before quoting it, it changes each batch. At the end of this session that
-was **#9**, open and reading `mergeable: true / clean`, carrying parts 12-14b
-(its body was rewritten to cover the 14b removal, so the earlier "Parts 12-14a"
-title is no longer what it says). **One pull request per checkpoint** (see "Pull-request
+number before quoting it, it changes each batch. **#9 was merged** (its squash is
+`main` at `0927f2c`), so parts 15-17 went up as a NEW pull request: **#10**, open
+and reading `mergeable: true / clean`, with Vercel green on its head commit. **One pull request per checkpoint** (see "Pull-request
 workflow") — never force-push, and re-read the PR's `mergeable_state` after
 every push, because GitHub computes it asynchronously and it reads `unstable`
 while CI runs.
@@ -130,14 +158,16 @@ while CI runs.
 **Verification on the current tree (all green at the end of this session):**
 
 ```
-npm test                                     -> 14 files, 216 tests passed
+npm test                                     -> 16 files, 242 tests passed
 npx tsc --noEmit                             -> clean
-npx eslint app components lib tests          -> clean
+npx eslint app components lib tests scripts  -> clean
 npm run build                                -> succeeded (see the build note below)
 ```
 
-(The count fell 230 -> 216 because the 14 FX-split tests were deleted with the
-code they covered — not because tests stopped running.)
+(The count went 230 -> 216 when the 14 FX-split tests left with their code, then
+216 -> 229 with Part 16's 13 auth tests, then 242 with Part 19's 13 account-rule
+tests. Note `scripts/` is in the eslint target — the create-user script is app
+code and should be linted like the rest.)
 
 **Live preview:** a dev server runs from this worktree, but **Next picks the
 port** — 3000 when it is free, otherwise a random high one (it landed on 59495
@@ -1288,3 +1318,293 @@ owner has not asked for either panel):
 symbol removed above is referenced anywhere (checked with a repo-wide grep),
 `tsc` / `eslint` / `npm test` (216) / `npm run build` all pass, and `/exposure`
 still renders its two donuts with the same totals as before the removal.
+
+---
+
+## Part 15 — the five objects (DONE)
+
+**The diagnosis, measured.** The nav was eight entries in the order the app was
+built (Home, Outlay, Transactions, Holdings, Exposure, Attribution, Watchlist,
+Completed Trades) — a list of *reports*, four of which were views of the same
+positions and the same money, each holding a top-level slot away from the object
+it described. The dashboard had grown to **12 panels, 3.3 screens and 448
+rendered numeric values**, and only 4 of its 12 panels carried a heading, so its
+structure was invisible.
+
+**The rule now:** each nav entry is something the owner HAS.
+
+| Object | Tabs / lenses |
+|---|---|
+| Today `/` | the dashboard, rebuilt in Part 17 |
+| Positions `/positions` | US · SG · HK · **Exposure** · Trades |
+| Performance `/performance` | Returns & risk · **Attribution** · Realized |
+| Money `/money` | Deposits · Cash |
+| Watchlist `/watchlist` | unchanged |
+
+**Moves were `git mv`, not rewrites**, so history follows the files. Cash moved
+from Holdings to Money: it is not a position and never fed a holdings figure,
+and every page that had to say "holdings only, cash excluded" was working around
+where it used to live.
+
+**Redirection lives in `next.config.js`, not in stub pages.** Only the config
+can forward a path SUFFIX and the query string: `/holdings/us?ticker=D05` has to
+arrive at `/positions/us?ticker=D05`, which a redirect page cannot do without
+hand-parsing the query. Verified with real requests (307s):
+
+```
+/holdings              -> /positions/us
+/holdings/us?ticker=X  -> /positions/us?ticker=X
+/holdings/cash         -> /money/cash
+/exposure              -> /positions/exposure
+/attribution           -> /performance/attribution
+/outlay                -> /money
+/transactions?add=1    -> /positions/trades?add=1
+/completed-trades      -> /performance/realized
+```
+
+**Gotcha worth keeping:** `/holdings/cash` had to be listed BEFORE
+`/holdings/:path*`, because Next matches these top to bottom and the wildcard
+would otherwise send cash to a `/positions/cash` that does not exist. That bug
+was live for one build and caught by requesting every old path, not by reading
+the config.
+
+**One `SectionTabs` component** replaces the sub-nav that used to exist only
+inside Holdings, and it marks active by the LONGEST matching href: with nesting,
+the naive prefix rule lights up the section's own tab while the reader is inside
+a lens (`/performance/attribution` matches both `/performance` and
+`/performance/attribution`).
+
+---
+
+## Part 16 — accounts (DONE)
+
+**Why.** One shared password answers "may this person in" and nothing else — it
+carries no identity, so anything that needs to remember something PER PERSON had
+nowhere to keep it. The first consumer is the dashboard's "since you last
+looked" line.
+
+**Schema:** `User { id, username @unique, passwordHash, createdAt, lastSeenAt }`,
+migration `20260922210000_add_users`, applied with `npx prisma migrate deploy`.
+`username` is stored already normalised (lowercased, trimmed) so one person
+cannot end up with two accounts by capitalising their own name differently.
+
+**Two kinds of session, one cookie**, and the gate still works:
+
+| | shape | identity |
+|---|---|---|
+| gate | `sha256(SITE_PASSWORD)` | none — everyone is the same visitor |
+| account | `username.issuedAt.HMAC-style hash` | who is signed in |
+
+Middleware accepts either, so adding accounts could never lock the owner out of
+their own dashboard, and with zero accounts created the app behaves exactly as
+before. Signing secret is `AUTH_SECRET ?? SITE_PASSWORD`; with neither set the
+app reports "protection isn't set up" rather than locking anyone out, as it
+always has.
+
+**The edge/server split is load-bearing:** `middleware.ts` runs on the Edge
+runtime, which has no `node:crypto`. So token parsing (WebCrypto SHA-256) lives
+in `lib/auth.ts`, password hashing (scrypt, per-user salt, parameters stored IN
+the hash so the cost can be raised later without invalidating anything) lives in
+`lib/password.ts`, and resolving a token to a person (`lib/session.ts`, which
+needs Prisma) is server-only. 13 tests cover normalisation, hashing and token
+verification, including the two forgery shapes that matter: a valid signature
+with a swapped username, and a session signed by another deployment's secret.
+
+**Creating an account:** `npm run user:add` (or `npm run user:add -- keng`),
+which prompts for a password with the terminal's echo OFF and never prints it,
+never takes it as an argument (arguments land in shell history and the process
+list) and stores only the hash. **Part 19 added the same thing in the browser**
+at `/accounts`; the CLI is now the fallback for when there is no account and no
+browser at hand, and both call the same two rules (`normalizeUsername`,
+`validatePassword`) so they cannot drift.
+
+**Verified end to end** with a temporary account, created and then deleted,
+whose password was generated randomly and written only to a temp file outside
+the repo:
+
+- `POST /api/login {username, password}` -> **200 `{"ok":true,"username":"…"}`**
+  with a session cookie set; a wrong password -> **401**.
+- `GET /` with that cookie -> the dashboard renders **"signed in as …"**.
+- `lastSeenAt` is seeded by sign-in; with it forced back two days, the dashboard
+  read **"since your last visit on 20 Sep 26"** and the stored value then moved
+  to ~now, i.e. the throttled touch fired exactly once.
+- After deleting the account, the visit degrades to the no-identity fallback
+  rather than erroring.
+
+**Honest gap:** the interactive prompt itself (raw-mode keystroke handling) is
+the one part a non-interactive shell cannot drive, so it is covered by reading
+it rather than by running it. Everything it calls is tested.
+
+**Deliberately NOT built:** per-account scoping. Every account sees the whole
+dashboard — the owner chose identity, not access control — so no page gained a
+permission check, and `User` carries no link to a `Contributor`.
+
+---
+
+## Part 17 — Today (DONE)
+
+The dashboard is now built around three questions — *what is it worth, am I on
+schedule, does anything need me* — and nothing else.
+
+| | before | after |
+|---|---|---|
+| panels | 12 | **4** |
+| charts | 4 | **1** |
+| page height | 3.3 screens | **2.2 screens** |
+| rendered numeric values | 448 | **31** |
+
+**The five blocks**, top to bottom:
+
+1. **Hero** — total value, then the change since this person was last here.
+2. **Needs attention** — real data, each item a link to the page that fixes it:
+   an overdue month, months that arrived late, untagged sectors, positions with
+   no live quote, cash idle for 45+ days. An empty list is a real state and
+   says so ("Nothing needs you today").
+3. **The deposit schedule in one line** — what arrived, when the next month is
+   due, how many months were late. The late flag stays quiet, per the owner.
+4. **One chart** — the value line with the contributed reference, via
+   `PortfolioPerformance charts="value"`; the drawdown and index comparison are
+   the performance page's subject, not this page's.
+5. **Largest positions** — the top five with sparklines, each row a link into
+   that region's table with the ticker preselected.
+
+**The "since you last looked" baseline is a STORED daily value, not a live one**,
+because a live value from a previous visit was never recorded and cannot be
+invented. So the comparison is deliberately day-precise — "since your last visit
+on 20 Sep" — and without an account (the gate carries no identity) it falls back
+to the previous recorded day and says so. **New money is named separately**: when
+deposits landed since the baseline, the caption says how much of the change is
+simply contributions, so a deposit month cannot read as a good month.
+
+**A real contradiction fixed on the way:** the value chart's header advertised
+"+506.8% since 02 Mar" — the change in VALUE, which is almost entirely deposits —
+sitting two hundred pixels under a hero saying "+21.5% since inception". Same
+number, two meanings. The header now names the deposits inside the window and
+what is left is the market's part.
+
+**Everything that left this page still exists**, on the page that owns it: the
+statistics, risk panel, correlation matrix and calendar-year table to
+`/performance`, attribution to `/performance/attribution`, the stakeholder split
+and deposit schedule to `/money`, the full ledger to `/positions/trades`. Nothing
+was deleted, and all of it is in the command palette.
+
+**Acceptance:** `npm test` 15 files / 229 tests, `tsc` clean, `eslint` clean,
+`npm run build` succeeded, every old URL redirects (checked with real requests),
+and the four dashboard blocks were read back from the running page rather than
+assumed.
+
+**Still open:** Part 18, the `/activity` merged ledger (specified, not built).
+Until it exists, the newest entries live on `/positions/trades`, which is where
+the old "Recent activity" panel pointed anyway.
+
+---
+
+## Part 19 — the accounts UI (DONE)
+
+**Why.** Part 16 built accounts, but the only way to make one was
+`npm run user:add` — a shell, on the machine that holds the database. That is a
+fine bootstrap and a poor everyday tool: adding a stakeholder to a dashboard
+they will open in a browser should not need a terminal, and the CLI cannot even
+show you who already exists.
+
+**Where it lives:** `/accounts`, reached from the bar's right-hand cluster
+(the pill reads the account's own name once one exists, and "Accounts" while
+there is none) and from the command palette under "Go to". It is chrome, not a
+sixth object: nothing about the portfolio lives there.
+
+**Three states, and the page says which one it is** rather than showing controls
+that would 403:
+
+| state | who | what they see |
+|---|---|---|
+| bootstrap | no account signed in, **0 accounts exist** | the banner, and the create form already open |
+| manage | signed in as an account | the list, with per-row reset/remove |
+| refused | signed in with the shared password while accounts exist | why, and the way in (`/login`) |
+
+**The bootstrap rule is the one design decision worth reading twice.** With no
+accounts at all, anyone already past the shared gate may create the first one.
+Without it the page would be unreachable until somebody found a shell — the
+exact errand this page exists to remove. The allowance then closes for good, and
+`guardDeleteAccount` is what keeps it closed: **the last account cannot be
+deleted**, so the count can never fall back to 0 and quietly reopen a page that
+lets anyone holding the shared password mint themselves an identity. Once the
+owner creates their own account, the shared password can still sign in (nothing
+is gated behind accounts) but can no longer manage them.
+
+**Rules are pure and tested, not restated in the UI.** `lib/accounts.ts` holds
+the four decisions — `guardManageAccounts`, `guardDeleteAccount`,
+`guardSetPassword`, `parseNewAccount` — as functions that take resolved facts and
+return either `{ok:true}` or a status + sentence. The routes resolve the facts
+(who is signed in, the account count, whether the current password verified) and
+hand them over, so the rules can be tested without a database, a cookie or a
+request object. 13 tests, including the one that pins the claim the UI makes in
+two places: `parseNewAccount` agrees with `validatePassword` for every candidate
+password, so the form and `npm run user:add` cannot start accepting different
+things. The create-user script now calls `validatePassword` too, for the same
+reason.
+
+**Password changes:**
+
+- **Your own** account needs the current password (a walk-up on an unlocked
+  browser must not be able to take the account over). Wrong current -> **401**,
+  missing -> **400**.
+- **Someone else's** does not, because there is no email on file: an account
+  holder resetting a forgotten password IS the recovery path, and the only
+  alternative is a shell on the server. This grants no extra reach — every
+  account sees the same portfolio — and the row says so in as many words.
+
+**The API:** `GET /api/users` (list), `POST /api/users` (create, 400 invalid,
+409 taken — including under a race, via the `P2002` catch),
+`PATCH /api/users/[id]` (password), `DELETE /api/users/[id]`. All four resolve
+the actor through `accountAdminContext()` (`lib/account-admin.ts`), which is also
+what the root layout and the page call, so "may they" is decided once. It never
+throws: a database hiccup resolves to a refusal rather than a 500, because the
+layout calls it on **every** page — and the refusal is returned directly rather
+than falling through to the guard, where an unreachable count of 0 would look
+like the bootstrap and *allow*. `ACCOUNT_LIST_SELECT` is the single definition
+of the columns an account is listed by, so `passwordHash` cannot start leaking
+because one of the three queries was written as a bare `findMany()`.
+
+**One query saved on the hot path:** the account count is only asked for when
+nobody is signed in, because that is the only case it decides. An account holder
+short-circuits to `ok` without the count, so the layout's extra work per page is
+the session lookup it already needed for the nav — one query, not two, on a page
+the owner waits for.
+
+**Verified against the running app, not by reading it** (the whole surface, with
+temporary accounts named `zz-check*` that were deleted afterwards — the `User`
+table is back to 0 rows, checked):
+
+- Gate session, 0 accounts: `GET /api/users` -> **200 `{"users":[]}`**; a bad
+  username -> **400** with the same sentence the form shows; a 4-character
+  password -> **400 "Use at least 8 characters."**.
+- Create the first account with the gate cookie -> **201**; the SAME cookie is
+  then refused with **403**, i.e. the bootstrap closes as soon as it is used.
+- Signed in as that account, in the browser: `/accounts` listed it with a **YOU**
+  badge, "Added 22 Sep 26 · last signed in 22 Sep 26"; **Add account** created a
+  second one through the form (and a mismatched confirmation was caught client
+  side with `The passwords don't match.`); the new row read **"never signed in"**.
+- **Reset password** on the other row -> the new password signs in (**200**) and
+  the old one is **401**, proving the reset landed rather than merely returning ok.
+- **Remove** on your own row -> **400** inline ("That's the account you're signed
+  in as"); Remove on the other row -> the confirm, then the row disappeared and
+  the headline went back to **1 identity**.
+- A duplicate name -> **409**, reported under the normalised name (`ZZ-CHECK-2`
+  -> `zz-check-2`).
+- The shared-password session's `/accounts` renders the **refused** state, and
+  its nav carries **no** accounts link (checked: 0 occurrences of
+  `href="/accounts"` on `/` — a link that always 403s would be worse than none).
+- After deleting its account, the browser's cookie resolved to **no account** —
+  `readAccount` looks up the live row, as lib/session.ts documents — and the bar
+  fell back to the bootstrap state instead of erroring.
+
+**Honest gap:** the `count <= 1` branch of `guardDeleteAccount` is unreachable
+over HTTP today — an actor always counts itself, so the self-check fires first —
+and is kept as a second line of defence with its own unit test. The native
+`confirm()` before a delete is forced through in verification by stubbing
+`window.confirm`; it auto-dismisses otherwise, which is the browser's, not the
+app's, behaviour.
+
+**Not built, deliberately:** per-account roles or permissions (accounts are
+identities, not access levels — the owner chose this in Part 16 and nothing here
+changes it), email/password reset links, and any account-to-`Contributor` link.

@@ -15,28 +15,44 @@ const ACTIONS: Command[] = [
     id: "action-log-transaction",
     label: "Log a transaction",
     group: "Actions",
-    href: "/transactions?add=1",
+    href: "/positions/trades?add=1",
     keywords: "buy sell add new trade",
   },
   {
     id: "action-record-deposit",
     label: "Record a deposit",
     group: "Actions",
-    href: "/outlay?add=1",
+    href: "/money?add=1",
     keywords: "contribution outlay add money deposit",
   },
 ];
 
+/**
+ * Every page, including the lenses.
+ *
+ * The palette is where the old top-level report names now live: someone who
+ * types "exposure" or "attribution" out of habit still lands on the right
+ * view, it just isn't drawing a permanent nav slot away from the object it
+ * belongs to. Each entry's keywords carry the words a person actually types.
+ */
 const PAGES: Command[] = [
-  { id: "page-home", label: "Home", group: "Go to", href: "/", keywords: "overview dashboard" },
-  { id: "page-outlay", label: "Outlay", group: "Go to", href: "/outlay", keywords: "contributions deposits stakeholders" },
-  { id: "page-transactions", label: "Transactions", group: "Go to", href: "/transactions", keywords: "ledger entries" },
-  { id: "page-holdings", label: "Holdings", group: "Go to", href: "/holdings/us", keywords: "positions open us" },
+  { id: "page-today", label: "Today", group: "Go to", href: "/", keywords: "home overview dashboard" },
+  { id: "page-positions", label: "Positions", group: "Go to", href: "/positions/us", keywords: "holdings open us" },
+  { id: "page-positions-sg", label: "Positions · SG", group: "Go to", href: "/positions/sg", keywords: "holdings singapore" },
+  { id: "page-positions-hk", label: "Positions · HK", group: "Go to", href: "/positions/hk", keywords: "holdings hong kong" },
+  { id: "page-trades", label: "Trade ledger", group: "Go to", href: "/positions/trades", keywords: "transactions entries buy sell" },
+  { id: "page-performance", label: "Performance", group: "Go to", href: "/performance", keywords: "returns risk sharpe volatility drawdown benchmark" },
+  { id: "page-realized", label: "Realized trades", group: "Go to", href: "/performance/realized", keywords: "completed sold closed profit" },
+  { id: "page-money", label: "Money", group: "Go to", href: "/money", keywords: "outlay contributions deposits stakeholders schedule" },
+  { id: "page-cash", label: "Cash", group: "Go to", href: "/money/cash", keywords: "balances currency exchange conversions" },
   { id: "page-watchlist", label: "Watchlist", group: "Go to", href: "/watchlist", keywords: "watching ideas" },
-  { id: "page-completed", label: "Completed Trades", group: "Go to", href: "/completed-trades", keywords: "realized sold closed" },
-  { id: "page-cash", label: "Cash", group: "Go to", href: "/holdings/cash", keywords: "balances currency exchange" },
-  { id: "page-exposure", label: "Exposure", group: "Go to", href: "/exposure", keywords: "sector currency fx risk concentration" },
-  { id: "page-attribution", label: "Attribution", group: "Go to", href: "/attribution", keywords: "contribution which holding drove returns monthly quarterly" },
+  // Chrome rather than an object, so it is not in the nav's object list — but it
+  // is a page, and someone who wants to add a person should be able to type
+  // "user" rather than hunt for it. It explains itself if the visitor may not
+  // manage accounts (see app/accounts/page.tsx).
+  { id: "page-accounts", label: "Accounts", group: "Go to", href: "/accounts", keywords: "users people identities add user sign in password stakeholders" },
+  { id: "page-exposure", label: "Exposure", group: "Lens", href: "/positions/exposure", keywords: "sector currency fx concentration what am i in" },
+  { id: "page-attribution", label: "Attribution", group: "Lens", href: "/performance/attribution", keywords: "contribution which holding drove returns monthly quarterly" },
 ];
 
 interface PaletteTicker {
@@ -122,7 +138,7 @@ export default function CommandPalette() {
       label: `${t.region} ${t.ticker}`,
       group: "Holdings",
       // The region page highlights and scrolls to this ticker on arrival.
-      href: `/holdings/${t.region.toLowerCase()}?ticker=${encodeURIComponent(t.ticker)}`,
+      href: `/positions/${t.region.toLowerCase()}?ticker=${encodeURIComponent(t.ticker)}`,
       hint: t.name ?? undefined,
       keywords: `${t.ticker} ${t.region} ${t.name ?? ""}`.toLowerCase(),
     }));

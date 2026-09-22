@@ -3,21 +3,51 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, Search, X } from "lucide-react";
+import { Menu, Search, UserRound, X } from "lucide-react";
 import { OPEN_PALETTE_EVENT } from "@/lib/command-search";
 
+/**
+ * The five objects the app is organised around.
+ *
+ * The list used to be eight entries in the order the app was built — Home,
+ * Outlay, Transactions, Holdings, Exposure, Attribution, Watchlist, Completed
+ * Trades — which made it a list of REPORTS: four of them were views of the same
+ * positions and money, competing for top-level slots. Now each entry is a thing
+ * the owner has (positions, performance, money, a watchlist, today), and the
+ * reports are lenses inside the object they describe:
+ *
+ *   Positions    US / SG / HK · Exposure lens · the trade ledger
+ *   Performance  returns & risk · Attribution lens · realized trades
+ *   Money        deposits & schedule · cash & conversions
+ *
+ * Nothing is unreachable as a result: every lens kept a real URL, `next.config`
+ * redirects the old ones, and the command palette indexes all of them.
+ */
 const links = [
-  { href: "/", label: "Home" },
-  { href: "/outlay", label: "Outlay" },
-  { href: "/transactions", label: "Transactions" },
-  { href: "/holdings", label: "Holdings" },
-  { href: "/exposure", label: "Exposure" },
-  { href: "/attribution", label: "Attribution" },
+  { href: "/", label: "Today" },
+  { href: "/positions", label: "Positions" },
+  { href: "/performance", label: "Performance" },
+  { href: "/money", label: "Money" },
   { href: "/watchlist", label: "Watchlist" },
-  { href: "/completed-trades", label: "Completed Trades" },
 ];
 
-export default function Nav() {
+/**
+ * Who the bar should offer the accounts page to.
+ *
+ * Passed down from the root layout rather than fetched here, because this is a
+ * client component and the answer already exists on the server: the layout has
+ * resolved the session and knows whether there is a live account (or no
+ * accounts at all, the bootstrap case) — a client fetch would only render the
+ * same answer late.
+ */
+export interface NavAccount {
+  /** The account signed in right now, or null for the shared password. */
+  username: string | null;
+  /** Whether to offer the accounts page at all — see guardManageAccounts. */
+  canManage: boolean;
+}
+
+export default function Nav({ account }: { account: NavAccount }) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -31,15 +61,15 @@ export default function Nav() {
   }, []);
   const shortcutLabel = isMac ? "⌘K" : "Ctrl K";
 
-  // Below the `lg` breakpoint the eight links live behind this disclosure.
+  // Below the `lg` breakpoint the links live behind this disclosure.
   //
   // They used to be a single always-visible row, which is what made every page
   // in the app scroll sideways on a phone: the un-wrappable <ul> alone measured
   // ~675px, so the document was ~995px wide on a 390px screen and the whole
-  // page could be dragged left and right. The breakpoint is `lg` rather than
-  // `md` because the row plus the brand, palette chip and log-out button needs
-  // roughly 880px to sit on one line — at `md` it would overflow the 768px
-  // viewport it was supposedly designed for.
+  // page could be dragged left and right. Five objects need far less room than
+  // eight did, but the breakpoint stays `lg`: the row plus the brand, palette
+  // chip and log-out button still wants the width, and a bar that only just
+  // fits at `md` is a bar that overflows at `md` on a longer label.
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Close on navigation: otherwise tapping a link leaves the panel sitting open
@@ -127,6 +157,31 @@ export default function Nav() {
             <span className="hidden text-ink-500 sm:inline">{shortcutLabel}</span>
           </button>
 
+          {/* Accounts is chrome, not one of the five objects, so it sits
+              beside the session rather than in the object list. The label is
+              the account's name when there is one: "keng" answers "who am I
+              signed in as" and accounts are the only thing behind it, which is
+              a shorter path than "Accounts" for the question people actually
+              have. */}
+          {account.canManage && (
+            <Link
+              href="/accounts"
+              title={
+                account.username
+                  ? `Accounts — signed in as ${account.username}`
+                  : "Accounts — no account yet"
+              }
+              className={`hidden items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition sm:flex motion-reduce:transition-none ${
+                isActive("/accounts")
+                  ? "border-accent text-ink-100"
+                  : "border-ink-700 text-ink-300 hover:border-ink-500 hover:text-ink-100"
+              }`}
+            >
+              <UserRound size={13} strokeWidth={1.75} />
+              {account.username ?? "Accounts"}
+            </Link>
+          )}
+
           <button
             onClick={handleLogout}
             className="hidden text-sm text-ink-300 hover:text-ink-100 sm:block"
@@ -158,8 +213,22 @@ export default function Nav() {
               </li>
             );
           })}
-          {/* Log out is hidden from the bar below `sm`, so it has to appear
-              here or it becomes unreachable on a phone. */}
+          {/* Accounts and log out are hidden from the bar below `sm`, so they
+              have to appear here or they become unreachable on a phone. */}
+          {account.canManage && (
+            <li className="mt-1 border-t border-ink-700 pt-1">
+              <Link
+                href="/accounts"
+                className={`block rounded-md px-3 py-2.5 text-sm transition sm:hidden motion-reduce:transition-none ${
+                  isActive("/accounts")
+                    ? "bg-accentMuted text-ink-100"
+                    : "text-ink-300 hover:bg-ink-800 hover:text-ink-100"
+                }`}
+              >
+                Accounts{account.username ? ` · ${account.username}` : ""}
+              </Link>
+            </li>
+          )}
           <li className="mt-1 border-t border-ink-700 pt-1 sm:hidden">
             <button
               onClick={handleLogout}
