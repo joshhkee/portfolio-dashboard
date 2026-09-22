@@ -3,15 +3,48 @@ import { Money } from "@/components/SignedNumber";
 import AddContributionForm from "@/components/AddContributionForm";
 import AllocationCards from "@/components/AllocationCards";
 import ContributionsPivotTable from "@/components/ContributionsPivotTable";
+import StakeholderPerformance from "@/components/StakeholderPerformance";
 import { toLocalDateInputValue } from "@/lib/dates";
+import { getOpenPositionsFor } from "@/lib/get-positions";
+import { convertCurrency, fetchFxRates } from "@/lib/fx";
+import { getSnapshots } from "@/lib/snapshots";
+import { splitByStakeholder, stakeholderTimeline } from "@/lib/stakeholders";
 
 export const dynamic = "force-dynamic";
+
+const CURRENCY_TO_REGION: Record<string, string> = { SGD: "SG", USD: "US", HKD: "HK" };
 
 export default async function ContributionsPage() {
   const contributions = await prisma.contribution.findMany({
     include: { contributor: true },
     orderBy: [{ date: "asc" }, { id: "asc" }],
   });
+
+  // Current portfolio value (holdings + cash, in SGD) — deliberately the SAME
+  // computation the overview page uses, because the per-stakeholder slices
+  // below must reconcile with the headline total, and the only way to
+  // guarantee that is to derive them from the identical number.
+  const [positions, cashRows, rates, snapshots] = await Promise.all([
+    getOpenPositionsFor(["US", "SG", "HK"], "SGD"),
+    prisma.cashBalance.findMany(),
+    fetchFxRates(),
+    getSnapshots(),
+  ]);
+
+  let cashTotalSgd = 0;
+  for (const row of cashRows) {
+    cashTotalSgd += convertCurrency(row.balance, CURRENCY_TO_REGION[row.currency], "SGD", rates);
+  }
+  const holdingsValueSgd = positions.reduce((sum, p) => sum + p.totalHoldingsConverted, 0);
+  const totalPortfolioValueSgd = holdingsValueSgd + cashTotalSgd;
+
+  const contributionInputs = contributions.map((c) => ({
+    name: c.contributor.name,
+    amount: c.amount,
+    date: c.date,
+  }));
+  const stakeholderRows = splitByStakeholder(contributionInputs, totalPortfolioValueSgd);
+  const stakeholderSeries = stakeholderTimeline(contributionInputs, snapshots);
 
   const totalsByContributor = new Map<string, number>();
   let grandTotal = 0;
@@ -113,6 +146,11 @@ export default async function ContributionsPage() {
             symbol="S$"
           />
         )}
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-medium text-ink-300">Performance by stakeholder</h2>
+        <StakeholderPerformance rows={stakeholderRows} timeline={stakeholderSeries} />
       </section>
 
       <section className="flex flex-col gap-3">

@@ -73,8 +73,8 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 3b | Multi-series data palette | **DONE** (shipped with Part 5) |
 | 4 | TWR, underwater chart, range selectors, yearly table | **DONE** (merged in #5) |
 | 5 | Benchmark comparison + alpha/beta (+ Part 3b palette) | **DONE** |
-| 6 | Per-stakeholder performance view | TODO — **start here** |
-| 7 | Sparklines + command palette | TODO |
+| 6 | Per-stakeholder performance view | **DONE** |
+| 7 | Sparklines + command palette | TODO — **start here** |
 | 8 | Notes redesign (auto factual half + structured context) | TODO — owner picks an option first |
 | 9 | Concentration & risk analytics (HHI, Sharpe, correlation) | TODO |
 | 10 | Exposure analytics (sector tags, currency + FX attribution) | TODO |
@@ -391,15 +391,54 @@ calls are bounded to three per 15 minutes.
 **Verified how:** `npm test` (92 tests), `tsc --noEmit`, `eslint`, build, and
 the stat values read back out of the rendered page.
 
-## Part 6 — Per-stakeholder performance
+## Part 6 — Per-stakeholder performance — DONE
 
-The only stakeholder-level number today is "% of outlay". Add each
-contributor's pro-rata share of current value, their own XIRR via the existing
-`xirr()` (never a second solver), total contributed, and a contribution-vs-value
-timeline. Reuse `DailySnapshot`.
+Each contributor's pro-rata share of current value, their own XIRR, total
+contributed, and a contribution-vs-value timeline.
 
-**Acceptance:** all 5 stakeholders listed; shares reconcile with the home page's
-total portfolio value.
+What was actually done:
+
+- **`lib/stakeholders.ts`** (new, pure — no DB, no network): `splitByStakeholder`
+  and `stakeholderTimeline`, with the `ContributionLike` / `StakeholderRow` /
+  `StakeholderTimelinePoint` types.
+- **Ownership is derived, never stored.** A stakeholder's share is their
+  contribution over total contributions, and their current value is that share
+  times the portfolio total. Storing a balance would be a second source of
+  truth that could drift from the ledger — the exact thing the invariants
+  forbid.
+- **XIRR reuses `lib/xirr.ts`** with the same cashflow shape the overview
+  builds (each contribution as money in on its real date, then one positive
+  flow for that person's current value). No second solver, so the per-person
+  numbers can't drift from the headline XIRR.
+- **The timeline denominator is the snapshot's own `costBasisSgd`**, which
+  makes the series self-reconciling: on any date the per-stakeholder values add
+  up to exactly that day's `totalValueSgd`, by construction. A test pins that
+  for every snapshot in the series. Contributions dated after a snapshot's day
+  are held back until the first snapshot on or after them.
+- New component `StakeholderPerformance.tsx`: a table (stakeholder, contributed,
+  share, current value, gain, XIRR, plus an explicit **Total** row) and a chart
+  that defaults to all stakeholders and switches to one person to compare their
+  value line (solid, palette colour) against what they put in (dashed steel).
+  Wired into `/outlay`, under "By stakeholder".
+- `/outlay` now computes the portfolio total the same way the overview does
+  (holdings + cash, SGD) rather than reusing a stale snapshot, because the whole
+  point of these shares is that they reconcile with the headline number.
+
+**Measured on the real ledger:** Keng 31.36% / +15.98% XIRR, Roy 21.09% /
++17.05%, Zhiming 21.09% / +17.05%, Josh 19.78% / +18.63%, Chin 6.68% / +20.60%.
+The later contributors show the higher money-weighted returns, which is the
+expected direction when the market rose after their money went in.
+
+**Acceptance met:** all five stakeholders listed, and the stakeholder total
+equals the overview total exactly — measured at delta 0.00 across four
+consecutive paired requests.
+
+**Note on comparing the two pages:** live prices move, and the overview and
+/outlay are separate requests, so they can briefly disagree by a few dollars
+(one earlier sample differed by S$5 while the overview's own total moved from
+66,451 to 66,444 between two calls seconds apart). Compare them in the same
+instant; the delta should be 0.00. This is price drift, not a rounding
+mismatch in the split.
 
 ## Part 7 — Sparklines + command palette
 
