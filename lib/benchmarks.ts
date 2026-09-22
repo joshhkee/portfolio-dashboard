@@ -172,6 +172,72 @@ export function growthIndex(points: PerfPoint[]): number[] {
   return index;
 }
 
+export interface BenchmarkVerdict {
+  /** Cumulative portfolio return over the window, contribution-neutral. */
+  portfolioReturn: number;
+  /** The index's return over the same dates. */
+  benchmarkReturn: number;
+  /** portfolio minus benchmark, in return points. Positive means it won. */
+  difference: number;
+  /** What the index's move alone would predict at the fitted beta. */
+  expectedFromBeta: number;
+  /** portfolio minus expectedFromBeta: the part beta does not explain. */
+  alphaContribution: number;
+  outperformedBenchmark: boolean;
+  beatBetaExpectation: boolean;
+}
+
+/**
+ * Turns the fitted statistics into the plain question they exist to answer:
+ * did the portfolio beat the index, and did it beat what its own market
+ * exposure would have delivered?
+ *
+ * Those are deliberately two different booleans. A low-beta portfolio can beat
+ * its beta expectation while still trailing the index (it took less risk), and
+ * a high-beta one can beat the index while trailing its beta expectation (it
+ * took more risk than the gain justified). Collapsing them into one
+ * "outperforming?" flag would hide exactly the cases worth knowing about.
+ *
+ * The alphaContribution split is an approximation, not the regression: beta is
+ * fitted on DAILY returns and then applied to the window's cumulative return.
+ * It is the right shape for an explanation, while the regression alpha above
+ * remains the precise figure.
+ *
+ * Returns null rather than guessing when either series has fewer than two
+ * usable points.
+ */
+export function benchmarkVerdict(
+  portfolioIndex: number[],
+  benchmarkIndex: (number | null)[],
+  beta: number
+): BenchmarkVerdict | null {
+  if (portfolioIndex.length < 2) return null;
+  const portfolioStart = portfolioIndex[0];
+  const portfolioEnd = portfolioIndex[portfolioIndex.length - 1];
+  if (!(portfolioStart > 0)) return null;
+
+  const usable = benchmarkIndex.filter(
+    (v): v is number => v !== null && Number.isFinite(v)
+  );
+  if (usable.length < 2 || usable[0] <= 0) return null;
+
+  const portfolioReturn = portfolioEnd / portfolioStart - 1;
+  const benchmarkReturn = usable[usable.length - 1] / usable[0] - 1;
+  const expectedFromBeta = beta * benchmarkReturn;
+  const difference = portfolioReturn - benchmarkReturn;
+  const alphaContribution = portfolioReturn - expectedFromBeta;
+
+  return {
+    portfolioReturn,
+    benchmarkReturn,
+    difference,
+    expectedFromBeta,
+    alphaContribution,
+    outperformedBenchmark: difference > 0,
+    beatBetaExpectation: alphaContribution > 0,
+  };
+}
+
 export interface AlphaBetaResult {
   /** Annualized excess return over the benchmark, arithmetic (daily × 252). */
   alphaAnnual: number;

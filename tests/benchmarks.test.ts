@@ -3,6 +3,7 @@ import {
   alignCloses,
   alphaBeta,
   benchmarkDailyReturns,
+  benchmarkVerdict,
   growthIndex,
   portfolioDailyReturns,
   rebaseTo100,
@@ -110,6 +111,53 @@ describe("portfolioDailyReturns", () => {
   it("removes new money so a deposit is not a return", () => {
     const points = [point("2026-01-01", 100, 100), point("2026-01-02", 150, 150)];
     expect(portfolioDailyReturns(points)).toEqual([0]);
+  });
+});
+
+describe("benchmarkVerdict", () => {
+  it("reports a win when the portfolio beats the index", () => {
+    // Portfolio 100 -> 200 (+100%), index 100 -> 150 (+50%).
+    const verdict = benchmarkVerdict([100, 200], [100, 150], 1)!;
+    expect(verdict.portfolioReturn).toBeCloseTo(1, 9);
+    expect(verdict.benchmarkReturn).toBeCloseTo(0.5, 9);
+    expect(verdict.difference).toBeCloseTo(0.5, 9);
+    expect(verdict.outperformedBenchmark).toBe(true);
+  });
+
+  it("separates beating the index from beating its beta expectation", () => {
+    // Portfolio +30%, index +10%. It beat the index, but beta 4 means the
+    // index alone would have predicted +40%, so it LAGGED its own risk.
+    const verdict = benchmarkVerdict([100, 130], [100, 110], 4)!;
+    expect(verdict.outperformedBenchmark).toBe(true);
+    expect(verdict.beatBetaExpectation).toBe(false);
+    expect(verdict.expectedFromBeta).toBeCloseTo(0.4, 9);
+    expect(verdict.alphaContribution).toBeCloseTo(-0.1, 9);
+  });
+
+  it("reports a lag when the index wins", () => {
+    const verdict = benchmarkVerdict([100, 103], [100, 110], 0.5)!;
+    expect(verdict.outperformedBenchmark).toBe(false);
+    expect(verdict.difference).toBeCloseTo(-0.07, 9);
+  });
+
+  it("can beat its beta expectation while lagging the index", () => {
+    // Low beta: index +10%, predicted +3%, actual +4% — ahead of beta, behind
+    // the index. This is the case a single "outperforming?" flag would hide.
+    const verdict = benchmarkVerdict([100, 104], [100, 110], 0.3)!;
+    expect(verdict.outperformedBenchmark).toBe(false);
+    expect(verdict.beatBetaExpectation).toBe(true);
+    expect(verdict.alphaContribution).toBeCloseTo(0.01, 9);
+  });
+
+  it("ignores benchmark gaps instead of treating them as zero", () => {
+    const verdict = benchmarkVerdict([100, 120], [null, 100, null, 150], 1)!;
+    expect(verdict.benchmarkReturn).toBeCloseTo(0.5, 9);
+  });
+
+  it("returns null rather than guessing from too little data", () => {
+    expect(benchmarkVerdict([100], [100, 110], 1)).toBeNull();
+    expect(benchmarkVerdict([100, 120], [null, null], 1)).toBeNull();
+    expect(benchmarkVerdict([0, 120], [100, 110], 1)).toBeNull();
   });
 });
 

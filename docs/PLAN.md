@@ -384,6 +384,24 @@ What was actually done:
 interesting part: this portfolio moves roughly a third as much as the S&P,
 which is what a large cash balance plus SG/HK holdings should look like.
 
+**The verdict genuinely splits both ways, which is why the explainer reports
+two answers:** the portfolio returned **+14.7%** contribution-neutral against
+the S&P's **+30.4%** (so it LAGGED the index by 15.7 points), while beta 0.35
+means the index's move alone predicted only **+10.7%** — so **+4.0 points came
+from something other than market exposure**, in the portfolio's favour. "Behind
+the index, ahead of its risk" is the honest reading, and a single flag would
+have hidden it.
+
+**Owner follow-up (2026-09-22):** added `components/BenchmarkExplainer.tsx` — a
+collapsible write-up under the statistics, answering "am I outperforming?" in
+plain words. It is a disclosure with `aria-expanded`, not a hover tooltip
+(unreachable on touch, impossible to re-read). `benchmarkVerdict()` in
+`lib/benchmarks.ts` derives it from the same two series the chart draws, and
+deliberately reports TWO answers, because they can disagree:
+`outperformedBenchmark` (cumulative vs the index) and `beatBetaExpectation`
+(versus what the fitted beta predicts). On this portfolio they DO disagree —
+see the Part 5 measured note below.
+
 **Acceptance met:** both series rebased to 100 at range start (verified in the
 rendered page), alpha/beta labelled with their window, and the extra Yahoo
 calls are bounded to three per 15 minutes.
@@ -470,9 +488,14 @@ What was actually done:
   `role=listbox`/`option` with `aria-activedescendant`. Tickers come from
   **`app/api/palette/route.ts`**, which is DB-only (names from the `TickerMeta`
   cache, no Yahoo), fetched once on first open and memoized in state.
-- **Discoverability:** `components/Nav.tsx` gained a small ⌘K chip that fires
-  `OPEN_PALETTE_EVENT` — a custom event instead of shared React state, so the
-  trigger and the palette need no context provider or prop drilling.
+- **Discoverability:** `components/Nav.tsx` gained a small shortcut chip that
+  fires `OPEN_PALETTE_EVENT` — a custom event instead of shared React state, so
+  the trigger and the palette need no context provider or prop drilling. The
+  label is platform-aware (owner is on Windows, asked for Ctrl+K): it renders
+  "Ctrl K" and switches to "⌘K" after mount on a Mac. Defaulting to the
+  non-Mac label server-side is deliberate — `navigator` doesn't exist during
+  SSR, and a stable default keeps the server HTML and first client render
+  identical.
 - **Real "jump to a ticker":** the palette links to
   `/holdings/<region>?ticker=…`, and `PositionsTable` reads that param to
   highlight the row and scroll it into view (honouring reduced-motion for the
