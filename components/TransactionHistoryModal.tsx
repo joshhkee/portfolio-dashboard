@@ -7,6 +7,7 @@ import RegionFlag from "@/components/RegionFlag";
 import { formatShortDate, formatHoldingPeriod } from "@/lib/dates";
 import { formatQty, formatAmount, NativeMoney } from "@/components/SignedNumber";
 import { classifyNote, ledgerSummary } from "@/lib/notes";
+import LedgerLine from "@/components/LedgerLine";
 
 interface HistoryRow {
   id: number;
@@ -201,7 +202,7 @@ function TradeSection({
                   }`}
                   title={note.note ? `${note.note} — ${derived}` : derived}
                 >
-                  {note.note ?? derived}
+                  {note.note ?? <LedgerLine row={row} symbol={symbol} />}
                 </td>
               </tr>
               );

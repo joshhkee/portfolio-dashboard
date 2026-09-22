@@ -8,6 +8,7 @@ import { formatQty, formatAmount } from "@/components/SignedNumber";
 import { formatShortDate } from "@/lib/dates";
 import TickerName from "@/components/TickerName";
 import { classifyNote, ledgerSummary } from "@/lib/notes";
+import LedgerLine from "@/components/LedgerLine";
 
 export default function EditableTransactionRow({
   t,
@@ -210,7 +211,7 @@ export default function EditableTransactionRow({
         }`}
         title={note.note ? `${note.note} — ${derived}` : derived}
       >
-        {note.note ?? derived}
+        {note.note ?? <LedgerLine row={t} symbol={symbol} />}
       </td>
       <td>
         <div className="flex gap-3">

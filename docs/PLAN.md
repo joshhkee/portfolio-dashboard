@@ -80,7 +80,7 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 5 | Benchmark comparison + alpha/beta (+ Part 3b palette) | **DONE** |
 | 6 | Per-stakeholder performance view | **DONE** |
 | 7 | Sparklines + command palette | **DONE** |
-| 8 | Notes redesign (derived ledger line + reference data hidden) | **DISPLAY DONE** — the cleanup of stored notes awaits the owner's approval of the dry run (Part 8) |
+| 8 | Notes redesign (derived ledger line + one-time cleanup of stored notes) | **DONE** — 51 notes cleared, 8 rewritten, 5 kept; `notes-backup-*.json` reverts it |
 | 9 | Concentration & risk analytics (HHI, Sharpe, correlation, rolling 1Y) | **DONE** |
 | 10 | Exposure analytics (sector tags, currency + FX attribution) | **DONE** |
 | 11 | Contribution attribution (per position, per period) | **DONE** |
@@ -98,7 +98,7 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 22 | Today's movers tile (day change from quote meta) + the colour rule enforced + attention list trimmed | **DONE** |
 | 23 | Command palette prominence; table sizing pass (one-line dates, no horizontal scroll on desktop) | **DONE** |
 | 24 | Exposure tags as a set-once chip; site-wide text pass; late-deposit notices removed | **DONE** |
-| 25 | Notes: the ledger derives its own line; name-style notes stop being shown; cleanup dry run | **DONE** — nothing stored was rewritten |
+| 25 | Notes: the ledger derives its own line, and the 64 stored notes cleaned up against the owner's verdicts | **DONE** |
 
 ---
 
@@ -109,9 +109,10 @@ movers, the colour rule, a shorter attention list), **Part 23** (a prominent
 command palette, and every wide table fits a desktop window with one-line dates),
 **Part 24** (set-once tag chips, and a site-wide text pass that removed the
 late-deposit notices) and **Part 25** (the ledger derives its own line, so a row
-no longer needs a typed note to explain itself; the 60 name-style notes stopped
-being displayed, and the rewrite that would clear them is printed by
-`npm run notes:dry-run` and awaits the owner's approval — see Part 8).
+no longer needs a typed note to explain itself — and the stored notes were then
+cleaned up against the owner's verdicts: **51 cleared, 8 rewritten, 5 kept**,
+with a backup file that reverts the whole thing in one command). The `notes`
+column now holds 13 real notes instead of 64 rows of duplicated names.
 
 **The colour rule, now written down because it was violated in four places:**
 colour means *up or down*. Gains, losses, returns, and percentages carry
@@ -151,9 +152,10 @@ with `EPERM` while the dev server is running (the server holds
 stop the dev server first — the failure is the file lock, not the code.
 
 **Next action (owner's call):** still open — **Part 18** the merged `/activity`
-ledger, **Part 8's second half** (approve or reject the notes cleanup, whose
-dry run is `npm run notes:dry-run`), the **monolith split** (`app/page.tsx`,
-`lib/portfolio-engine.ts`), and one thing Parts 8 and 25 left in place: the
+ledger, modelling the **stop-loss / take-profit levels** the notes still carry as
+text (the owner's chosen follow-up to Part 8), the **monolith split**
+(`app/page.tsx`, `lib/portfolio-engine.ts`), and one thing Parts 8 and 25 left in
+place: the
 **watchlist still uses its notes column as the instrument name**
 (`State Street Healthcare ETF`, `Crowdstrike`), the same hand-typed-name habit
 Part 2 removed from the positions and ledger tables. The watchlist is a separate
@@ -187,8 +189,8 @@ and `/watchlist`** — which Parts 22–24 then did. After that, whichever the o
 picks — **Part 18 the `/activity` ledger**, **14b's two remaining panels**
 (realized FX on the 25 conversions; unrealized FX on the foreign cash), the
 **monolith split** (`app/page.tsx` and `lib/portfolio-engine.ts` are both large
-enough that a maintainer would flag them), or **Part 8** (notes redesign, still
-blocked on an owner decision).
+enough that a maintainer would flag them), or **Part 8** (notes redesign — that
+decision was made and the work shipped in Part 25).
 
 **The accounts state to be aware of before touching auth again:** the owner's
 account **`josh` exists** (created on `/accounts` on 2026-09-22), so the
@@ -709,11 +711,11 @@ than drawn flat (3 of 4 requested keys returned).
 
 ---
 
-## Part 8 — Notes redesign — DISPLAY DONE, cleanup awaiting approval
+## Part 8 — Notes redesign — DONE
 
-**Status (2026-09-23): the display half is built and live; the rewrite of stored
-text is waiting on the owner.** The column did two unrelated jobs, and the fix
-was to separate them rather than restyle the field.
+**Status (2026-09-23): built, approved row by row, and applied.** The column did
+two unrelated jobs, and the fix was to separate them rather than restyle the
+field.
 
 The owner approved this reading of the request on 2026-09-23:
 
@@ -724,14 +726,41 @@ The owner approved this reading of the request on 2026-09-23:
 What shipped (Part 25 has the implementation detail): `lib/notes.ts`
 (`ledgerSummary` derives the line from the row; `classifyNote` decides
 reference-vs-context), the ledger's Note column renders the owner's note when
-there is one and the derived line when there is not, and
-`scripts/notes-dry-run.ts` (`npm run notes:dry-run`) prints what a cleanup would
-change. **No stored note was touched.**
+there is one and the derived line when there is not, and `lib/notes-cleanup.ts`
++ `scripts/notes-cleanup.ts` (`npm run notes:cleanup`) hold the owner's verdicts
+and apply them.
 
-Still the owner's decision: whether to run the cleanup that clears the 25
-**NAME** notes and optionally the 14 **RESTATES** ones (see the dry-run output
-below). Until then the display change alone fixes the reported problem — the
-name is no longer repeated, and every word a person wrote is still on screen.
+**The verdicts, as given on 2026-09-23** (each one is implemented in
+`lib/notes-cleanup.ts` and pinned in `tests/notes-cleanup.test.ts` against all 64
+stored notes):
+
+- The instrument's name is not a note — including the four the runtime
+  classifier will not hide on its own (`PG - Proctor & Gamble`,
+  `OV8: Sheng Shiong`, `ES3 - STI ETF`, `ST Engineering`), which the owner
+  reviewed one at a time. "Clear them, fix the name in the lookup instead", then
+  "no name changes at all": the notes go and the ticker keeps the lookup's
+  official name.
+- An ordinal or a restated action is not a note: the derived line says what the
+  row did **and states the new average cost**, which is what a `Second Buy` note
+  was being read for. `Odd Lot` is the exception and survives, because which
+  board a Singapore trade used is recorded nowhere else.
+- A partial sell's fraction is derived (`Sold 8 of 15`), so a note that only
+  restates it goes — the same reasoning retires `Sell Part (60%)`,
+  `Partial Exit (60%)` and `Remaining 40%`.
+- `Avg down to x10@$263.25` is the average actually **achieved**, not a target
+  (the owner's answer to the one question the text itself could not settle), so
+  it is derived too and those three notes go.
+- DCA notes collapse to one consistent form naming the **allocation month**, read
+  from the row's own date, because the month is the part the app cannot derive:
+  `DCA · May 2026` … `DCA · Sep 2026`. "Brought forward" is dropped and the two
+  old styles (`(MAY DCA: $865)`, `Sept DCA`) become the same thing.
+- Stop-loss / take-profit notes stay verbatim, and a later pass should model the
+  levels properly.
+
+Applied result: **51 cleared, 8 rewritten, 5 kept** — 13 notes in the column
+instead of 64 rows of duplicated names. Reverting is one command
+(`npm run notes:cleanup -- --revert notes-backup-<stamp>.json`), against a backup
+written before the first row was touched.
 
 ---
 
@@ -2164,23 +2193,38 @@ in its input, and says which case it is in plain words — either "Just the
 instrument's name — the ledger shows that from the ticker lookup, so this can be
 cleared." or the derived line it will render instead.
 
-**`scripts/notes-dry-run.ts` (`npm run notes:dry-run`, read-only):** prints all 64
-rows in three buckets so the owner can approve a rewrite row by row instead of
-trusting a summary. On the live ledger:
+**The derived line, measured rather than guessed.** It is rendered 12px in a
+`max-w-[11rem]` cell — about **165px, roughly 24 characters** — and the first
+version ran 26–38 characters, so **26 of 64 rows truncated**. Worse, the amount
+was at the end of the line, which is exactly what truncation eats. Hence the
+three rules now on `ledgerSummaryParts`: one currency figure per line, a fraction
+instead of a remainder, and the figure placed as early as the grammar allows.
+The line is also a component (`components/LedgerLine.tsx`) rather than a string,
+so the realized amount keeps the colour rule — a gain or a loss is coloured, an
+average cost is not — while the caption as a whole stays muted and smaller than
+the row, marking it as generated rather than written. After the change **no
+derived line truncates**, and the four that still do are the owner's own long
+notes, each with its full text one hover away.
+
+**`scripts/notes-cleanup.ts` (`npm run notes:cleanup`, dry run by default):**
+prints every row that would move, with its reason, then applies it only with
+`--apply`, writing `notes-backup-<stamp>.json` first. Buckets on the live ledger,
+as reviewed:
 
 ```
-rows            64
-NAME            25  (a rewrite would clear these)
-RESTATES        14  (redundant with the derived line; owner's call)
-KEEPS           25  (untouched, always)
+rows              64
+reference         25   the instrument's name
+reviewed-name      4   the four the owner cleared by hand
+restates-action   19   an ordinal, an action, or a fraction already derived
+achieved-average   3   `Avg down to x10@$263.25`
+odd-lot            3   kept, with the ordinal removed
+keep               5   the SL/TP notes, the FLKR alias, `1st TP`
 ```
 
-`RESTATES` requires no digit in the note, which is why `Odd Lot` counts but
-`Partial Sell (25%)` and `1st TP` do not — a digit is a detail only the note
-carries. Two rows that look like restatements (`DBS - Third Buy (Odd Lot)`) land
-in KEEPS because the note leads with `DBS` while the ticker is `D05`, so no
-prefix is stripped; conservative by design, and the owner can still clear them by
-hand.
+The digit check runs on the text OUTSIDE any parentheses, which is what keeps
+`100% Stoploss Exit (62.4 SL, 78 TP)` and `1st TP` — an amount outside
+parentheses is a plan, and a plan is never cleared. A second run prints
+`0 / 0 / 64`, so the operation is visibly idempotent.
 
 **One refactor the module forced:** `formatQty` / `formatAmount` moved to
 `lib/format.ts` (re-exported by `components/SignedNumber.tsx`, so no call site
@@ -2207,6 +2251,12 @@ overflow 0, no console errors.
 `tests/notes.test.ts`, pinned against all 64 real notes), `npx tsc --noEmit`
 clean, `npx eslint app components lib tests scripts` clean.
 
-**Still open here:** the stored rewrite itself (needs the owner's go-ahead), and
-the watchlist, whose `notes` column is a *different* model and still doubles as
-the instrument name.
+**Applied, not just planned (2026-09-23):** `npm run notes:cleanup -- --apply`
+wrote **59 rows** (51 cleared, 8 rewritten) from backup
+`notes-backup-2026-09-22T18-13-27-560Z.json`; the 5 kept notes are byte-identical
+to what they were. Verified against the database afterwards: **13 rows carry a
+note, 51 do not**, and the ledger renders the same split.
+
+**Still open here:** the watchlist, whose `notes` column is a *different* model
+and still doubles as the instrument name, and modelling the SL/TP levels as
+structured data.

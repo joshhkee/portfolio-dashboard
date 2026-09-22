@@ -33,6 +33,22 @@
 
 import { formatAmount, formatQty } from "@/lib/format";
 
+/** A piece of a ledger line. Everything is decided in this module — including
+ *  whether a figure is a gain or a loss — so the components only pick a colour. */
+export interface LedgerLinePart {
+  text: string;
+  /** `gain`/`loss` colours this part. Omitted leaves it in the cell's own
+   *  colour, which is what an average or a cost gets: those are values, not
+   *  results, and the colour rule says a plain value is never coloured. */
+  tone?: "gain" | "loss";
+}
+
+export interface LedgerLine {
+  parts: LedgerLinePart[];
+  /** The whole line as plain text, for a tooltip or a test. */
+  text: string;
+}
+
 const EPSILON = 1e-6;
 
 /** Words that never distinguish one instrument from another, so they are
@@ -196,8 +212,25 @@ export function classifyNote(
 }
 
 /** What a ledger row did to its position — the factual line the ledger renders
- *  instead of a hand-typed note. Derived every render, never stored. */
-export function ledgerSummary(
+ *  instead of a hand-typed note. Derived every render, never stored.
+ *
+ * Three rules shape the wording, all of them deliberate:
+ *
+ * 1. **At most ONE currency figure per line.** The price, the quantity and the
+ *    running average are already columns on this row, so a line repeating them
+ *    would put two or three near-identical dollar amounts side by side, which
+ *    reads as one number misprinted. A buy states the average it left behind; a
+ *    sell states the amount it realized. Nothing else on the line is money.
+ * 2. **A fraction, not a remainder.** `Sold 8 of 15` says what `8 sold, 7 left`
+ *    says without repeating the position size the row already shows.
+ * 3. **Short enough to read without a hover.** The Note column is ~165px of
+ *    12px type — about 24 characters. The figure goes as early in the line as
+ *    the grammar allows, because it is the part worth reading and it is exactly
+ *    the part truncation used to eat. That is also why the quantity and the
+ *    ordinal are absent from buy lines: the Qty column has the first, and the
+ *    row's own history implies the second.
+ */
+export function ledgerSummaryParts(
   row: {
     action: string;
     qty: number;
@@ -208,24 +241,47 @@ export function ledgerSummary(
     runningAvgCost: number;
   },
   symbol: string
-): string {
+): LedgerLine {
   const money = (v: number) => `${symbol}${formatAmount(Math.abs(v))}`;
-  const signed = (v: number) => `${v < 0 ? "-" : "+"}${money(v)}`;
-  const qty = formatQty(row.qty);
 
   if (row.action === "Buy") {
+    // Opening versus adding to something already held: the first case has no
+    // previous average to have moved away from.
     const opening = row.qtyBefore <= EPSILON;
-    return opening
-      ? `Opened · ${qty} @ ${money(row.price)}`
-      : `Added ${qty} @ ${money(row.price)} · avg ${money(
-          row.avgCostBefore
-        )} → ${money(row.runningAvgCost)}`;
+    const parts: LedgerLinePart[] = [
+      { text: opening ? "Opened · avg " : "Added · avg now " },
+      { text: money(opening ? row.price : row.runningAvgCost) },
+    ];
+    return { parts, text: parts.map((p) => p.text).join("") };
   }
 
-  const realized =
-    row.avgCostBefore > EPSILON ? ` · ${signed((row.price - row.avgCostBefore) * row.qty)}` : "";
   const closing = row.runningQty <= EPSILON;
-  return closing
-    ? `Closed · sold ${qty} @ ${money(row.price)}${realized}`
-    : `Sold ${qty} @ ${money(row.price)}${realized} · ${formatQty(row.runningQty)} left`;
+  const parts: LedgerLinePart[] = [
+    {
+      text: closing
+        ? "Closed · "
+        : `Sold ${formatQty(row.qty)} of ${formatQty(row.qtyBefore)} · `,
+    },
+  ];
+  // A sale with no cost basis to realize against (a position that was negative
+  // before this row) has no meaningful P/L, so the line stops at the quantity.
+  if (row.avgCostBefore <= EPSILON) {
+    // `Closed · ` on its own would read as a dangling separator.
+    parts[0] = { text: closing ? `Closed · ${formatQty(row.qty)} sold` : parts[0].text };
+    return { parts, text: parts.map((p) => p.text).join("") };
+  }
+  const realized = (row.price - row.avgCostBefore) * row.qty;
+  parts.push({
+    text: `${realized < 0 ? "-" : "+"}${money(realized)}`,
+    tone: realized < 0 ? "loss" : "gain",
+  });
+  return { parts, text: parts.map((p) => p.text).join("") };
+}
+
+/** The same line as plain text, for tooltips and tests. */
+export function ledgerSummary(
+  row: Parameters<typeof ledgerSummaryParts>[0],
+  symbol: string
+): string {
+  return ledgerSummaryParts(row, symbol).text;
 }
