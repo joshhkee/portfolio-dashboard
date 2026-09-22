@@ -35,6 +35,8 @@ const PAGES: Command[] = [
   { id: "page-watchlist", label: "Watchlist", group: "Go to", href: "/watchlist", keywords: "watching ideas" },
   { id: "page-completed", label: "Completed Trades", group: "Go to", href: "/completed-trades", keywords: "realized sold closed" },
   { id: "page-cash", label: "Cash", group: "Go to", href: "/holdings/cash", keywords: "balances currency exchange" },
+  { id: "page-exposure", label: "Exposure", group: "Go to", href: "/exposure", keywords: "sector currency fx risk concentration" },
+  { id: "page-attribution", label: "Attribution", group: "Go to", href: "/attribution", keywords: "contribution which holding drove returns monthly quarterly" },
 ];
 
 interface PaletteTicker {

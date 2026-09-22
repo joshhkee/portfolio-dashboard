@@ -12,7 +12,8 @@ import { PrismaClient } from "@prisma/client";
 import { computeLedger, fromDbRows } from "../lib/portfolio-engine";
 import { fetchHistoricalCloses, toYahooSymbol, type HistoricalCloses } from "../lib/prices";
 import { convertCurrency, fetchFxRates } from "../lib/fx";
-import { positionsAsOf, outlayAsOf, dayValue, dayKey } from "../lib/snapshots";
+import { positionsAsOf } from "../lib/portfolio-engine";
+import { outlayAsOf, dayValue, dayKey } from "../lib/snapshots";
 
 const prisma = new PrismaClient();
 

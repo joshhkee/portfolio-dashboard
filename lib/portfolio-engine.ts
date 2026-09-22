@@ -212,6 +212,24 @@ export function withLivePrices(
 }
 
 /**
+ * The open positions as of the END of a UTC calendar day — positions opened
+ * later, or fully closed by that day, don't appear.
+ *
+ * Lives here rather than in lib/snapshots.ts because it is pure ledger replay:
+ * it needs no historical prices, no FX and no database, and keeping it beside
+ * the engine means modules that only ever reason about the ledger (contribution
+ * attribution, for one) don't have to import a DB-backed module to reach it.
+ * Pricing those positions at that day's close is the caller's job — it has the
+ * price maps.
+ */
+export function positionsAsOf(transactions: RawTransaction[], key: string) {
+  const cutoff = new Date(`${key}T00:00:00.000Z`).getTime() + 86399999;
+  const upto = transactions.filter((t) => t.date.getTime() <= cutoff);
+  const { openPositions } = computeLedger(upto);
+  return openPositions;
+}
+
+/**
  * Would applying this new transaction on top of the existing ones push
  * any (region, ticker) position's running quantity below zero? Used to
  * block over-sell data entry mistakes before they corrupt the ledger.
