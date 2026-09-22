@@ -123,17 +123,17 @@ export default function PositionsTable({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex gap-10">
+      <div className="stat-row">
         <div>
-          <p className="text-sm text-ink-300">Total holdings ({displayCurrency})</p>
-          <p className="num mt-1 text-3xl font-medium">
+          <p className="stat-label">Total holdings ({displayCurrency})</p>
+          <p className="stat-value">
             {displaySymbol}
             {formatAmount(totalValueConverted)}
           </p>
         </div>
         <div>
-          <p className="text-sm text-ink-300">Unrealized P/L ({displayCurrency})</p>
-          <p className="num mt-1 text-3xl font-medium">
+          <p className="stat-label">Unrealized P/L ({displayCurrency})</p>
+          <p className="stat-value">
             <NativeMoney value={totalPLConverted} symbol={displaySymbol} showPlus />
           </p>
         </div>
@@ -188,12 +188,19 @@ export default function PositionsTable({
                 onClick={() => toggleSort("avgCost")}
                           align="right"
               />
+              {/* The three columns hidden below `lg` (`Held`, `30d`,
+                  `Portfolio %`) are the ones whose value is either decorative
+                  or derivable from the rest of the row — a holding period, a
+                  trend line, and a share of a total the row's own neighbours
+                  already imply. Everything you cannot recompute from the row
+                  stays visible at every width. */}
               <SortableTh
                 label="Held"
                 active={sortKey === "heldSince"}
                 direction={sortDir}
                 onClick={() => toggleSort("heldSince")}
                 align="right"
+                className="hidden lg:table-cell"
               />
               <SortableTh
                 label="Current price"
@@ -204,7 +211,7 @@ export default function PositionsTable({
               />
               {/* Not sortable: a trend line has no single ordering key that
                   would mean anything next to the numeric columns. */}
-              <th className="text-right" title="Price trend over the last 30 days">
+              <th className="hidden text-right lg:table-cell" title="Price trend over the last 30 days">
                 30d
               </th>
               <SortableTh
@@ -220,6 +227,7 @@ export default function PositionsTable({
                 direction={sortDir}
                 onClick={() => toggleSort("portfolioPct")}
                           align="right"
+                className="hidden lg:table-cell"
               />
               <SortableTh
                 label="Unrealized P/L (%)"
@@ -279,7 +287,7 @@ export default function PositionsTable({
                     {symbol}
                     {formatAmount(r.avgCost)}
                   </td>
-                  <td className="text-right text-ink-300">
+                  <td className="hidden text-right text-ink-300 lg:table-cell">
                     {r.heldSince ? formatHoldingPeriod(r.heldSince) : "—"}
                   </td>
                   <td className="num text-right">
@@ -294,14 +302,14 @@ export default function PositionsTable({
                       </>
                     )}
                   </td>
-                  <td className="text-right">
+                  <td className="hidden text-right lg:table-cell">
                     {trend ? <Sparkline values={trend} /> : <span className="text-ink-500">—</span>}
                   </td>
                   <td className="num text-right">
                     {symbol}
                     {formatAmount(r.totalHoldings)}
                   </td>
-                  <td className="text-right">
+                  <td className="hidden text-right lg:table-cell">
                     <PlainPercent value={r.portfolioPct} />
                   </td>
                   <td className="text-right">

@@ -92,7 +92,9 @@ function HeadlinePL({ label, pct }: { label: string; pct: number }) {
   return (
     <div>
       <p className="text-xs text-ink-300">{label}</p>
-      <p className={`num text-3xl font-semibold ${positive ? "text-gain" : negative ? "text-loss" : "text-ink-100"}`}>
+      {/* `text-2xl` on a phone: this headline shares its row with the cost
+          boxes, and at text-3xl the row measured wider than the viewport. */}
+      <p className={`num text-2xl font-semibold sm:text-3xl ${positive ? "text-gain" : negative ? "text-loss" : "text-ink-100"}`}>
         {pct >= 0 ? "+" : ""}
         {(pct * 100).toFixed(2)}%
       </p>

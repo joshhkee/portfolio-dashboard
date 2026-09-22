@@ -111,7 +111,7 @@ export default function ContributionAttribution({ matrix }: { matrix: Attributio
             Portfolio gain over {table.columns.length} {period}
             {table.columns.length === 1 ? "" : "s"}
           </p>
-          <p className="num mt-1 text-3xl font-medium">
+          <p className="stat-value">
             <NativeMoney value={table.total} symbol={sgd} showPlus />
           </p>
           <p className="mt-2 text-xs text-ink-300">

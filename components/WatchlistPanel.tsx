@@ -133,17 +133,27 @@ export default function WatchlistPanel({ initialRows }: { initialRows: WatchRow[
         </form>
       )}
 
-      <div className="panel overflow-hidden">
+      {/* `overflow-x-auto`, not `overflow-hidden`: .ledger-table forces a
+          720px min-width, so on anything narrower than that the hidden-overflow
+          variant silently CUT OFF the notes and the remove button with no way
+          to reach them. `table-compact` drops the min-width instead — this is a
+          five-column table of short values, so it fits a phone on its own and
+          needs no scroll container at all. The auto overflow stays as a safety
+          net for a very long note. */}
+      <div className="panel overflow-x-auto">
         {rows.length === 0 ? (
           <p className="p-6 text-center text-sm text-ink-300">Watchlist is empty.</p>
         ) : (
-          <table className="ledger-table">
+          <table className="ledger-table table-compact">
             <thead>
               <tr>
                 <th>Region</th>
                 <th>Ticker</th>
                 <th className="text-right">Price</th>
-                <th>Notes</th>
+                {/* Notes are secondary on a phone: with them in, the table still
+                    measured 384px against a 290px box, so the remove button sat
+                    off-screen. Dropping just this column fits the whole row. */}
+                <th className="hidden sm:table-cell">Notes</th>
                 <th className="w-8" />
               </tr>
             </thead>
@@ -166,7 +176,7 @@ export default function WatchlistPanel({ initialRows }: { initialRows: WatchRow[
                         </span>
                       )}
                     </td>
-                    <td className="text-ink-300">{r.notes ?? ""}</td>
+                    <td className="hidden text-ink-300 sm:table-cell">{r.notes ?? ""}</td>
                     <td className="text-right">
                       <button
                         onClick={() => handleRemove(r.id)}

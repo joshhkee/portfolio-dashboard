@@ -58,12 +58,17 @@ export default function TransactionsTable({
             <SortableTh label="Region" active={sortKey === "region"} direction={sortDir} onClick={() => toggleSort("region")} />
             <SortableTh label="Qty" active={sortKey === "qty"} direction={sortDir} onClick={() => toggleSort("qty")} align="right" />
             <SortableTh label="Price" active={sortKey === "price"} direction={sortDir} onClick={() => toggleSort("price")} align="right" />
+            {/* Hidden below `lg`: both are recomputable from columns that stay
+                (running qty from the qty/action history, txn value from
+                qty times price), so a phone loses screen width rather than
+                information. */}
             <SortableTh
               label="Running qty"
               active={sortKey === "runningQty"}
               direction={sortDir}
               onClick={() => toggleSort("runningQty")}
               align="right"
+              className="hidden lg:table-cell"
             />
             <SortableTh
               label="Running avg cost"
@@ -78,6 +83,7 @@ export default function TransactionsTable({
               direction={sortDir}
               onClick={() => toggleSort("transactionValue")}
               align="right"
+              className="hidden lg:table-cell"
             />
             <th className="text-left">Notes</th>
             <th></th>

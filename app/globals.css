@@ -59,6 +59,22 @@
   .panel {
     @apply rounded-lg border border-ink-700 bg-ink-900;
   }
+  /* Headline figures — "Total holdings", "Unrealized P/L", the attribution
+     total. They sit in a row, and the row has to WRAP: a text-3xl number plus
+     its label is ~200px, so two of them side by side (plus the row's gap)
+     measured 504px on a 356px phone, which dragged the whole document into a
+     horizontal scroll. The numbers also step down one size below `sm` so a
+     long figure like US$29,926.28 keeps its own line rather than pushing the
+     layout wider than the screen it is on. */
+  .stat-row {
+    @apply flex flex-wrap items-start gap-x-10 gap-y-4;
+  }
+  .stat-label {
+    @apply text-sm text-ink-300;
+  }
+  .stat-value {
+    @apply num mt-1 text-2xl font-medium sm:text-3xl;
+  }
   .field {
     @apply w-full rounded-md border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100 outline-none transition focus:border-accent;
   }

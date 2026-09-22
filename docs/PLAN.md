@@ -82,7 +82,8 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 9 | Concentration & risk analytics (HHI, Sharpe, correlation, rolling 1Y) | **DONE** |
 | 10 | Exposure analytics (sector tags, currency + FX attribution) | **DONE** |
 | 11 | Contribution attribution (per position, per period) | **DONE** |
-| 12 | Responsive & loading polish (mobile tables, skeletons) | TODO — **start here** |
+| 12 | Responsive & loading polish (mobile tables, skeletons) | **DONE** |
+| 13 | Range-selector transitions + load-time optimisation | TODO — **start here** |
 
 ---
 
@@ -889,3 +890,74 @@ selectors** (Part 4), and the **gold-as-data decision** (owner prefers gold).
 
 **Acceptance:** no horizontal page scroll at 390px width; every dynamic route
 has a `loading.tsx`; any new animation honours `prefers-reduced-motion`.
+
+### Part 12 — DONE (2026-09-22)
+
+**The nav was the real cause of horizontal page overflow.** At 390px the
+un-wrappable `<ul>` of eight links alone measured ~675px, so the document was
+~995px wide on a ~340px screen. It now collapses into a disclosure panel below
+`lg` (not `md`: the row plus brand, palette chip and log-out needs ~880px to sit
+on one line, so `md` would have overflowed the 768px viewport it claimed to
+support). Measured slack at the switch: links end 804px, chip starts 870px at a
+1031px viewport.
+
+**A second overflow came from the headline stat rows**, found only after
+re-measuring *post-load* (an earlier measurement read the loading skeleton and
+falsely reported clean): `.flex.gap-10` with two `text-3xl` figures measured
+**504px on a 356px viewport**. Now a shared `.stat-row` / `.stat-label` /
+`.stat-value` in `app/globals.css` — the row wraps, the number steps down to
+`text-2xl` below `sm`. Applied to `PositionsTable`, `ContributionAttribution`,
+`completed-trades` and the trade-history modal.
+
+**Column collapsing** (the plan's first option) below `lg`, chosen so nothing
+computed can be lost: positions drop `Held`, `30d` and `Portfolio %`; the ledger
+drops `Running qty` and `Txn value`; the watchlist drops `Notes` below `sm` and
+now fits its box exactly (290/290 vs 384/290, which is what had been pushing the
+remove button off-screen — the old `panel overflow-hidden` clipped it with no
+way to scroll to it, a real bug, now `overflow-x-auto`).
+
+**Skeletons:** `app/loading.tsx` plus seven new route-level files
+(`outlay`, `transactions`, `completed-trades`, `watchlist`, `holdings/cash`,
+`exposure`, `attribution`), all built from `components/Skeleton.tsx`, which
+reuses the real `.ledger-table` / `.table-scroll` classes so the table keeps its
+column widths through the swap. `app/holdings/loading.tsx` replaced its single
+line of pulsing text. Every animation carries `motion-reduce:animate-none`, and
+each route announces itself through a `role="status"` line, because `aria-hidden`
+visual skeletons would otherwise leave screen-reader users on a page that
+silently does nothing.
+
+**Two incidental repairs**, both outside the plan's scope but in the way of
+"lint is clean":
+
+- `package.json`'s `lint` script was `next lint`, which **Next 16 removed** — it
+  failed with `Invalid project directory provided, no such directory: ...\lint`
+  and, because the outputs were piped, that failure read as a pass. It is now
+  `eslint .`.
+- `prisma/backfill-snapshots.ts` imported `computeLedger`, `convertCurrency` and
+  `dayKey` without using them (pre-existing at `1d8f82f`, not from this pass).
+
+**Verified in the running app at 356 / 701 / 1004 / 1031 / 1095px** across all
+eight routes: `documentElement.scrollWidth === clientWidth` (no page-level
+scroll), zero offenders outside their own scroll containers, and the mobile menu
+opens, highlights the current route, and closes itself on navigation.
+
+---
+
+## Part 13 — Range-selector transitions + load-time optimisation
+
+Owner request, two halves:
+
+- **Transitions.** Changing a time-range selection should animate rather than
+  snap: the portfolio value chart, the benchmark window, the stakeholder picker
+  and the month/quarter toggle. Existing range state already re-renders these,
+  so this is presentation only — and each animation must honour
+  `prefers-reduced-motion`.
+- **Load times.** Owner reports slow pages. Evidence from the dev log rather
+  than guesswork: `GET /` **18.1s** and `GET /holdings/us` **9.1s**, with
+  `application-code` accounting for essentially all of it (Next itself is tens
+  of milliseconds per request) — so it is this app's own data fetching, not the
+  preview being open and not the framework.
+
+**Acceptance:** the same routes render substantially faster with the same
+numbers, and every range/period control animates on change with a
+reduced-motion path.
