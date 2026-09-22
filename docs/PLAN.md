@@ -94,28 +94,39 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 18 | Activity: the four ledgers merged into one filterable timeline | TODO — proposed, not built |
 | 19 | Accounts UI: add / reset / remove accounts at `/accounts` | **DONE** — the owner created their own account (`josh`); the bootstrap is closed |
 | 20 | Today fits one desktop screen: chart beside the largest positions | **DONE** — measured 0px of scroll at 1440×900, 1440×780 and 1024×800 |
+| 21 | Exposure page pass + tagging as a system (vocabulary, dropdown, suggestions, batch) | **DONE** — the sector donut stays Unclassified until the owner tags ("Accept the 18 suggestions" is one click) |
 
 ---
 
-## Resume checkpoint — 2026-09-22 (after Part 20)
+## Resume checkpoint — 2026-09-22 (after Part 21)
 
 **State:** parts 1–7 and 9–17 finished and verified, plus **Part 19** — the
 accounts UI (`/accounts`: create, reset, remove), with the bootstrap rule that
 lets the shared-password visitor create the very first account in the browser
-instead of a shell — and **Part 20** — Today now fits one desktop screen (the
+instead of a shell — **Part 20** — Today now fits one desktop screen (the
 chart and the largest positions share a row, the chart takes the leftover
-height, and the late-month count is gone from the page). Earlier this round: the
+height, and the late-month count is gone from the page) — and **Part 21** — the
+exposure page rebuilt around a ten-tag vocabulary: a real tag dropdown, a
+funds-vs-stocks view that needs no tagging at all, per-row suggestions the owner
+accepts rather than applies, batch tagging by selection, and the donut's centre
+figure no longer fighting its own tooltip. Earlier this round: the
 **14b removal** (the `/exposure` purchase-date FX split and its machinery are
 gone), consistent `S$` labelling, the **five-object IA** with the old URLs
 redirected, **accounts**, and the **dashboard rebuilt as Today** — 12 panels to
 4, 4 charts to 1, 448 rendered figures to 31.
 
-**Next action:** whichever the owner picks —
-**Part 18 the `/activity` ledger**, **14b's two remaining panels** (realized FX
-on the 25 conversions; unrealized FX on the foreign cash), the **monolith split**
-(`app/page.tsx` and `lib/portfolio-engine.ts` are both large enough that a
-maintainer would flag them), or **Part 8** (notes redesign, still blocked on an
-owner decision).
+**Next action:** the owner asked for the exposure page first and the rest of the
+tabs after ("and later all the tabs, check them in the preview for unnecessary
+space or other out of place features"), so the next UI pass is **`/money`,
+`/performance`, `/positions/us|sg|hk`, `/positions/trades` and `/watchlist`** in
+that order — the exposure page found four real defects (a 933px-wide input, a
+centre figure sitting on its own ring, a tooltip painted under that figure, and
+a duplicated coverage caption), so assume the same class of thing elsewhere.
+After that, whichever the owner picks — **Part 18 the `/activity` ledger**,
+**14b's two remaining panels** (realized FX on the 25 conversions; unrealized FX
+on the foreign cash), the **monolith split** (`app/page.tsx` and
+`lib/portfolio-engine.ts` are both large enough that a maintainer would flag
+them), or **Part 8** (notes redesign, still blocked on an owner decision).
 
 **The accounts state to be aware of before touching auth again:** the owner's
 account **`josh` exists** (created on `/accounts` on 2026-09-22), so the
@@ -142,11 +153,15 @@ was deleted after use; the `User` table is otherwise empty.
 Part 14b" — and the body below is kept because its data-quality findings are
 still current.)
 
-**Part 10 needs no further action on the database:** migration
-`20260922140000_add_ticker_sector` is applied and the column exists. No sector
-tags are stored yet (the DB is exactly as it was found), so the sector donut
-correctly reads Unclassified 100% until the owner tags instruments on
-`/exposure`.
+**Part 10 / Part 21 and the database:** migrations
+`20260922140000_add_ticker_sector` and
+`20260922170000_add_ticker_sector_source` are both applied (the second is
+nullable and additive, so the deployed revision that does not know the column
+exists keeps working against the same shared database). **No sector tags are
+stored yet** — the DB is exactly as it was found after Part 21's write test, so
+the sector donut correctly reads Unclassified 100% until the owner tags
+instruments on `/exposure`. One click does all eighteen: "Accept the 18
+suggestions".
 
 **Git:** parts 1–4 merged into `main` through pull requests #3, #4 and #5
 (`6a357af`, `c166bf0`, `c6071c5`); the Ctrl+K / benchmark-explainer notes plus
@@ -162,7 +177,7 @@ while CI runs.
 **Verification on the current tree (all green at the end of this session):**
 
 ```
-npm test                                     -> 16 files, 248 tests passed
+npm test                                     -> 17 files, 270 tests passed
 npx tsc --noEmit                             -> clean
 npx eslint app components lib tests scripts  -> clean
 npm run build                                -> succeeded (see the build note below)
@@ -170,7 +185,9 @@ npm run build                                -> succeeded (see the build note be
 
 (The count went 230 -> 216 when the 14 FX-split tests left with their code, then
 216 -> 229 with Part 16's 13 auth tests, 242 with Part 19's 13 account-rule
-tests, and 248 with Part 20's 6 sparkline-key parser tests. Note `scripts/` is in
+tests, 248 with Part 20's 6 sparkline-key parser tests, and 270 with Part 21's 15
+sector-classifier tests plus 7 exposure tests (`instrumentTypeExposure`,
+`capBreakdown`) and the `ExposureLine` fixture's new field. Note `scripts/` is in
 the eslint target — the create-user script is app code and should be linted like
 the rest.)
 
@@ -1696,3 +1713,129 @@ under load (the log records it), because `lib/prisma.ts` pins
 connection. It recovers to 2.7–6.3s once the concurrent requests stop. Nothing
 here changed that; it is recorded because "the site is slow" is a recurring
 complaint and this is the mechanism.
+
+## Part 21 — the exposure page, and tagging as a system (DONE)
+
+**What the owner asked for**, in four parts: the ring's centre text is too large
+and sits on the graph; the tooltip (whose design they like) is painted *under*
+that centre figure and is illegible; the tag input is far too large; and the
+tags should be a system with a dropdown for tagging instruments in the same
+sector. Plus two standing requests: no information added just to fill space, and
+a discussion of which tags these instruments should get.
+
+**Measured before changing anything** (real DOM, 1440px):
+
+| symptom | measurement | cause |
+|---|---|---|
+| figure on the ring | hole ~99px, `S$62,258.57` renders 92px wide at 14px = **93% fill** | donut 160px with `innerRadius="62%"` |
+| tooltip illegible | tooltip is a positioned sibling with `z-index: auto`, the centre label is painted **after** it | stacking order, not the tooltip's design |
+| input too large | **933px** wide in a ~1130px row | `flex-1` with nothing bounding it |
+
+**All six tooltips already share one recipe** (`panel border-ink-600 bg-ink-850
+p-3 text-xs shadow-xl`), so "implement it throughout the site" needed no port —
+only the one stacking fix, in `app/globals.css` (`.recharts-tooltip-wrapper {
+z-index: 20 }`), which every chart inherits, plus the donut's header tone now
+matching the other five (`text-ink-300`, was `text-ink-100`). Verified by
+dispatching a hover at the USD sector: the panel paints above the ring and the
+centre figure **fades out** while it is showing, because at this size a tooltip
+covers the hole anyway and a number half-hidden behind a panel is worse than no
+number.
+
+**The donut, corrected:** 176px, `innerRadius="66%"`, centre figure 12px — the
+number now occupies about two thirds of the hole instead of 93% of it. Slices are
+capped at the palette: **five named + "Other tags"** fills the six `data.*`
+colours exactly, and the folded buckets are listed behind a disclosure under the
+legend rather than dropped. The unclassified slice keeps its own desaturated grey
+(`#8f8b85`), so it never reads as just another exposure category.
+
+**One panel, two cuts of the same holdings.** "By sector" (hand-tagged) and "By
+type" (reported by the lookup) are the same circle sliced two ways, so they share
+a panel and a toggle rather than two donuts side by side. The type view needs no
+owner input, which is why it is complete from the first render: **51% of the
+holdings sit inside a fund** — the one thing a sector tag on a fund cannot say.
+The switch replays `.swap-in` on a keyed container, the same motion the period
+selectors use.
+
+**The tag vocabulary — ten tags, and what they deliberately refuse to claim.**
+`lib/sectors.ts` holds both halves of the system so they cannot drift: the
+vocabulary the dropdown offers, and the classifier that drafts a tag.
+`SECTOR_TAGS` is *not* GICS. 61.6% of this portfolio is index and sector **funds**,
+and a fund has no sector — VOO is not "Technology" even though technology is a
+third of it — so a tag answers the question the owner can act on ("what did I
+choose to buy, and how much is on that one idea") rather than claiming a
+look-through breakdown no free source provides. Two pairs worth knowing:
+**D05 + XLF** are one exposure (financials, 33% of the portfolio, which is where
+a shared label does real work), and **B + SLV** are one trade (precious metals)
+with two instruments. Two entries are recorded as judgement calls: **IREN**
+(revenue is now AI data centres, filed under US Tech; a Crypto tag would be a
+singleton covering 3%) and **VUG** (large-cap growth is mostly technology, but
+tagging a broad growth index "US Tech" would overstate a bet nobody made, so it
+is left unclassified rather than guessed into the wrong bucket).
+
+`suggestSector()` covers **all 18 held instruments by name and ticker**, pinned by
+`tests/sectors.test.ts` — which also pins the two rules that were learned from a
+failing test rather than chosen: `\b` goes at the START of a pattern ("Financial"
+with a trailing boundary does not match "Financials"), and the words kept whole
+are the ones where inflecting changes the meaning ("gold" matched Goldman Sachs,
+so it takes a lookahead).
+
+**Tagging as a system, in the table.** A `TagSelect` combobox: dropdown over the
+vocabulary, free text still allowed (the vocabulary is not a cage, and legacy
+tags keep rendering *and* stay pickable), `↑/↓` only move within the popup so the
+caret never jumps mid-word, Enter commits, Escape reverts rather than clears.
+Rows carry checkboxes, so a sector can be applied to several instruments at once —
+which is the point of grouping. Where the classifier has a draft it is **offered,
+never applied**: "suggested: Financials →" on its own line, plus one batch button
+("Accept the 18 suggestions").
+
+**The bug that would have made the two paths disagree:** accepting a suggestion
+one row at a time wrote `sectorSource: "manual"` while the batch path wrote
+`"auto"`, so the same tag on the same instrument would have been marked
+differently depending on which button was pressed. Both paths are `"auto"` now —
+the tag is the classifier's, and the chip means "nobody typed this".
+
+**What the owner asked me to judge rather than pad.** Added: **weight %** (rows
+are value-sorted, but D05 is 30.6% and OV8 is 1.0% — tagging effort should follow
+that number) and **instrument type** (Fund/Stock; not decoration but the honest
+disclaimer, since a sector label on a fund is a simplification). Rejected, with
+reasons: **region and currency** (one click away on the region tabs), **cost
+basis / unrealised P&L** (that is the positions tables' job — duplicating it makes
+this a second positions page), and **"last tagged by"** (accounts are identities,
+not roles, so there is nobody to attribute it to).
+
+Two smaller fixes came out of the same pass. The header's coverage caption
+("0% of value is sector-tagged") duplicated what the sector panel already says
+under its own caption, so it is stated once. And `.field` gained
+`placeholder:text-ink-500`: the browser default placeholder colour (#9ca3af) is
+*lighter* than this theme's muted text, so a placeholder read as a filled-in
+value — which is exactly why "suggested: Financials" looked like something
+already typed into the box. The placeholder is now "untagged" and the suggestion
+is stated once, where it is clickable.
+
+**Schema.** `TickerMeta.sectorSource` (`"auto" | "manual" | null`), migration
+`20260922170000_add_ticker_sector_source`, additive and nullable so the deployed
+revision ignores it. A new instrument gets a draft automatically at creation
+(`ensureTickerMeta`), and a **cleared** tag is never re-filled by a later refresh —
+that would be a guess overriding an explicit "no".
+
+**Verified against the running app**, not by reading it:
+
+- Donut: `svg 176x176`, sector path `M 171,88 A 83,83…` drawn, centre figure ~65%
+  of the hole, hover puts the tooltip above the ring and fades the figure.
+- Toggle: clicking "By type" switches to `aria-pressed=true` with
+  `Funds (ETF) 51.0% / Single stocks 49.0%`, caption and `.swap-in` both updated.
+- Dropdown: opens with all ten tags in order.
+- Write path, end to end: clicking a suggestion wrote D05 → Financials, the row
+  read `Saved` with the `auto` chip, and the bar went to "17 of 18 untagged".
+  Then "Untag selected" put it back to empty **and the DB is as it was found**:
+  18 of 18 untagged, no rows written.
+- Responsive: at 420×860 the row wraps, the tag control takes its own line, and
+  horizontal overflow is **0px**.
+- `npm test` 17 files / **270 tests**, `tsc --noEmit`, `eslint` and `next build`
+  all clean.
+
+**One environment trap worth recording:** Next 16's dev server *blocks cross-origin
+dev resources*, so loading the app on `127.0.0.1:port` while it was started on
+`localhost` silently breaks hydration — the page renders, the charts never
+measure, and nothing is logged beyond HMR websocket failures. Use the host the
+server printed, not an equivalent one.

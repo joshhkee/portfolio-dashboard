@@ -1,8 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
+  MAX_NAMED_SLICES,
+  OTHER_TAGS_LABEL,
   UNCLASSIFIED_LABEL,
+  capBreakdown,
   currencyExposure,
   groupExposure,
+  instrumentTypeExposure,
   sectorExposure,
   toExposureLines,
   type ExposureLine,
@@ -13,9 +17,18 @@ function line(
   region: string,
   ticker: string,
   valueSgd: number,
-  sector: string | null
+  sector: string | null,
+  instrumentType: string | null = null
 ): ExposureLine {
-  return { key: `${region}::${ticker}`, region, ticker, name: null, valueSgd, sector };
+  return {
+    key: `${region}::${ticker}`,
+    region,
+    ticker,
+    name: null,
+    valueSgd,
+    sector,
+    instrumentType,
+  };
 }
 
 describe("groupExposure", () => {
@@ -198,5 +211,93 @@ describe("historical SGD rates", () => {
     // 2025-01-03 has an HKD close but no fresh SGD close; the SGD rate is
     // carried so the cross rate is still derivable rather than undefined.
     expect(series.HKD["2025-01-03"]).toBeCloseTo(1.36 / 7.81, 10);
+  });
+});
+
+describe("instrumentTypeExposure", () => {
+  it("splits funds from single stocks using only what the lookup reported", () => {
+    const breakdown = instrumentTypeExposure([
+      line("US", "VOO", 500, null, "ETF"),
+      line("SG", "D05", 300, null, "EQUITY"),
+      line("US", "SLV", 200, null, "ETF"),
+    ]);
+
+    expect(breakdown.buckets.map((b) => b.label)).toEqual(["Funds (ETF)", "Single stocks"]);
+    expect(breakdown.buckets[0].valueSgd).toBe(700);
+    expect(breakdown.buckets[0].weight).toBeCloseTo(0.7, 10);
+    expect(breakdown.unclassified).toBeNull();
+  });
+
+  it("leaves an unreported type unclassified rather than calling it a stock", () => {
+    const breakdown = instrumentTypeExposure([
+      line("US", "VOO", 500, null, "ETF"),
+      line("HK", "01810", 500, null, null),
+    ]);
+
+    // Half the book is a measured fact, half is unknown — and the second half
+    // is NOT folded into "Single stocks" to make the chart look complete.
+    expect(breakdown.buckets).toHaveLength(1);
+    expect(breakdown.unclassified?.valueSgd).toBe(500);
+    expect(breakdown.coverage).toBeCloseTo(0.5, 10);
+  });
+
+  it("does not depend on sector tags at all", () => {
+    const typed = instrumentTypeExposure([line("US", "VOO", 100, null, "ETF")]);
+    const tagged = instrumentTypeExposure([line("US", "VOO", 100, "Financials", "ETF")]);
+
+    expect(typed).toEqual(tagged);
+  });
+});
+
+describe("capBreakdown", () => {
+  /** n buckets, each worth less than the last. */
+  function many(n: number): ExposureLine[] {
+    return Array.from({ length: n }, (_, i) => line("US", `T${i}`, 1000 - i, `Tag ${i}`));
+  }
+
+  it("leaves a short list alone, hoisting nothing", () => {
+    const capped = capBreakdown(sectorExposure(many(MAX_NAMED_SLICES)));
+
+    expect(capped.slices.map((s) => s.label)).toEqual([
+      "Tag 0",
+      "Tag 1",
+      "Tag 2",
+      "Tag 3",
+      "Tag 4",
+    ]);
+    expect(capped.folded).toEqual([]);
+  });
+
+  it("keeps one spare palette slot rather than folding a single bucket", () => {
+    // Six named buckets and six colours: folding the sixth into an "Other"
+    // would lose a name and gain nothing, since it still needs a colour.
+    const capped = capBreakdown(sectorExposure(many(6)));
+
+    expect(capped.slices).toHaveLength(6);
+    expect(capped.slices.some((s) => s.label === OTHER_TAGS_LABEL)).toBe(false);
+  });
+
+  it("folds the tail into one bucket that still sums to the whole", () => {
+    const breakdown = sectorExposure(many(9));
+    const capped = capBreakdown(breakdown);
+
+    expect(capped.slices).toHaveLength(MAX_NAMED_SLICES + 1);
+    expect(capped.slices[MAX_NAMED_SLICES].label).toBe(OTHER_TAGS_LABEL);
+    expect(capped.folded).toHaveLength(9 - MAX_NAMED_SLICES);
+    expect(capped.slices.reduce((sum, s) => sum + s.valueSgd, 0)).toBeCloseTo(
+      breakdown.totalValueSgd,
+      6
+    );
+    expect(capped.slices.reduce((sum, s) => sum + s.weight, 0)).toBeCloseTo(1, 10);
+  });
+
+  it("never draws more slices than the palette has colours", () => {
+    // Five named + "Other tags" = six palette entries. More than that and
+    // seriesColor() wraps, which is the one failure a colour-coded chart
+    // cannot survive: two slices drawn identically.
+    for (const count of [7, 12, 40]) {
+      const capped = capBreakdown(sectorExposure(many(count)));
+      expect(capped.slices.length).toBeLessThanOrEqual(6);
+    }
   });
 });
