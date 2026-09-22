@@ -164,14 +164,18 @@ export default function EditableTransactionRow({
         {symbol}
         {formatAmount(t.price)}
       </td>
-      <td className={`num text-right ${t.runningQty < 0 ? "font-semibold text-loss" : ""}`}>
+      <td
+        className={`num hidden text-right lg:table-cell ${
+          t.runningQty < 0 ? "font-semibold text-loss" : ""
+        }`}
+      >
         {formatQty(t.runningQty)}
       </td>
       <td className="num text-right">
         {symbol}
         {formatAmount(t.runningAvgCost)}
       </td>
-      <td className="num text-right">
+      <td className="num hidden text-right lg:table-cell">
         {symbol}
         {formatAmount(t.transactionValue)}
       </td>

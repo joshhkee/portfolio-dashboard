@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import SegmentedControl from "@/components/SegmentedControl";
 import PortfolioValueChart from "@/components/PortfolioValueChart";
 import DrawdownChart from "@/components/DrawdownChart";
 import BenchmarkChart from "@/components/BenchmarkChart";
@@ -42,36 +43,31 @@ export default function PortfolioPerformance({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex justify-end">
-        <div
-          role="group"
-          aria-label="Chart time range"
-          className="flex rounded-md border border-ink-700 p-0.5 text-xs"
-        >
-          {RANGE_KEYS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setRange(key)}
-              aria-pressed={range === key}
-              className={`rounded px-2.5 py-1 transition ${
-                range === key ? "bg-accent text-ink-950" : "text-ink-300 hover:text-ink-100"
-              }`}
-            >
-              {key === "ALL" ? "All" : key}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          ariaLabel="Chart time range"
+          options={RANGE_KEYS.map((key) => ({ value: key, label: key === "ALL" ? "All" : key }))}
+          value={range}
+          onChange={setRange}
+        />
       </div>
 
-      <PortfolioValueChart data={filtered} />
-      <DrawdownChart data={filtered} />
-      {benchmarks.length > 0 && (
-        <BenchmarkChart
-          points={filtered}
-          benchmarks={benchmarks}
-          series={filteredBenchmarks}
-        />
-      )}
+      {/* Deliberately NOT keyed on the range. Remounting these on every switch
+          restarts each chart from an empty axis, so the line redraws itself
+          from scratch — what you want is the same chart narrowing its window,
+          which is what Recharts does when the data changes under a mounted
+          chart. (An earlier pass wrapped this in a crossfade as well, which
+          only gave the eye two things to watch.) */}
+      <div className="flex flex-col gap-4">
+        <PortfolioValueChart data={filtered} />
+        <DrawdownChart data={filtered} />
+        {benchmarks.length > 0 && (
+          <BenchmarkChart
+            points={filtered}
+            benchmarks={benchmarks}
+            series={filteredBenchmarks}
+          />
+        )}
+      </div>
     </div>
   );
 }

@@ -30,8 +30,8 @@ export default async function CompletedTradesPage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <p className="text-sm text-ink-300">Total realized P/L (SGD)</p>
-        <p className="num mt-1 text-3xl font-medium">
+        <p className="stat-label">Total realized P/L (SGD)</p>
+        <p className="stat-value">
           <NativeMoney value={totalRealizedSGD} symbol="S$" />
         </p>
         <p className="mt-1 text-xs text-ink-300">

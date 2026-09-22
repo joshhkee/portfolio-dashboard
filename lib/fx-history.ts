@@ -1,10 +1,15 @@
 // Historical SGD exchange rates.
 //
-// The exposure view has to answer "what did these shares cost me IN SGD on the
-// day I bought them" — which needs the FX rate of that day, not today's. Yahoo
-// publishes USD/SGD and USD/HKD as ordinary daily series, so the historical
-// rates come from the same endpoint the rest of the app already uses, and the
-// cross rate (SGD per HKD) is derived rather than fetched.
+// Attribution has to price each trade at the SGD rate OF ITS OWN DAY rather
+// than today's, or every historical figure gets restated whenever the dollar
+// moves. Yahoo publishes USD/SGD and USD/HKD as ordinary daily series, so the
+// historical rates come from the same endpoint the rest of the app already
+// uses, and the cross rate (SGD per HKD) is derived rather than fetched.
+//
+// Scope note: this answers "what did the currency do on a date", which is
+// distinct from the FX a conversion actually realised. The deposit ledger
+// records the real conversions, and lib/fx.ts quotes today's rates; this file
+// exists only so a dated historical figure can be recomputed consistently.
 //
 // Everything is shaped ONCE into "SGD per one unit of the currency", because
 // Yahoo's quoting direction (units of foreign currency per 1 USD) is the
@@ -108,11 +113,4 @@ export function sgdRateOn(
   if (!closes || Object.keys(closes).length === 0) return null;
   const [rate] = alignCloses([dateKey], closes);
   return rate ?? null;
-}
-
-/** First and last day the series can actually answer for, for a coverage note. */
-export function rateSeriesSpan(series: SgdRateSeries): { from: string | null; to: string | null } {
-  const days = Object.keys(series.USD).sort();
-  if (days.length === 0) return { from: null, to: null };
-  return { from: days[0], to: days[days.length - 1] };
 }

@@ -147,6 +147,11 @@ export default function PortfolioValueChart({ data }: { data: SnapshotPoint[] })
               stroke="#5f5c57"
               strokeDasharray="4 4"
             />
+            {/* Animated on purpose, at Recharts' own default timing — this is
+                the transition the owner asked to keep when a range changes:
+                the line travels to its new shape while the chart stays the
+                same chart. Nothing else animates this block (see the note in
+                PortfolioPerformance) so there is exactly one thing moving. */}
             <Area
               type="monotone"
               dataKey="totalValueSgd"
@@ -155,6 +160,7 @@ export default function PortfolioValueChart({ data }: { data: SnapshotPoint[] })
               fill="url(#valueFill)"
               dot={false}
               activeDot={{ r: 3, fill: "#d4a94a" }}
+              isAnimationActive
             />
           </AreaChart>
         </ResponsiveContainer>

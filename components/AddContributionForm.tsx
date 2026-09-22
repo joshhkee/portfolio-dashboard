@@ -59,6 +59,7 @@ export default function AddContributionForm({
       contributorName: form.get("contributorName"),
       label: form.get("label"),
       date: form.get("date"),
+      paidOn: form.get("paidOn"),
       amount: form.get("amount"),
     };
 
@@ -89,6 +90,7 @@ export default function AddContributionForm({
     const form = new FormData(e.currentTarget);
     const label = form.get("label");
     const date = form.get("date");
+    const paidOn = form.get("paidOn");
     const entries = knownContributors
       .map((name) => ({
         contributorName: name,
@@ -106,7 +108,7 @@ export default function AddContributionForm({
       const res = await fetch("/api/contributions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label, date, entries }),
+        body: JSON.stringify({ label, date, paidOn, entries }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -160,13 +162,24 @@ export default function AddContributionForm({
               <input name="label" required defaultValue={nextMonthLabel} className="field w-36" />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-ink-300">Date</label>
+              <label className="text-xs text-ink-300">Month</label>
               <input
                 name="date"
                 type="date"
                 required
                 defaultValue={nextMonthDate}
                 className="field w-36"
+                title="The month this deposit is attributed to"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-ink-300">Paid on</label>
+              <input
+                name="paidOn"
+                type="date"
+                defaultValue={today}
+                className="field w-36"
+                title="When the money actually arrived — defaults to today, because a deposit is usually recorded when it lands. Clear it to leave the date unknown."
               />
             </div>
           </div>
@@ -217,8 +230,25 @@ export default function AddContributionForm({
             <input name="label" required className="field w-36" placeholder="e.g. SEP (2026)" />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-ink-300">Date</label>
-            <input name="date" type="date" required defaultValue={today} className="field w-36" />
+            <label className="text-xs text-ink-300">Month</label>
+            <input
+              name="date"
+              type="date"
+              required
+              defaultValue={today}
+              className="field w-36"
+              title="The month this deposit is attributed to"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-ink-300">Paid on</label>
+            <input
+              name="paidOn"
+              type="date"
+              defaultValue={today}
+              className="field w-36"
+              title="When the money actually arrived (empty = unknown)"
+            />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-ink-300">Amount</label>

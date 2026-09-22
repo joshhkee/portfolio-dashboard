@@ -10,7 +10,8 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import { Money, NativeMoney, Percent, PlainPercent } from "@/components/SignedNumber";
+import { NativeMoney, Percent, PlainPercent } from "@/components/SignedNumber";
+import SegmentedControl from "@/components/SegmentedControl";
 import { seriesColor } from "@/lib/palette";
 import type { StakeholderRow, StakeholderTimelinePoint } from "@/lib/stakeholders";
 
@@ -125,35 +126,16 @@ export default function StakeholderPerformance({
           Shares are pro-rata by contribution, so the values below add up to the portfolio
           total on the overview.
         </p>
-        <div
-          role="group"
-          aria-label="Stakeholder to chart"
-          className="flex flex-wrap rounded-md border border-ink-700 p-0.5 text-xs"
-        >
-          <button
-            type="button"
-            onClick={() => setSelected(null)}
-            aria-pressed={selected === null}
-            className={`rounded px-2.5 py-1 transition ${
-              selected === null ? "bg-accent text-ink-950" : "text-ink-300 hover:text-ink-100"
-            }`}
-          >
-            Everyone
-          </button>
-          {names.map((n) => (
-            <button
-              key={n}
-              type="button"
-              onClick={() => setSelected(n)}
-              aria-pressed={selected === n}
-              className={`rounded px-2.5 py-1 transition ${
-                selected === n ? "bg-accent text-ink-950" : "text-ink-300 hover:text-ink-100"
-              }`}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          ariaLabel="Stakeholder to chart"
+          className="flex-wrap"
+          options={[
+            { value: null, label: "Everyone" },
+            ...names.map((n) => ({ value: n, label: n })),
+          ]}
+          value={selected}
+          onChange={setSelected}
+        />
       </div>
 
       <div className="table-scroll">
@@ -181,14 +163,16 @@ export default function StakeholderPerformance({
                     <span className="text-ink-100">{r.name}</span>
                   </span>
                 </td>
+                {/* S$, not `Money`'s bare "$": these are SGD figures sitting
+                    in the same row as an S$-labelled gain. */}
                 <td className="num text-right">
-                  <Money value={r.contributed} />
+                  <NativeMoney value={r.contributed} symbol="S$" />
                 </td>
                 <td className="num text-right">
                   <PlainPercent value={r.share} />
                 </td>
                 <td className="num text-right">
-                  <Money value={r.currentValue} />
+                  <NativeMoney value={r.currentValue} symbol="S$" />
                 </td>
                 <td className="num text-right">
                   <NativeMoney value={r.currentValue - r.contributed} symbol="S$" showPlus />
@@ -201,11 +185,11 @@ export default function StakeholderPerformance({
             <tr className="border-t-2 border-ink-600">
               <td className="text-ink-300">Total</td>
               <td className="num text-right">
-                <Money value={totalContributed} />
+                <NativeMoney value={totalContributed} symbol="S$" />
               </td>
               <td className="num text-right text-ink-300">100.0%</td>
               <td className="num text-right">
-                <Money value={totalValue} />
+                <NativeMoney value={totalValue} symbol="S$" />
               </td>
               <td className="num text-right">
                 <NativeMoney value={totalValue - totalContributed} symbol="S$" showPlus />
@@ -216,8 +200,12 @@ export default function StakeholderPerformance({
         </table>
       </div>
 
+      {/* Keyed on the selection: going from everyone's pooled lines to one
+          person's value-vs-contributed is a different question being asked of
+          the same chart, and the swap-in makes that change of question legible
+          rather than a jump cut. */}
       {timeline.length >= 2 && (
-        <div className="flex flex-col gap-2">
+        <div key={selected ?? "everyone"} className="swap-in flex flex-col gap-2">
           <p className="text-xs text-ink-300">
             {selected ? (
               <>

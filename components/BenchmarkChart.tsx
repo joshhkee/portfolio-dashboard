@@ -18,6 +18,7 @@ import {
   type PerfPoint,
 } from "@/lib/performance";
 import BenchmarkExplainer from "@/components/BenchmarkExplainer";
+import SegmentedControl from "@/components/SegmentedControl";
 
 /** Same order as the value chart's series so the two read consistently: the
  * portfolio keeps the gold it has everywhere else, the benchmark takes the
@@ -177,29 +178,22 @@ export default function BenchmarkChart({
             Both rebased to 100 at {longDate(first)} · {windowLabel}
           </p>
         </div>
-        <div
-          role="group"
-          aria-label="Benchmark index"
-          className="flex rounded-md border border-ink-700 p-0.5 text-xs"
-        >
-          {benchmarks.map((b) => (
-            <button
-              key={b.key}
-              type="button"
-              onClick={() => setSelected(b.key)}
-              aria-pressed={selected === b.key}
-              className={`rounded px-2.5 py-1 transition ${
-                selected === b.key ? "bg-accent text-ink-950" : "text-ink-300 hover:text-ink-100"
-              }`}
-            >
-              {b.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          ariaLabel="Benchmark index"
+          options={benchmarks.map((b) => ({ value: b.key, label: b.label }))}
+          value={selected}
+          onChange={setSelected}
+        />
       </div>
 
+      {/* Keyed on the index so switching benchmark replays the swap-in: the
+          statistics below are measurements OF that index, so animating them
+          together with the line keeps the two visibly in step. */}
       {model && model.stats && (
-        <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
+        <div
+          key={selected}
+          className="swap-in flex flex-wrap items-baseline gap-x-8 gap-y-2"
+        >
           <Stat
             label={`Alpha vs ${benchmarkLabel} (ann.)`}
             value={`${model.stats.alphaAnnual >= 0 ? "+" : ""}${(model.stats.alphaAnnual * 100).toFixed(1)}%`}
@@ -266,6 +260,9 @@ export default function BenchmarkChart({
             />
             {/* 100 = the window's starting line; above it is a gain. */}
             <ReferenceLine y={100} stroke="#5f5c57" strokeDasharray="4 4" />
+            {/* Animated like the value chart, so the three range-driven charts
+                all respond to a window change the same way rather than one of
+                them snapping. */}
             <Line
               type="monotone"
               dataKey="portfolio"
@@ -273,7 +270,7 @@ export default function BenchmarkChart({
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 3, fill: PORTFOLIO_COLOR }}
-              isAnimationActive={false}
+              isAnimationActive
               connectNulls
             />
             <Line
@@ -284,7 +281,7 @@ export default function BenchmarkChart({
               strokeDasharray="5 4"
               dot={false}
               activeDot={{ r: 3, fill: BENCHMARK_COLOR }}
-              isAnimationActive={false}
+              isAnimationActive
               connectNulls
             />
           </LineChart>

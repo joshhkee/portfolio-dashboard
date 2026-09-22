@@ -11,29 +11,47 @@ const prisma = new PrismaClient();
 
 const CONTRIBUTORS = ["Josh", "Roy", "Chin", "Keng", "Zhiming"] as const;
 
-// [label, date, amounts-by-contributor] — zero/undefined amounts are skipped.
-const CONTRIBUTION_ROWS: [string, string, Partial<Record<(typeof CONTRIBUTORS)[number], number>>][] = [
-  ["Initial Investment", "2025-03-01", { Josh: 1252, Roy: 2500, Keng: 2500, Zhiming: 2500 }],
-  ["MAR (2025)", "2025-03-01", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
-  ["APR (2025)", "2025-04-01", { Josh: 500, Roy: 500, Chin: 200, Keng: 4400, Zhiming: 500 }],
-  ["MAY (2025)", "2025-05-01", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
-  ["JUN (2025)", "2025-06-01", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
-  ["JUL (2025)", "2025-07-01", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
-  ["AUG (2025)", "2025-08-01", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
-  ["SEP (2025)", "2025-09-01", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
-  ["OCT (2025)", "2025-10-01", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
-  ["NOV (2025)", "2025-11-01", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
-  ["DEC (2025)", "2025-12-01", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
-  ["JAN (2026)", "2026-01-01", { Josh: 1000, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
-  ["FEB (2026)", "2026-02-01", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
-  ["MAR (2026)", "2026-03-01", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
-  ["Additional", "2026-03-15", { Keng: 1945 }],
-  ["APR (2026)", "2026-04-01", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
-  ["MAY (2026)", "2026-05-01", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
-  ["JUN (2026)", "2026-06-01", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
-  ["JUL (2026)", "2026-07-01", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
-  ["AUG (2026)", "2026-08-01", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
-  ["SEP (2026)", "2026-09-01", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
+// [label, attributed month, arrival date, amounts-by-contributor] — zero/
+// undefined amounts are skipped, and an empty arrival date means unknown.
+//
+// The two dates answer different questions and both are needed: the month a
+// deposit belongs to is what the outlay pivot groups by, while the arrival
+// date is what says whether it landed on time. A lump covering two months
+// carries its own date on both rows, because that is when the money for both
+// actually showed up.
+//
+// Sourced from the owner's deposit ledger (2026-09-22 revision): March 2025 is
+// the Initial's month rather than a scheduled one, which is why the schedule is
+// 18 months of 2,200 and not 19.
+const CONTRIBUTION_ROWS: [
+  string,
+  string,
+  string,
+  Partial<Record<(typeof CONTRIBUTORS)[number], number>>,
+][] = [
+  ["Initial Investment", "2025-03-01", "2025-03-01", { Josh: 1252, Roy: 2500, Keng: 2500, Zhiming: 2500 }],
+  ["APR (2025)", "2025-04-01", "2025-04-03", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
+  // Keng's top-up for March, which the owner attributes to the month it was
+  // PAID in — so March holds the Initial alone and April carries 6,100.
+  ["Additional (APR 2025)", "2025-04-01", "2025-04-14", { Keng: 3900 }],
+  ["MAY (2025)", "2025-05-01", "2025-06-05", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
+  ["JUN (2025)", "2025-06-01", "2025-06-05", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
+  ["JUL (2025)", "2025-07-01", "2025-08-22", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
+  ["AUG (2025)", "2025-08-01", "2025-08-22", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
+  ["SEP (2025)", "2025-09-01", "2025-09-26", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
+  ["OCT (2025)", "2025-10-01", "2025-10-13", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
+  ["NOV (2025)", "2025-11-01", "2025-10-13", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
+  ["DEC (2025)", "2025-12-01", "2026-01-29", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
+  ["JAN (2026)", "2026-01-01", "2026-01-29", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
+  ["FEB (2026)", "2026-02-01", "2026-04-08", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
+  ["MAR (2026)", "2026-03-01", "2026-05-14", { Josh: 1000, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
+  ["Additional", "2026-05-09", "2026-05-09", { Keng: 1945 }],
+  ["APR (2026)", "2026-04-01", "2026-05-26", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
+  ["MAY (2026)", "2026-05-01", "2026-06-11", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
+  ["JUN (2026)", "2026-06-01", "2026-06-11", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
+  ["JUL (2026)", "2026-07-01", "2026-07-08", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
+  ["AUG (2026)", "2026-08-01", "2026-08-05", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
+  ["SEP (2026)", "2026-09-01", "2026-09-09", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
 ];
 
 interface SeedTxn {
@@ -124,14 +142,15 @@ async function main() {
   }
 
   let contributionCount = 0;
-  for (const [label, date, amounts] of CONTRIBUTION_ROWS) {
+  for (const [label, date, paidOn, amounts] of CONTRIBUTION_ROWS) {
     for (const [name, amount] of Object.entries(amounts)) {
       if (!amount) continue;
       await prisma.contribution.create({
         data: {
           contributorId: contributorRecords.get(name)!.id,
           label,
-          date: new Date(date),
+          date: new Date(`${date}T00:00:00.000Z`),
+          paidOn: paidOn === "" ? null : new Date(`${paidOn}T00:00:00.000Z`),
           amount,
         },
       });

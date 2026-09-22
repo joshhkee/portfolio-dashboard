@@ -45,11 +45,11 @@ every checkpoint keeps it green:
 - Branch: `freebuff/analyse-my-current-portfolio-dashboard-project-and-29b0adb2-a864-46b1-9352-6fb3fcb2b204`
   (`origin` -> `github.com/joshhkee/portfolio-dashboard`).
 - A batch of work rides ONE long-lived pull request (same branch -> `main`).
-  #6 and #7 are merged; **the PR carrying parts 10–12 is #8**
-  (https://github.com/joshhkee/portfolio-dashboard/pull/8). Nothing should open a
-  second PR while one is already open for this branch — but DO open a new one
-  when the previous batch was merged, because a merged PR cannot be reopened to
-  carry later work.
+  #3–#8 are all merged. **The open PR is #9**
+  (https://github.com/joshhkee/portfolio-dashboard/pull/9), carrying parts 12–14a
+  plus the Prisma build fix. Nothing should open a second PR while one is
+  already open for this branch — but DO open a new one when the previous batch
+  was merged, because a merged PR cannot be reopened to carry later work.
 - Push normally. **Never** force-push, switch branches, or change git config.
 - A clean `git push` is NOT proof the PR is conflict-free — re-read the PR and
   check `mergeable` / `mergeable_state` explicitly.
@@ -82,16 +82,32 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 9 | Concentration & risk analytics (HHI, Sharpe, correlation, rolling 1Y) | **DONE** |
 | 10 | Exposure analytics (sector tags, currency + FX attribution) | **DONE** |
 | 11 | Contribution attribution (per position, per period) | **DONE** |
-| 12 | Responsive & loading polish (mobile tables, skeletons) | TODO — **start here** |
+| 12 | Responsive & loading polish (mobile tables, skeletons) | **DONE** |
+| 13 | Range-selector transitions + load-time optimisation | **DONE** |
+| 14a | Deposit schedule: `Contribution.paidOn` + a quiet late flag | **DONE** |
+| 14b | Currency reporting: price-only P&L, realized FX, foreign cash | **REMOVAL DONE** (purchase-date FX split deleted); the two replacement panels are still TODO — see the Part 14b section |
 
 ---
 
-## Resume checkpoint — 2026-09-22 (after Part 11)
+## Resume checkpoint — 2026-09-22 (after Part 14b)
 
-**State:** parts 1–7 and 9–11 finished and verified. Next action: **Part 12
-(responsive & loading polish)** — no schema change, no new dependency, and
-independent of everything else. Part 8 (notes redesign) remains blocked on an
-owner decision and is the only part left after that.
+**State:** parts 1–7 and 9–14a finished and verified, plus the **removal half of
+14b** — the `/exposure` purchase-date FX split is gone, along with the machinery
+and tests behind it, and every SGD figure in the app now carries an `S$` instead
+of a bare `$`. The four smaller fixes from the same round are in too: the
+attribution table's pinned Instrument column no longer scrolls away, its Total
+column carries the symbol, Keng's S$3,900 top-up is attributed to April 2025,
+and the late-deposit flag is a dim clock glyph whose tooltip names the month and
+the date it landed.
+
+**Next action:** whichever of these the owner picks —
+**14b's two remaining panels** (realized FX on the 25 conversions; unrealized FX
+on the foreign cash), **Part 8** (notes redesign, still blocked on an owner
+decision), or part 15 onward from the backlog. Part 12's responsive work and
+part 13's load-time fix are both done and merged into this branch's open PR.
+(This heading said "after Part 11" until 14a landed, and "after Part 14a" until
+the 14b removal landed; the body below is kept because its environment notes and
+data-quality findings are still current.)
 
 **Part 10 needs no further action on the database:** migration
 `20260922140000_add_ticker_sector` is applied and the column exists. No sector
@@ -103,7 +119,10 @@ correctly reads Unclassified 100% until the owner tags instruments on
 (`6a357af`, `c166bf0`, `c6071c5`); the Ctrl+K / benchmark-explainer notes plus
 the parts 8–12 backlog through #7; part 9 through #6. Both #6 and #7 are MERGED,
 so part 10 onward rides a fresh pull request (see below) — check the open PR's
-number before quoting it, it changes each batch. **One pull request per checkpoint** (see "Pull-request
+number before quoting it, it changes each batch. At the end of this session that
+was **#9**, open and reading `mergeable: true / clean`, carrying parts 12-14b
+(its body was rewritten to cover the 14b removal, so the earlier "Parts 12-14a"
+title is no longer what it says). **One pull request per checkpoint** (see "Pull-request
 workflow") — never force-push, and re-read the PR's `mergeable_state` after
 every push, because GitHub computes it asynchronously and it reads `unstable`
 while CI runs.
@@ -111,11 +130,14 @@ while CI runs.
 **Verification on the current tree (all green at the end of this session):**
 
 ```
-npm test                            -> 13 files, 219 tests passed
-npx tsc --noEmit                    -> clean
-npx eslint app components lib tests -> clean
-npx next build                      -> succeeded (see the build note below)
+npm test                                     -> 14 files, 216 tests passed
+npx tsc --noEmit                             -> clean
+npx eslint app components lib tests          -> clean
+npm run build                                -> succeeded (see the build note below)
 ```
+
+(The count fell 230 -> 216 because the 14 FX-split tests were deleted with the
+code they covered — not because tests stopped running.)
 
 **Live preview:** a dev server runs from this worktree, but **Next picks the
 port** — 3000 when it is free, otherwise a random high one (it landed on 59495
@@ -153,10 +175,15 @@ shipped and in use (benchmark chart, stakeholder chart, correlation heatmap);
 the **bars** stay gold by the owner's explicit choice.
 
 **Known data-quality issue #2 — the ledger and the cash balances disagree.**
-Measured 2026-09-22 by the cash check on `/attribution`: contributions total
-**S$56,897.00** and the ledger's net purchases total **S$51,046.38**, so the
-ledger implies **S$5,850.62** should still be uninvested, while the
-`CashBalance` rows hold **S$4,597.80** — a gap of **S$1,252.82**.
+Measured 2026-09-22 by the cash check on `/attribution`, AFTER the ledger
+correction in Part 14: contributions total **S$54,697.00**, the ledger says
+**S$3,650.62** should still be uninvested, and the `CashBalance` rows hold
+**S$4,597.47** — so the balances now hold **S$946.85 MORE** than the ledger
+implies. (Before the correction this read as a shortfall of S$1,252.82;
+removing the duplicate March-2025 month moves it by exactly +S$2,200, so the
+flip is the correction, not a new mystery. A SURPLUS points at money that
+arrived without a matching contribution row — a dividend, interest, or a
+deposit not in the sheet — rather than at a trade missing its cash leg.)
 
 Nothing stores or derives from this gap: `/attribution` never touches cash, and
 the overview hero uses the recorded balances (invariant 2), so both pages are
@@ -729,8 +756,10 @@ What was actually done:
   instruments, so an untagged holding must read as UNKNOWN and never silently
   become an "Other" bucket that overstates how much is known.
 - **`lib/exposure.ts`** (new, pure): `groupExposure` with `sectorExposure` and
-  `currencyExposure` over it, `toExposureLines`, `fxAttribution` and
-  `sgdCostPerShare`. 30 tests in `tests/exposure.test.ts`.
+  `currencyExposure` over it, and `toExposureLines`. 16 tests in
+  `tests/exposure.test.ts`. `fxAttribution` and `sgdCostPerShare` were part of
+  this module at the time and were **removed in 14b** — see that section, and
+  the note below, for why.
 - **`lib/fx-history.ts`** (new): daily SGD-per-unit closes for SGD/USD/HKD from
   the same Yahoo chart endpoint the app already uses, shaped ONCE into "SGD per
   one unit" (Yahoo quotes units of foreign currency per USD — the opposite
@@ -740,23 +769,17 @@ What was actually done:
   two upstream calls an hour regardless of page views.
 - **`sgdPerUnit`** added to `lib/fx.ts`: the single place the rate direction is
   converted, instead of dividing by a rate at each call site.
-- **Cost basis in SGD at PURCHASE-date rates.** `sgdCostPerShare` feeds
-  `computeLedger()` a copy of the ledger whose Buy prices are already converted
-  to SGD, so the engine's existing weighted-average replay does the blending and
-  its "average cost carries forward through a Sell" behaviour is exactly right
-  for the shares still held. No second average is written anywhere.
-- **The P&L split.** `localPlSgd = qty × (price − avgCost) × fxNow` is
-  precisely what the holdings page already shows (it converts native P&L at
-  today's rate), and `fxPlSgd = qty × avgCost × (fxNow − fxAtCost)` is the part
-  that page leaves out. Computed from the closed form rather than as the
-  residual `total − local`: the two differ only in the last floating-point
-  places, and for an SGD position the closed form is EXACTLY zero while the
-  residual lands on ±1e-12 and renders as "-S$0.00". A test pins the identity
-  that keeps the decomposition complete — `total − local` equals this term.
+- **Cost basis in SGD at PURCHASE-date rates** (`sgdCostPerShare` feeding
+  `computeLedger()` a ledger whose Buy prices are pre-converted) and the **P&L
+  split** it existed to serve (`localPlSgd` = the price part the holdings page
+  already shows, `fxPlSgd = qty × avgCost × (fxNow − fxAtCost)` = the currency
+  part) are **both REMOVED in 14b**. They were correct arithmetic built on the
+  wrong premise: a per-holding currency gain measured from the PURCHASE date.
+  Kept in this paragraph only so the history is not rewritten — neither symbol
+  is exported from `lib/exposure.ts` any more, and no test references either.
 - **UI:** `components/ExposureDonut.tsx` (recharts donut + a legend carrying
   the exact value and share of every slice, since a donut is a shape you have to
-  estimate off), `components/FxAttributionTable.tsx` (server-rendered, with a
-  totals row), `components/SectorTagEditor.tsx` (one row per instrument, biggest
+  estimate off), `components/SectorTagEditor.tsx` (one row per instrument, biggest
   holding first, Enter saves, Escape reverts, autocomplete from tags already in
   use so a second position can reuse a tag without retyping — and no pre-canned
   sector list, because guessing is exactly what this design refuses to do).
@@ -776,11 +799,11 @@ What was actually done:
   the holdings is in the reporting currency.
 - FX attribution on the same render: value **S$61,840.88** − cost at purchase FX
   **S$54,216.94** = **S$7,623.93** total P&L, split into **+S$7,809.02 from prices
-  and −S$185.09 from currency**. Both identities hold exactly, on screen and in
+  and −S$185.09 from currency**. Both identities held exactly, on screen and in
   the rendered HTML: value − cost equals the total, and price + FX equals the
-  total. Currency is **−2.4%** of the SGD P&L — the portfolio's real SGD gain is
-  slightly SMALLER than the holdings page implies, because SGD strengthened
-  against USD over the holding period.
+  total. Currency was **−2.4%** of the SGD P&L. **This whole panel is REMOVED in
+  14b** — the arithmetic was sound and is recorded here as the measurement that
+  prompted the removal, not as a description of what `/exposure` shows today.
 
 **Bug found and fixed while verifying:** the page's two totals disagreed by S$21
 (S$61,827.94 vs S$61,806.63) on first render. Cause: `getOpenPositionsFor()`
@@ -889,3 +912,379 @@ selectors** (Part 4), and the **gold-as-data decision** (owner prefers gold).
 
 **Acceptance:** no horizontal page scroll at 390px width; every dynamic route
 has a `loading.tsx`; any new animation honours `prefers-reduced-motion`.
+
+### Part 12 — DONE (2026-09-22)
+
+**The nav was the real cause of horizontal page overflow.** At 390px the
+un-wrappable `<ul>` of eight links alone measured ~675px, so the document was
+~995px wide on a ~340px screen. It now collapses into a disclosure panel below
+`lg` (not `md`: the row plus brand, palette chip and log-out needs ~880px to sit
+on one line, so `md` would have overflowed the 768px viewport it claimed to
+support). Measured slack at the switch: links end 804px, chip starts 870px at a
+1031px viewport.
+
+**A second overflow came from the headline stat rows**, found only after
+re-measuring *post-load* (an earlier measurement read the loading skeleton and
+falsely reported clean): `.flex.gap-10` with two `text-3xl` figures measured
+**504px on a 356px viewport**. Now a shared `.stat-row` / `.stat-label` /
+`.stat-value` in `app/globals.css` — the row wraps, the number steps down to
+`text-2xl` below `sm`. Applied to `PositionsTable`, `ContributionAttribution`,
+`completed-trades` and the trade-history modal.
+
+**Column collapsing** (the plan's first option) below `lg`, chosen so nothing
+computed can be lost: positions drop `Held`, `30d` and `Portfolio %`; the ledger
+drops `Running qty` and `Txn value`; the watchlist drops `Notes` below `sm` and
+now fits its box exactly (290/290 vs 384/290, which is what had been pushing the
+remove button off-screen — the old `panel overflow-hidden` clipped it with no
+way to scroll to it, a real bug, now `overflow-x-auto`).
+
+**Skeletons:** `app/loading.tsx` plus seven new route-level files
+(`outlay`, `transactions`, `completed-trades`, `watchlist`, `holdings/cash`,
+`exposure`, `attribution`), all built from `components/Skeleton.tsx`, which
+reuses the real `.ledger-table` / `.table-scroll` classes so the table keeps its
+column widths through the swap. `app/holdings/loading.tsx` replaced its single
+line of pulsing text. Every animation carries `motion-reduce:animate-none`, and
+each route announces itself through a `role="status"` line, because `aria-hidden`
+visual skeletons would otherwise leave screen-reader users on a page that
+silently does nothing.
+
+**Two incidental repairs**, both outside the plan's scope but in the way of
+"lint is clean":
+
+- `package.json`'s `lint` script was `next lint`, which **Next 16 removed** — it
+  failed with `Invalid project directory provided, no such directory: ...\lint`
+  and, because the outputs were piped, that failure read as a pass. It is now
+  `eslint .`.
+- `prisma/backfill-snapshots.ts` imported `computeLedger`, `convertCurrency` and
+  `dayKey` without using them (pre-existing at `1d8f82f`, not from this pass).
+
+**Verified in the running app at 356 / 701 / 1004 / 1031 / 1095px** across all
+eight routes: `documentElement.scrollWidth === clientWidth` (no page-level
+scroll), zero offenders outside their own scroll containers, and the mobile menu
+opens, highlights the current route, and closes itself on navigation.
+
+---
+
+## Part 13 — Range-selector transitions + load-time optimisation
+
+Owner request, two halves:
+
+- **Transitions.** Changing a time-range selection should animate rather than
+  snap: the portfolio value chart, the benchmark window, the stakeholder picker
+  and the month/quarter toggle. Existing range state already re-renders these,
+  so this is presentation only — and each animation must honour
+  `prefers-reduced-motion`.
+- **Load times.** Owner reports slow pages. Evidence from the dev log rather
+  than guesswork: `GET /` **18.1s** and `GET /holdings/us` **9.1s**, with
+  `application-code` accounting for essentially all of it (Next itself is tens
+  of milliseconds per request) — so it is this app's own data fetching, not the
+  preview being open and not the framework.
+
+**Acceptance:** the same routes render substantially faster with the same
+numbers, and every range/period control animates on change with a
+reduced-motion path.
+
+### Part 13 — DONE (2026-09-22)
+
+**The slow pages had nothing to do with the preview.** The dev server logs its
+own breakdown, and it put the time in application code, not in Next: `GET /`
+**18.1s** and `GET /holdings/us` **9.1s**, against `next.js: 23ms` per request.
+A throwaway probe outside the framework then split that time up and found the
+cause was not where anyone was looking — the quotes everyone suspected came
+back in **118ms for all 18 tickers**, while the database round trips were the
+cost:
+
+```
+read 64 transactions             3879ms
+SELECT 1 (reuse an open conn)     400-540ms
+```
+
+Two things followed from that.
+
+**1. `ensureTickerMeta()` was doing 36 round trips per render.** It looped over
+every open position and ran a `findUnique` AND an `upsert` for each. At ~350ms
+a query against the Supabase pooler in Sydney that is ~13s of the ~18s page,
+on every holdings/exposure/overview render, to restate reference data that had
+not changed. It now reads the table once, compares, and writes only what
+actually differs — `fetchedAt` is deliberately excluded from that comparison,
+because treating "last checked" as a change is exactly what made every render a
+write. The caller reads the same rows once and shares them for names too.
+Related: the dashboard was issuing four separate reads of `transaction` per
+load, and `getOpenPositionsFor()` now accepts rows the caller already has (the
+same pattern it already used for FX rates).
+
+**2. Parallel queries were 2× slower than sequential ones.** Measured, five warm
+queries each way:
+
+| pool | mode | per query |
+|---|---|---|
+| `connection_limit=5` | parallel | **723ms** |
+| `connection_limit=5` | sequential | 389ms |
+| `connection_limit=1` | parallel | **263ms** |
+
+Opening a connection to that pooler costs ~2.4-3.5s, so every extra pooled
+connection costs more than the parallelism buys. The app fires its reads
+through `Promise.all`, which with a five-connection pool opened several at once
+— and under concurrent loads the pool starved outright: **31 `P2024` "Timed out
+fetching a new connection" failures** in the dev log, whose 10s timeout was
+itself part of the reported slowness. `lib/prisma.ts` now pins the pool to one
+connection (`PRISMA_CONNECTION_LIMIT` overrides) with a 30s queue timeout.
+
+**Also:** `recordTodaySnapshot()` ran three reads, nineteen Yahoo historical
+fetches and an upsert on *every* dashboard load to keep today's dot current. It
+now self-throttles to once per five minutes (in-process, stamps only on
+success), which keeps the intent and drops the cost.
+
+| route | before | after |
+|---|---|---|
+| `/` | 18.1s | **1.4-2.3s** |
+| `/holdings/us` | 9.1s | **0.95s** |
+| `/transactions` | 1.5s | 1.8s |
+| `/exposure`, `/attribution`, `/outlay` | — | 1.5-2.0s |
+
+Pool timeouts after the change: **0**.
+
+**Transitions, corrected after owner feedback.** The first attempt made every
+selection a crossfade: a keyed `.swap-in` container remounted the charts and
+Recharts' own animation was switched off so the two couldn't compete. The owner
+rejected that for the time-period selector specifically — remounting restarts a
+chart from an empty axis, whereas what reads as smooth is *the same chart
+narrowing its window*. So the two halves are now split by what is actually
+changing:
+
+- **Charts: the chart animates itself.** The range-driven charts are no longer
+  keyed or crossfaded, so they stay mounted and Recharts tweens the line to its
+  new shape (`isAnimationActive` on the value, drawdown and benchmark series —
+  the benchmark pair previously snapped, so a window change animated two charts
+  and not the third). Recharts' default timing is deliberately left alone: it is
+  the behaviour the owner asked to have back.
+- **The selected pill: it slides.** A new `components/SegmentedControl.tsx`
+  replaces the four hand-rolled copies of the same markup (time range,
+  benchmark index, stakeholder, period grouping). One absolutely positioned
+  gold pill moves with a `transform` transition, so the motion is
+  compositor-only and reads as the selection travelling rather than two
+  repaints. It is measured, not assumed: labels differ in width and the
+  stakeholder row wraps on narrow screens, so the offset carries a vertical
+  component too (verified moving diagonally to `(46.3, 25.9)` on a wrapped
+  row). Until the first measurement lands the active button paints its own
+  background, and afterwards the pill alone owns the colour — leaving both on
+  would show two gold rectangles mid-slide.
+- **Tables and stats: still `.swap-in`.** The attribution summary and table,
+  and the benchmark statistics, are not charts, so a 240ms fade + rise is the
+  right transition there.
+
+Reduced motion is honoured in both paths: `motion-reduce:transition-none` on
+the pill and `@media (prefers-reduced-motion: reduce) { .swap-in { animation:
+ none } }` in the stylesheet, verified present in the built CSS.
+
+**Verified in the browser, not asserted:** the pill's transform walked
+77.1 → 83.7 → 121.5 over 200ms on the range picker and landed with no offset
+(dx/dy/dw all 0); the value chart's path length went 46233 (All) → 29677
+(mid-flight, 250ms in) → 29530 (settled at 1Y), which is a tween and not a
+snap; the stakeholder picker moved the pill diagonally and left the active
+button with no background of its own; the quarter toggle re-rendered to
+"Portfolio gain over 7 quarters" with both the summary and the table fading.
+
+**Left on the table:** the remaining 1-2s per route is ~4-6 sequential round
+trips at ~300ms against a pooler on the other side of the world. A
+short-TTL cross-request cache on the ledger read would remove most of it, but
+it needs invalidation on every write path (transactions, contributions, cash,
+ticker meta) and a stale read after an edit is a far worse bug than a slow
+page — so it is deliberately NOT done here. The measuring probe
+(`tmp-perf-probe.ts`) was deleted after use.
+
+## Part 14 — The owner's revised ledger, and the deposit schedule
+
+The owner supplied an updated deposit/exchange ledger (the 2026-09-22 revision)
+and asked for three things: vet it, reconcile the database to it, and answer
+"are we up to schedule?". Two answers were approved up front:
+currency is reported in the places it is real (14b), and deposit timing is
+tracked with a payment date plus a deliberately quiet late flag (14a).
+
+### Vetting the sheet
+
+**Every one of the 25 conversion rows has exactly one debit and one credit.**
+Checked structurally — the only row with more than one debit column is row 2,
+the header. No accidental double-debit anywhere.
+
+**One rate was genuinely wrong: row 11, 2025-08-13.** The sheet records
+S$2,400 debited for HK$18,797.42, which implies **7.83 HKD per SGD** against a
+day's cross rate of **6.13** — **+27.7%**, which no spread explains. The HKD
+figure only prices correctly as a **US$2,400** debit: 7.8323 is 0.22% below
+that day's USD mid, the same direction and size as its neighbours (row 12
++0.04%, row 13 -0.20%). The row is imported as **USD 2,400 -> HKD 18,797.42**
+and is the ONE row corrected rather than transcribed; the correction is an
+explicit table in the importer so it can never be mistaken for a faithful read.
+The sheet cell itself should be fixed by the owner.
+
+**The other 24 rows are clean:** every one within **0.75%** of the day's mid,
+22 of them slightly below it with the same sign every time — a broker spread,
+which is what real fills look like. One item is for the owner's eyes rather
+than an error: 2025-10-13 carries S$1,600 -> HK$9,549.63 and HK$10,281.30 ->
+S$1,708.74 the same day. Both prices are right for that day and the amounts do
+not mirror each other as a duplicated entry would, so it reads as a real sweep
+back to SGD.
+
+### What the database now holds
+
+The ledger was stored as a per-person, per-month model, and the revision changed
+four things plus the exchange log:
+
+| change | why |
+|---|---|
+| deleted the 5 scheduled `MAR (2025)` rows (-S$2,200) | March 2025 is the Initial's month, not a scheduled one — exactly the S$2,200 the owner said the total comes down by |
+| Keng `APR (2025)` 4,400 -> 500, with S$3,900 split out as its own row | the sheet marks it "add inline", and April's schedule is 500. The owner later moved that row's attribution to **April 2025** (it was paid 14 Apr, and March belongs to the Initial), so April reads 6,100 and March holds the Initial alone |
+| Josh `JAN (2026)` 1,000 -> 500, `MAR (2026)` 500 -> 1,000 | same, for his March top-up |
+| Keng `Additional` re-dated 2026-03-15 -> 2026-05-09 | the sheet keeps it as a separate row and dates it |
+| 25 `CashExchange` rows imported (table was empty) | the audit trail the ledger was always meant to provide |
+
+**Cash balances were not touched** (invariant 2, and `CashExchange` feeds only
+the activity feed — verified by grepping every reference: the cash page's recent
+list and the home page's three-item feed. No money math reads it).
+
+Result: **96 contributions, S$54,697.00** — the sheet's total exactly. The month
+grid reads **18 consecutive scheduled months, every one at exactly S$2,200**,
+plus the labelled additions (Initial 8,752 in March; Keng's 3,900 in April, which
+is where it was paid; Josh's 500 inside MAR-2026's 2,700; Keng's 1,945).
+
+### The snapshot consequence, and why `npm run backfill` was NOT used
+
+`DailySnapshot.costBasisSgd` is derived from contributions (both writers call
+`outlayAsOf()`), so changing the ledger made every historical row's outlay stale
+— the chart's dashed outlay line would have disagreed with the headline.
+
+The repo's own `prisma/backfill-snapshots.ts` says it is safe to run "after
+correcting the ledger", but it also **re-prices every historical day and passes
+`fetchFxRates()` — TODAY's FX — into `dayValue` for those past dates**. Running
+it would have restated 18 months of foreign holdings by the SGD's drift since,
+to fix one field. Instead `costBasisSgd` alone was recomputed in a single
+statement.
+
+Before touching anything, all **570** stored snapshots were checked against the
+OLD ledger's outlay: **0 mismatches**, so the stored series was internally
+consistent and the correction would be a pure propagation. After the recompute:
+**0 mismatches**, today's row 56,897 -> **54,697**. (The fix used
+`UPDATE ... FROM (SELECT SUM(...) ...)`, not 570 round trips; the migration-style
+one-off scripts were deleted after use.)
+
+### 14a — the deposit schedule
+
+**`Contribution.paidOn` (nullable).** The attribution date (`date`, always the
+month's first day) is what the outlay curve and pivot need and cannot double as
+the payment date: a month funded two months late has to keep belonging to its
+own month. Migration `20260922150000_add_contribution_paid_on`, applied with
+`npx prisma migrate deploy` (deploy, not dev — dev wants a shadow database this
+pooled connection cannot create). Backfilled for all 96 rows from the sheet's
+remarks: the lumps are transcribed as they were paid, so "May and June" carries
+5 Jun on both months and Josh's March row (which also holds his 9 May top-up)
+carries 14 May, when that month was complete.
+
+**`lib/schedule.ts` is pure** and answers exactly one question: is a scheduled
+month's money in on time? Late means the money landed after the attributed month
+closed; paying EARLY is never late; an unknown date is unmeasured, not on time
+(`measuredMonths` is counted separately from the total). A month's lump is
+complete when its LAST row lands, so a label's date is the max across its rows.
+Non-month labels (`Initial Investment`, `Additional`, `Additional (MAR 2025)`)
+never carry a verdict — they have no month to be late against. 11 tests cover
+month-end arithmetic, leap February, a December year-end, early payment, unknown
+dates, the last-row rule and the worst-offender summary.
+
+**The UI is deliberately quiet** (owner's explicit constraint, refined after
+feedback): a small dim clock icon beside the month — no text, no colour, no
+badge — whose tooltip reads "Late deposit / MAR (2026) allocation deposited
+14 May 26 — 44 days after the month closed", plus ONE dim caption line under the
+section heading. A late deposit is a note rather than a problem, because money
+sitting in the account earns nothing. Measured live: **7 of 18** scheduled
+months arrived after the month closed, worst `MAR (2026)` at **44 days**; the
+seven are MAY 2025 (5), JUL 2025 (22), DEC 2025 (29), FEB 2026 (39), MAR 2026
+(44), APR 2026 (26), MAY 2026 (11).
+
+The payment date is settable in three places, so the feature is maintainable
+rather than write-once: the deposit form (both tabs, defaulting to today),
+`POST /api/contributions`, and the pivot's LABEL cell — clicking a month opens a
+one-field editor that PATCHes every row under that label, because a month's lump
+arrives as one payment split across stakeholders. `PATCH` now accepts `paidOn`
+alone (`"paidOn" in body` so an explicit null means "unknown", which is
+different from not sending it) and a payment-date change never touches cash — it
+changes WHEN money arrived, not how much. Verified end-to-end: setting MAY 2026
+to an on-time date moved the marker count 7 -> 6 and the caption with it, wrote
+the same date to all five rows, and the restore put both back; the CSV export
+gained a `paidOn` column and `prisma/seed.ts` was corrected to match, so a fresh
+install reproduces the corrected ledger rather than the old one.
+
+### The Part 13 regression this batch also fixes
+
+Part 13 broke the Vercel preview build, and nothing local could see it: the
+four local checks stayed green. The evidence was in the commit statuses —
+**Vercel succeeded on 80296c5 (Part 12) and failed on every commit after it**
+(d1a6330, da7a5bd, e710f49).
+
+The cause is the pool override Part 13 added, which always passed an explicit
+URL:
+
+```
+new PrismaClient({ datasources: { db: { url: datasourceUrl() } } })
+```
+
+With `DATABASE_URL` unset, `datasourceUrl()` returns `undefined`, and Prisma
+rejects an explicit `undefined` for a datasource — `Invalid value undefined for
+datasource "db" provided to PrismaClient constructor` — where a bare
+`new PrismaClient()` simply resolves the variable later, at connect time. That
+difference is fatal at BUILD time, because `next build` imports every route
+module to collect metadata, so any build machine without `DATABASE_URL` (a
+Vercel preview, in this case) fails the build outright.
+
+The override is now additive: no URL, no override. Verified three ways — the
+explicit-undefined form and the default form constructed in isolation (throws /
+does not throw), a build with `DATABASE_URL` emptied now succeeding, and Vercel
+itself going green again on `133bcaa`. **The lesson worth keeping: a local green
+build says nothing about a build environment without your `.env`.**### 14b — currency reporting: the purchase-FX split is REMOVED (done)
+
+The owner's model, in their words: everyone bulk-deposits, the money sits in a
+three-currency margin account, and stocks are bought with cash **already
+exchanged**. The old `/exposure` FX table measured the opposite thing — it
+costed each position at its PURCHASE date's rate and called the difference a
+currency gain. The owner asked the direct question ("since exchange is done
+before the purchase, do the purchase FX still apply?") and the answer is no,
+because the rate that funded a holding is a conversion the `CashExchange`
+ledger records, not the day the trade happened.
+
+What was removed (all of it, rather than left dark on the page):
+
+- `components/FxAttributionTable.tsx` — deleted.
+- `lib/exposure.ts`: `fxAttribution`, `sgdCostPerShare` and the
+  `MAX_FX_*` / cost-spread types — removed, so the module is now exactly the two
+  groupings the page shows (`sectorExposure`, `currencyExposure`).
+- `lib/fx-history.ts`: `rateSeriesSpan` removed (it only served the panel's
+  coverage caption, which is where the owner's "FX rates from 21 Sep 21" came
+  from). `buildSgdRateSeries` and `sgdRateOn` stay — `/attribution` prices each
+  trade at its OWN day's rate with them. The file header now says so instead of
+  pointing at the exposure view.
+- `tests/exposure.test.ts`: the 14 FX-split tests deleted (30 -> 16 tests; full
+  suite 230 -> 216). The historical-rate tests stay, because `/attribution` still
+  depends on that behaviour.
+- `app/exposure/page.tsx`: the section, its caption and the now-unneeded
+  `getSgdRateSeries()` fetch and `Promise.all` entry are gone; the page's own
+  header comment records what used to be there and why.
+
+The sentence that replaces it points at where currency IS real: the currency
+donut notes that the rate which matters is the one the funding cash was
+**converted** at, "which your deposit ledger records, not the day the shares
+were bought". Nothing on `/exposure` claims a per-holding FX gain any more, and
+the portfolio total is unchanged — the SGD value necessarily keeps whatever FX
+is embedded in today's prices; only the attribution changed.
+
+**Still open from this workstream** (specified, deliberately not built yet — the
+owner has not asked for either panel):
+
+1. **Realized FX on conversions.** The 25 `CashExchange` rows now exist, so each
+   conversion's executed rate against that day's mid is computable — measured
+   across the file at 0.14-0.74% below mid, which is the spread paid, and the one
+   same-day round trip would show its own loss.
+2. **Unrealized FX on foreign cash.** US$3,262.68 and HK$0.23 are a live rate
+   position, and the only place currency exposure is unambiguous.
+
+**Acceptance for what is now done:** no per-holding row claims an FX gain, no
+symbol removed above is referenced anywhere (checked with a repo-wide grep),
+`tsc` / `eslint` / `npm test` (216) / `npm run build` all pass, and `/exposure`
+still renders its two donuts with the same totals as before the removal.

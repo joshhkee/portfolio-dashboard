@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import SegmentedControl from "@/components/SegmentedControl";
 import { RANGE_KEYS, type RangeKey } from "@/lib/performance";
 import {
   groupByQuarter,
@@ -63,55 +64,38 @@ export default function ContributionAttribution({ matrix }: { matrix: Attributio
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div
-          role="group"
-          aria-label="Period grouping"
-          className="flex rounded-md border border-ink-700 p-0.5 text-xs"
-        >
-          {(["month", "quarter"] as const).map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setPeriod(key)}
-              aria-pressed={period === key}
-              className={`rounded px-2.5 py-1 capitalize transition motion-reduce:transition-none ${
-                period === key ? "bg-accent text-ink-950" : "text-ink-300 hover:text-ink-100"
-              }`}
-            >
-              By {key}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          ariaLabel="Period grouping"
+          options={[
+            { value: "month", label: "By month" },
+            { value: "quarter", label: "By quarter" },
+          ]}
+          value={period}
+          onChange={setPeriod}
+        />
 
-        <div
-          role="group"
-          aria-label="Time range"
-          className="flex rounded-md border border-ink-700 p-0.5 text-xs"
-        >
-          {RANGE_KEYS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setRange(key)}
-              aria-pressed={range === key}
-              className={`rounded px-2.5 py-1 transition motion-reduce:transition-none ${
-                range === key ? "bg-accent text-ink-950" : "text-ink-300 hover:text-ink-100"
-              }`}
-            >
-              {key === "ALL" ? "All" : key}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          ariaLabel="Time range"
+          options={RANGE_KEYS.map((key) => ({ value: key, label: key === "ALL" ? "All" : key }))}
+          value={range}
+          onChange={setRange}
+        />
       </div>
 
-      {/* The answer, up top, in the units the question was asked in. */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      {/* The answer, up top, in the units the question was asked in. Keyed on
+          both controls, so switching range OR period replays the swap-in — and
+          since the table below shares the key's commit, the two animate as one
+          motion rather than as two panels that happen to be changing. */}
+      <div
+        key={`summary-${range}-${period}`}
+        className="swap-in grid grid-cols-1 gap-4 lg:grid-cols-3"
+      >
         <div className="panel p-5 lg:col-span-2">
           <p className="text-xs text-ink-300">
             Portfolio gain over {table.columns.length} {period}
             {table.columns.length === 1 ? "" : "s"}
           </p>
-          <p className="num mt-1 text-3xl font-medium">
+          <p className="stat-value">
             <NativeMoney value={table.total} symbol={sgd} showPlus />
           </p>
           <p className="mt-2 text-xs text-ink-300">
@@ -150,8 +134,11 @@ export default function ContributionAttribution({ matrix }: { matrix: Attributio
                       style={{ width: `${largest === 0 ? 0 : (Math.abs(row.total) / largest) * 100}%` }}
                     />
                   </div>
-                  <span className={`num w-24 shrink-0 text-right text-xs ${toneClass(row.total)}`}>
-                    {formatSigned(row.total)}
+                  {/* Same figure as the table, in the same units — the
+                      currency symbol belongs on it too, since every other
+                      money value in the app carries one. */}
+                  <span className={`w-24 shrink-0 text-right text-xs ${toneClass(row.total)}`}>
+                    <NativeMoney value={row.total} symbol={sgd} showPlus />
                   </span>
                 </div>
               ))}
@@ -160,11 +147,11 @@ export default function ContributionAttribution({ matrix }: { matrix: Attributio
         </div>
       </div>
 
-      <div className="table-scroll">
+      <div key={`table-${range}-${period}`} className="swap-in table-scroll">
         <table className="ledger-table">
           <thead>
             <tr>
-              <th className="sticky left-0 z-20 bg-ink-850">Instrument</th>
+              <th className="cell-pin">Instrument</th>
               {table.columns.map((column) => (
                 <th key={column.key} className="text-right" title={`Ends ${column.endDay}`}>
                   {column.label}
@@ -176,7 +163,7 @@ export default function ContributionAttribution({ matrix }: { matrix: Attributio
           <tbody>
             {rows.map((row) => (
               <tr key={row.key}>
-                <td className="sticky left-0 z-10 bg-ink-900">
+                <td className="cell-pin">
                   <span className="flex items-baseline gap-2">
                     <span className="num text-ink-100">{row.ticker}</span>
                     {row.openQty <= 0 && (
@@ -196,22 +183,27 @@ export default function ContributionAttribution({ matrix }: { matrix: Attributio
                     {value === 0 ? <span className="text-ink-500">—</span> : formatSigned(value)}
                   </td>
                 ))}
-                <td className={`num text-right font-medium ${toneClass(row.total)}`}>
-                  {formatSigned(row.total)}
+                {/* The Total column carries the currency symbol while the
+                    period cells do not: it is the same figure as the headline
+                    above, which shows S$, and a column of symbols in the
+                    per-period grid would cost real width for no new meaning
+                    (the caption states the units). */}
+                <td className="text-right font-medium">
+                  <NativeMoney value={row.total} symbol={sgd} showPlus />
                 </td>
               </tr>
             ))}
           </tbody>
           <tfoot>
             <tr className="border-t border-ink-600">
-              <td className="sticky left-0 z-10 bg-ink-900 text-ink-300">Total</td>
+              <td className="cell-pin text-ink-300">Total</td>
               {table.columnTotals.map((value, i) => (
                 <td key={table.columns[i].key} className={`num text-right ${toneClass(value)}`}>
                   {formatSigned(value)}
                 </td>
               ))}
-              <td className={`num text-right font-medium ${toneClass(table.total)}`}>
-                {formatSigned(table.total)}
+              <td className="text-right font-medium">
+                <NativeMoney value={table.total} symbol={sgd} showPlus />
               </td>
             </tr>
           </tfoot>
@@ -221,6 +213,7 @@ export default function ContributionAttribution({ matrix }: { matrix: Attributio
       <p className="text-xs text-ink-500">
         A cell is one position&apos;s gain in one period: its value moved that much, minus whatever
         was paid in or taken out. Cells in a row or column always add up to the totals beside them.
+        Every figure is in SGD.
       </p>
     </div>
   );

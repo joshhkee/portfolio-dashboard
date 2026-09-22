@@ -1,7 +1,12 @@
 import { prisma } from "@/lib/prisma";
-import { computeLedger, fromDbRows, withLivePrices } from "@/lib/portfolio-engine";
+import {
+  computeLedger,
+  fromDbRows,
+  withLivePrices,
+  type DbTransactionRow,
+} from "@/lib/portfolio-engine";
 import { fetchPositionQuotes, priceKey, type QuoteMeta } from "@/lib/prices";
-import { ensureTickerMeta, getNameMap, type TickerMetaEntry } from "@/lib/ticker-meta";
+import { ensureTickerMeta, getTickerMetaRows, type TickerMetaEntry } from "@/lib/ticker-meta";
 import { fetchFxRates, convertCurrency, type Currency, type FxRates } from "@/lib/fx";
 
 /**
@@ -19,11 +24,18 @@ import { fetchFxRates, convertCurrency, type Currency, type FxRates } from "@/li
 export async function getOpenPositionsFor(
   regions: string[],
   displayCurrency: Currency = "USD",
-  rates?: FxRates
+  rates?: FxRates,
+  /** Rows the caller already read. Same idea as `rates`: a page that has the
+   *  ledger in hand should pass it rather than make a second identical read —
+   *  a round trip to the remote pooler that costs 250-700ms and returns the
+   *  rows the caller could have shared. */
+  rawTransactions?: DbTransactionRow[]
 ) {
-  const raw = await prisma.transaction.findMany({
-    orderBy: [{ date: "asc" }, { id: "asc" }],
-  });
+  const raw =
+    rawTransactions ??
+    (await prisma.transaction.findMany({
+      orderBy: [{ date: "asc" }, { id: "asc" }],
+    }));
 
   const { openPositions } = computeLedger(fromDbRows(raw));
 
@@ -33,17 +45,28 @@ export async function getOpenPositionsFor(
   // this costs exactly what price-only fetching cost before. Cache the
   // metadata (never overwriting a hand-edited name) so subsequent renders
   // need no lookup at all.
-  const [quoteData, fxRates, cachedNames] = await Promise.all([
+  const [quoteData, fxRates, metaRows] = await Promise.all([
     fetchPositionQuotes(filtered),
     rates ? Promise.resolve(rates) : fetchFxRates(),
-    getNameMap(),
+    getTickerMetaRows(),
   ]);
   const metaEntries: TickerMetaEntry[] = [];
   for (const p of filtered) {
     const meta: QuoteMeta | undefined = quoteData.meta[priceKey(p.region, p.ticker)];
     if (meta) metaEntries.push({ region: p.region, ticker: p.ticker, meta });
   }
-  await ensureTickerMeta(metaEntries);
+  // The rows read above serve both halves: they are what ensureTickerMeta()
+  // compares against to decide whether anything needs writing, and they supply
+  // the cached names below. Sharing them is the whole point — this path used to
+  // do a findUnique AND an upsert per position (36 sequential round trips for
+  // an 18-position portfolio, ~13s against the remote pooler, on every render)
+  // and read the same table a third time for the names.
+  await ensureTickerMeta(metaEntries, metaRows);
+
+  const cachedNames: Record<string, string> = {};
+  for (const r of metaRows) {
+    if (r.name) cachedNames[priceKey(r.region, r.ticker)] = r.name;
+  }
 
   const withPrices = withLivePrices(filtered, quoteData.prices).map((p) => ({
     ...p,

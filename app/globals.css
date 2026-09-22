@@ -22,10 +22,32 @@
     @apply w-full min-w-[720px] border-separate border-spacing-0 text-left text-sm;
   }
   .ledger-table th {
-    @apply sticky top-0 z-10 whitespace-nowrap border-b border-ink-700 bg-ink-850 px-3 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-300;
+    @apply sticky top-0 z-30 whitespace-nowrap border-b border-ink-700 bg-ink-850 px-3 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-300;
   }
   .ledger-table td {
     @apply border-b border-ink-700/60 px-3 py-2.5 align-middle;
+  }
+  /* The pinned first column of a wide table.
+
+     The z-index lives HERE rather than as a `z-*` utility because utilities are
+     emitted before this layer, so these rules win over any class regardless of
+     the order they're written in — the same hazard .table-compact documents
+     below. Writing `sticky left-0 z-20` on the cell and expecting it to outrank
+     `.ledger-table th`'s own z-index silently does nothing, which is how the
+     header came to be painted OVER by the body rows scrolling under it.
+
+     The layering is what makes the pinning readable: body rows scroll beneath
+     the header row (z-30 > z-20), and the corner cell — the header of the
+     pinned column — sits above both (z-40), since it is the one cell that has
+     to stay legible while either axis moves. */
+  .ledger-table .cell-pin {
+    @apply sticky left-0;
+  }
+  .ledger-table td.cell-pin {
+    @apply z-20 bg-ink-900;
+  }
+  .ledger-table th.cell-pin {
+    @apply z-40 bg-ink-850;
   }
   /* The table needs to own its scroll (both axes) for its sticky <thead>
      to actually stick to the top of ITS scrollport — an ancestor with
@@ -58,6 +80,50 @@
   }
   .panel {
     @apply rounded-lg border border-ink-700 bg-ink-900;
+  }
+  /* Headline figures — "Total holdings", "Unrealized P/L", the attribution
+     total. They sit in a row, and the row has to WRAP: a text-3xl number plus
+     its label is ~200px, so two of them side by side (plus the row's gap)
+     measured 504px on a 356px phone, which dragged the whole document into a
+     horizontal scroll. The numbers also step down one size below `sm` so a
+     long figure like US$29,926.28 keeps its own line rather than pushing the
+     layout wider than the screen it is on. */
+  /* Replays whenever its React key changes, which is how a range or period
+     switch is animated: the container is remounted under a new key, so the
+     browser restarts this animation instead of snapping the chart and its axis
+     labels into their new shape. One motion for the whole switch on purpose —
+     a chart that also animates its own line-draw underneath (Recharts defaults
+     to a 1.5s draw) gives two competing animations and reads as a stutter.
+
+     Short by design: a quarter second reads as the same chart changing its
+     window, while anything longer feels like waiting for a new page. */
+  .swap-in {
+    animation: swap-in 240ms ease-out both;
+  }
+  @keyframes swap-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  /* The switch still happens, it just arrives instantly. */
+  @media (prefers-reduced-motion: reduce) {
+    .swap-in {
+      animation: none;
+    }
+  }
+  .stat-row {
+    @apply flex flex-wrap items-start gap-x-10 gap-y-4;
+  }
+  .stat-label {
+    @apply text-sm text-ink-300;
+  }
+  .stat-value {
+    @apply num mt-1 text-2xl font-medium sm:text-3xl;
   }
   .field {
     @apply w-full rounded-md border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100 outline-none transition focus:border-accent;

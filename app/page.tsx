@@ -41,25 +41,34 @@ interface ActivityItem {
 }
 
 export default async function HomePage() {
-  // Opportunistically record today's snapshot (idempotent, one row per
-  // UTC day, fails soft). Done before the parallel reads so the chart
+  // Opportunistically record today's snapshot (idempotent, one row per UTC
+  // day, throttled, fails soft). Done before the parallel reads so the chart
   // includes today even on the first load of the day.
   await recordTodaySnapshot();
 
-  const [contributions, cashRows, rates, allPositions, recentTransactions, allTransactions, exchanges, snapshots] =
+  // Every read here is a round trip to a remote pooler at 250-700ms each, so
+  // the ledger is read ONCE and shared: getOpenPositionsFor() replays the very
+  // same rows, and the recent-activity list is the tail of them. This page used
+  // to issue four separate reads of `transaction` (and two of `contribution`,
+  // via the snapshot writer) and paid full latency for every duplicate.
+  const [allTransactions, contributions, cashRows, rates, exchanges, snapshots] =
     await Promise.all([
+      prisma.transaction.findMany({ orderBy: [{ date: "asc" }, { id: "asc" }] }),
       prisma.contribution.findMany({ include: { contributor: true }, orderBy: { date: "desc" } }),
       prisma.cashBalance.findMany(),
-      // fetchFxRates is called inside getOpenPositionsFor too, but
-      // Next.js's fetch cache dedupes identical requests within one
-      // render, so this isn't a second network round trip in practice.
       fetchFxRates(),
-      getOpenPositionsFor(["US", "SG", "HK"], "SGD"),
-      prisma.transaction.findMany({ orderBy: { date: "desc" }, take: 10 }),
-      prisma.transaction.findMany({ orderBy: [{ date: "asc" }, { id: "asc" }] }),
       prisma.cashExchange.findMany({ orderBy: { date: "desc" }, take: 3 }),
       getSnapshots(),
     ]);
+
+  // The 10 newest, newest first — the tail of the ledger already in hand rather
+  // than a second `take: 10` query over the same table.
+  const recentTransactions = allTransactions.slice(-10).reverse();
+
+  // `rates` is handed over rather than left to be re-fetched: two FX quotes
+  // taken moments apart differ in the fourth decimal, which is enough to make
+  // two figures on one page disagree about the same money.
+  const allPositions = await getOpenPositionsFor(["US", "SG", "HK"], "SGD", rates, allTransactions);
 
   // Benchmark indices for the comparison chart. getBenchmarkCloses() caches
   // for 15 minutes and single-flights, so this costs three Yahoo requests per

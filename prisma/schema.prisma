@@ -38,9 +38,17 @@ model Contribution {
   // Human label matching the sheet's row labels, e.g. "Initial Investment",
   // "MAR (2025)", "Additional"
   label         String
-  // Date used for sorting/grouping (first of the month works fine for
-  // regular monthly contributions)
+  // Month the deposit is ATTRIBUTED to (first of that month). This is what the
+  // outlay curve and the per-month pivot need, and it is deliberately not the
+  // payment date — a month funded two months late still belongs to its own
+  // month. See `paidOn` for when the money actually arrived.
   date          DateTime
+  // When the money actually ARRIVED, when known. Nullable because it is only
+  // known for rows whose payment date was recorded; an unknown date must read
+  // as unknown rather than silently counting as on time. Kept separate from
+  // `date` so the schedule question ("are we on time?") can be answered
+  // without disturbing attribution.
+  paidOn        DateTime?
   amount        Float
   createdAt     DateTime    @default(now())
 

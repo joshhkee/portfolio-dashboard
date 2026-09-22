@@ -1,10 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { Money } from "@/components/SignedNumber";
+import { NativeMoney } from "@/components/SignedNumber";
 import AddContributionForm from "@/components/AddContributionForm";
 import AllocationCards from "@/components/AllocationCards";
 import ContributionsPivotTable from "@/components/ContributionsPivotTable";
 import StakeholderPerformance from "@/components/StakeholderPerformance";
 import { toLocalDateInputValue } from "@/lib/dates";
+import { depositSchedule } from "@/lib/schedule";
 import { getOpenPositionsFor } from "@/lib/get-positions";
 import { convertCurrency, fetchFxRates } from "@/lib/fx";
 import { getSnapshots } from "@/lib/snapshots";
@@ -66,6 +67,23 @@ export default async function ContributionsPage() {
 
   const knownContributors = contributorRows.map((r) => r.name);
 
+  // Deposit timing, keyed by the same label the pivot groups on. A month's
+  // money arrives as one lump split across stakeholders, so the month counts
+  // as arrived when its last row did — see lib/schedule.ts.
+  const schedule = depositSchedule(
+    contributions.map((c) => ({ label: c.label, date: c.date, paidOn: c.paidOn }))
+  );
+  const timingByLabel = new Map(schedule.rows.map((r) => [r.label, r]));
+
+  // One dim line, not a dashboard of alerts: enough to say whether the
+  // schedule is being kept, with each late month marked in the table itself.
+  const scheduleNote =
+    schedule.measuredMonths === 0
+      ? null
+      : schedule.lateMonths === 0
+        ? `All ${schedule.measuredMonths} scheduled months arrived within the month.`
+        : `${schedule.lateMonths} of ${schedule.measuredMonths} scheduled months arrived after the month closed — worst ${schedule.worstLate?.label}, ${schedule.worstLate?.daysLate} days late.`;
+
   // Default label/date for the "add default month" quick action — one
   // calendar month after the most recent contribution on record.
   const base = latestDate ?? new Date();
@@ -117,7 +135,18 @@ export default async function ContributionsPage() {
       // One-off tie-break, not a general reordering rule.
       const dateMs =
         label === "Initial Investment" ? g.date.getTime() - 86400000 : g.date.getTime();
-      return { label, dateMs, cells, rowTotal };
+      const timing = timingByLabel.get(label) ?? null;
+      return {
+        label,
+        dateMs,
+        cells,
+        rowTotal,
+        paidOn: timing?.paidOn ?? null,
+        daysLate: timing?.daysLate ?? 0,
+        // Every row under this label, so the label cell's date edit can apply
+        // to the whole month's lump in one go.
+        contributionIds: Array.from(g.entries.values()).flat().map((e) => e.id),
+      };
     })
     .sort((a, b) => b.dateMs - a.dateMs);
 
@@ -126,8 +155,11 @@ export default async function ContributionsPage() {
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-ink-300">Total outlay</p>
-          <p className="num mt-1 text-4xl font-medium">
-            <Money value={grandTotal} />
+          {/* Every contribution in this ledger is SGD, so the symbol is S$ —
+              `Money` would print a bare "$" here and read as USD beside the
+              S$-labelled cards directly below. */}
+          <p className="mt-1 text-4xl font-medium">
+            <NativeMoney value={grandTotal} symbol="S$" />
           </p>
         </div>
         {/* API download — rule only wants page navigations in <Link>. */}
@@ -155,7 +187,10 @@ export default async function ContributionsPage() {
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-ink-300">Outlay history</h2>
+          <div className="flex flex-col gap-1">
+            <h2 className="text-sm font-medium text-ink-300">Outlay history</h2>
+            {scheduleNote && <p className="text-xs text-ink-500">{scheduleNote}</p>}
+          </div>
           <AddContributionForm
             knownContributors={knownContributors}
             nextMonthLabel={nextMonthLabel}

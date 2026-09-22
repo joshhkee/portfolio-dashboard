@@ -9,11 +9,11 @@
 // ledger). Today's row is left alone — the live page-load writer owns it.
 
 import { PrismaClient } from "@prisma/client";
-import { computeLedger, fromDbRows } from "../lib/portfolio-engine";
+import { fromDbRows } from "../lib/portfolio-engine";
 import { fetchHistoricalCloses, toYahooSymbol, type HistoricalCloses } from "../lib/prices";
-import { convertCurrency, fetchFxRates } from "../lib/fx";
+import { fetchFxRates } from "../lib/fx";
 import { positionsAsOf } from "../lib/portfolio-engine";
-import { outlayAsOf, dayValue, dayKey } from "../lib/snapshots";
+import { outlayAsOf, dayValue } from "../lib/snapshots";
 
 const prisma = new PrismaClient();
 
