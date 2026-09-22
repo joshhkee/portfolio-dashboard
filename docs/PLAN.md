@@ -24,18 +24,59 @@ npm run build                  # production build
 All four must be clean, plus that part's own acceptance criteria. Do not mark a
 part DONE on a partial pass — leave it IN PROGRESS with a note instead.
 
+Then **publish the checkpoint** (owner's workflow, added 2026-09-22):
+
+```bash
+git add <the files this part touched>
+git commit -m "<what changed and why>"
+git push origin HEAD
+```
+
+and confirm the branch's open pull request still reports **no conflicts** —
+`mergeable: true`, `mergeable_state: clean`. The four checks above must pass on
+the exact pushed code. Do not merge the PR yourself unless the owner asks: the
+checkpoint is "PR updated and mergeable", not "merged".
+
+## Pull-request workflow — required from 2026-09-22
+
+One long-lived pull request is kept open for this branch against `main`, and
+every checkpoint keeps it green:
+
+- Branch: `freebuff/analyse-my-current-portfolio-dashboard-project-and-29b0adb2-a864-46b1-9352-6fb3fcb2b204`
+  (`origin` -> `github.com/joshhkee/portfolio-dashboard`).
+- Push normally. **Never** force-push, switch branches, or change git config.
+- A clean `git push` is NOT proof the PR is conflict-free — re-read the PR and
+  check `mergeable` / `mergeable_state` explicitly.
+- If a conflict appears, bring the base in (`git merge origin/main`), resolve
+  every conflict preserving both sides' intent, re-run the checkpoint protocol,
+  then push again. Rebase only if the owner explicitly asks.
+- `main` moves under this branch each time the owner merges a PR, so re-check
+  mergeability before declaring a checkpoint done.
+
+This machine has no `gh`. The token `git push` already uses is stored in the
+Windows Credential Manager; `printf "protocol=https\nhost=github.com\n\n" |
+git credential fill` prints it. Use it only in-process — never echo it, never
+commit it, and delete any temporary file immediately. Then read the PR through
+`GET /repos/joshhkee/portfolio-dashboard/pulls/<n>` and look at `mergeable`,
+`mergeable_state`, `state` and `merged_at`.
+
 ## Status
 
 | Part | Scope | Status |
 |---|---|---|
-| 1 | Gold chart series + outlay-line separation | **DONE** |
-| 2 | Stock name lookup from chart meta, cached + override | **DONE** |
-| 3 | Contrast corrections + gold-as-data fix | **DONE** |
-| 3b | Multi-series data palette | DEFERRED (belongs with Part 5) |
-| 4 | TWR, underwater chart, range selectors | **DONE** |
-| 5 | Benchmark comparison + alpha/beta | TODO — **start here** |
+| 1 | Gold chart series + outlay-line separation | **DONE** (merged in #3) |
+| 2 | Stock name lookup from chart meta, cached + override | **DONE** (merged in #4) |
+| 3 | Contrast corrections + gold-as-data fix | **DONE** (merged in #4) |
+| 3b | Multi-series data palette | DEFERRED -> folded into Part 5 |
+| 4 | TWR, underwater chart, range selectors, yearly table | **DONE** (merged in #5) |
+| 5 | Benchmark comparison + alpha/beta (+ Part 3b palette) | TODO — **start here** |
 | 6 | Per-stakeholder performance view | TODO |
 | 7 | Sparklines + command palette | TODO |
+| 8 | Notes redesign (auto factual half + structured context) | TODO — owner picks an option first |
+| 9 | Concentration & risk analytics (HHI, Sharpe, correlation) | TODO |
+| 10 | Exposure analytics (sector tags, currency + FX attribution) | TODO |
+| 11 | Contribution attribution (per position, per period) | TODO |
+| 12 | Responsive & loading polish (mobile tables, skeletons) | TODO |
 
 ---
 
@@ -44,12 +85,13 @@ part DONE on a partial pass — leave it IN PROGRESS with a note instead.
 **State:** parts 1–4 finished and verified. Next action: **Part 5 (benchmark
 comparison + alpha/beta)**.
 
-**Git:** all of parts 1–4 are committed and pushed. `d90c065` is the tip
-(Part 4: TWR, drawdown chart, range selectors, per-year returns, plus the
-owner's reversal of the Part 3 bar colour — proportion bars are back on gold);
-`3fbc564` was parts 1–3. The working tree is clean and the branch is pushed to
-`origin`; **no pull request is open** for it, by the owner's choice. Part 5
-therefore starts from a clean fallback point.
+**Git:** parts 1–4 are committed, pushed, and **merged into `main`** through
+pull requests #3, #4 and #5 (merge commits `6a357af`, `c166bf0`, `c6071c5`).
+The branch head `5ccabf0` is an ancestor of `origin/main`, so the branch was
+fully integrated; it has since been fast-forwarded to `origin/main` and the
+backlog below was added on top. **A pull request is now opened for every
+checkpoint** (see "Pull-request workflow"). Part 5 starts from `main`'s tip, so
+begin by checking the PR is still mergeable before writing code.
 
 **Verification on the current tree (all four ran green at the end of this
 session):**
@@ -61,8 +103,10 @@ npx eslint app components lib tests -> clean
 npm run build                      -> succeeded (all routes compiled)
 ```
 
-**Live preview:** `http://localhost:52422` (dev server from this worktree). The
-port matters — see the env notes; restart with `npm run dev -- -p 52422`.
+**Live preview:** previously `http://localhost:52422` (dev server from this
+worktree). **The server is not running now** — the Freebuff app restarted after
+this session, which kills it. Restart with `npm run dev -- -p 52422`; the port
+matters, see the env notes.
 
 **What to do first tomorrow:**
 
@@ -76,8 +120,9 @@ port matters — see the env notes; restart with `npm run dev -- -p 52422`.
    checkpoint protocol.
 
 **Open items deliberately not done:** part 3b's six-colour multi-series palette
-(unused until Part 5 adds a second chart series — add it as part of Part 5),
-and committing part 4.
+(unused until Part 5 adds a second chart series — add it as part of Part 5).
+Parts 8–12 are the feature/design backlog captured from the research pass on
+this date; none of them are started, and Part 8 needs an owner decision first.
 
 ---
 
@@ -314,3 +359,133 @@ total portfolio value.
 (batch the fetches — no per-row waterfall), and a Cmd/Ctrl+K palette to jump to
 a ticker, log a transaction, and navigate, styled to ink-850 with a hairline
 border. Honour `prefers-reduced-motion`.
+
+---
+
+## Part 8 — Notes redesign
+
+**Owner decision required before coding.** The `notes` column currently does
+two unrelated jobs, and the fix is to separate them, not to restyle the field.
+
+Measured on the live database (2026-09-22): 64 transactions and **all 64 carry
+a note**; 56 of the 64 match the `"<TICKER> - <name>"` reference-data pattern;
+26 distinct positions exist. Real examples of what is in the column (these are
+instrument names, not secrets): `VOO - Vanguard S&P 500 ETF`, `D05 - DBS`,
+`03115 - iShares Core Hang Seng Index ETF`, `B - Second Buy`,
+`QQQ - Sell All`. One note misspells *Procter* as
+*Proctor* — that typo class is exactly what automation deletes.
+
+The two jobs:
+
+1. **Reference data** — the instrument's name. Part 2 made this redundant:
+   `TickerMeta` caches the name per `(region, ticker)` and the UI renders it.
+   Retyping it into a note is duplication that can drift from the cache.
+2. **Human context** — what the owner was thinking (`B - Second Buy`,
+   `QQQ - Sell All`). This is the part worth keeping.
+
+Options, ranked by value per unit of effort:
+
+- **(a) Auto-generate the factual half.** The engine already derives
+  `runningQty`, `runningAvgCost` and `transactionValue` for every row
+  (`lib/portfolio-engine.ts`, surfaced through `EditableTransactionRow`), so the
+  ledger can render a summary with zero typing — e.g.
+  `Added 5 @ US$546.00 · avg 546.00 -> 541.20 (-0.9%)`, `Position opened`,
+  `Position closed`. It must stay **derived, never stored** (invariant 1); do
+  not write it back into `notes`.
+- **(b) One-time reference-data cleanup.** Once names render from `TickerMeta`,
+  strip the now-redundant `"<TICKER> - <name>"` prefix from the 56 name-style
+  notes, keeping any real trailing context. This rewrites real rows, so it needs
+  the owner's explicit go-ahead and a printed before/after dry run first.
+- **(c) Typed notes.** A small closed set of note kinds plus freeform text, so
+  notes become filterable and countable rather than only readable.
+- **(d) Position-level journal.** Attach notes to a `(region, ticker)` over time
+  instead of to a single ledger row, so "why do I hold this" has one home.
+- **Not options:** a second free-text field, or putting fees/allocation into
+  notes (see Non-goals).
+
+**Acceptance (once the owner picks):** the chosen option is implemented without
+storing derived values; the ledger renders it; and notes that carry human
+context remain byte-identical unless option (b) was explicitly approved.
+
+---
+
+## Part 9 — Concentration & risk analytics
+
+Pure arithmetic on data the app already loads; no new provider. Add a
+risk/composition panel on the home page.
+
+- **Concentration:** largest-position weight, top-5 weight, and **HHI**
+  (`sum of w_i^2`) with its reciprocal shown as "effective number of holdings".
+  With ~18 positions and over 60% in one region, this is genuinely informative.
+- **Volatility:** annualized standard deviation of daily portfolio returns —
+  reuse Part 4's `filterByRange` / `PerfPoint` series in `lib/performance.ts`,
+  do not re-derive the return series.
+- **Sharpe ratio:** `(annualized return - risk-free) / volatility`, with the
+  risk-free assumption **displayed in the UI**, and a guard when volatility is
+  ~0. Risk-adjusted return is the modern standard over raw return.
+- **Correlation matrix:** pairwise correlation of held tickers from
+  `fetchHistoricalCloses` — batch the calls (the backfill script's 500ms
+  spacing), never one request per page load.
+- **Rolling windows:** the residual of the research's "rolling windows" item —
+  a rolling 1Y annualized series on the value chart. Part 4 already delivered
+  the fixed ranges and the calendar-year table.
+
+**Acceptance:** every number derives from existing data; the risk-free rate is
+shown beside Sharpe; all price-history work is batched and cached with no
+unbounded Yahoo calls per page load; unit tests pin HHI and Sharpe on known
+inputs.
+
+---
+
+## Part 10 — Exposure analytics
+
+- **Sector / asset-class exposure.** One manual tag per instrument
+  (`DRAM -> Semiconductors`, `D05 -> Banks`, `VOO -> US Equity Index`) stored on
+  `TickerMeta` (Part 2). There is currently **no** `sector`/`assetClass` field
+  anywhere in the schema, so this needs a migration. Manual tagging captures
+  most of the value without a paid look-through provider; it surfaces an
+  exposure donut and concentration-by-sector. `TickerMeta` is a cache, so an
+  unset tag means "unknown" — never silently "Other".
+- **Currency exposure + FX attribution.** Base is SGD while holdings are USD,
+  SGD and HKD, so part of the SGD P&L is currency movement. Split SGD P&L into
+  **local return** and **FX return** so the currency slice stops hiding inside
+  the total. The ETF-overlap this exposes (QQQ + QQQM + VUG) is worth showing,
+  not silently deduplicating.
+
+**Acceptance:** the exposure donut either sums to 100% of value or is
+labelled "unclassified"; FX attribution reconciles with total P&L to the cent.
+
+---
+
+## Part 11 — Contribution attribution
+
+"Which holding, and which period, drove this result" — the question a single
+return number cannot answer. Per-position contribution to the selected range's
+change in value, plus the same split by month/quarter, reconciled against the
+portfolio total. Depends on Part 4's range selector.
+
+**Acceptance:** per-position contributions sum to the portfolio change for the
+selected range; neither fees nor target allocation appear (Non-goals).
+
+---
+
+## Part 12 — Responsive & loading polish
+
+Two measured gaps, independent of each other:
+
+- **Mobile tables.** `.ledger-table` forces `min-w-[720px]` and `.table-scroll`
+  scrolls both axes, which is right on desktop but makes the ledger a sideways
+  scroll on a phone. Options: collapse low-value columns under `md`, stack each
+  row into a card, or a per-row overflow menu. The sticky `<thead>` depends on
+  `.table-scroll` owning both axes — do not break that (see the comment in
+  `app/globals.css`).
+- **Skeletons.** Only `app/holdings/loading.tsx` exists, so `/`, `/outlay`,
+  `/transactions`, `/completed-trades`, `/watchlist` and `/cash` jump on
+  navigation. Add an ink-toned skeleton matching each page's layout.
+
+Already done, so drop it from the research list: **sticky table headers**
+(`.ledger-table th` is already `sticky top-0` in `app/globals.css`), **range
+selectors** (Part 4), and the **gold-as-data decision** (owner prefers gold).
+
+**Acceptance:** no horizontal page scroll at 390px width; every dynamic route
+has a `loading.tsx`; any new animation honours `prefers-reduced-motion`.
