@@ -6,15 +6,29 @@ import { usePathname, useRouter } from "next/navigation";
 import { Menu, Search, X } from "lucide-react";
 import { OPEN_PALETTE_EVENT } from "@/lib/command-search";
 
+/**
+ * The five objects the app is organised around.
+ *
+ * The list used to be eight entries in the order the app was built — Home,
+ * Outlay, Transactions, Holdings, Exposure, Attribution, Watchlist, Completed
+ * Trades — which made it a list of REPORTS: four of them were views of the same
+ * positions and money, competing for top-level slots. Now each entry is a thing
+ * the owner has (positions, performance, money, a watchlist, today), and the
+ * reports are lenses inside the object they describe:
+ *
+ *   Positions    US / SG / HK · Exposure lens · the trade ledger
+ *   Performance  returns & risk · Attribution lens · realized trades
+ *   Money        deposits & schedule · cash & conversions
+ *
+ * Nothing is unreachable as a result: every lens kept a real URL, `next.config`
+ * redirects the old ones, and the command palette indexes all of them.
+ */
 const links = [
-  { href: "/", label: "Home" },
-  { href: "/outlay", label: "Outlay" },
-  { href: "/transactions", label: "Transactions" },
-  { href: "/holdings", label: "Holdings" },
-  { href: "/exposure", label: "Exposure" },
-  { href: "/attribution", label: "Attribution" },
+  { href: "/", label: "Today" },
+  { href: "/positions", label: "Positions" },
+  { href: "/performance", label: "Performance" },
+  { href: "/money", label: "Money" },
   { href: "/watchlist", label: "Watchlist" },
-  { href: "/completed-trades", label: "Completed Trades" },
 ];
 
 export default function Nav() {
@@ -31,15 +45,15 @@ export default function Nav() {
   }, []);
   const shortcutLabel = isMac ? "⌘K" : "Ctrl K";
 
-  // Below the `lg` breakpoint the eight links live behind this disclosure.
+  // Below the `lg` breakpoint the links live behind this disclosure.
   //
   // They used to be a single always-visible row, which is what made every page
   // in the app scroll sideways on a phone: the un-wrappable <ul> alone measured
   // ~675px, so the document was ~995px wide on a 390px screen and the whole
-  // page could be dragged left and right. The breakpoint is `lg` rather than
-  // `md` because the row plus the brand, palette chip and log-out button needs
-  // roughly 880px to sit on one line — at `md` it would overflow the 768px
-  // viewport it was supposedly designed for.
+  // page could be dragged left and right. Five objects need far less room than
+  // eight did, but the breakpoint stays `lg`: the row plus the brand, palette
+  // chip and log-out button still wants the width, and a bar that only just
+  // fits at `md` is a bar that overflows at `md` on a longer label.
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Close on navigation: otherwise tapping a link leaves the panel sitting open

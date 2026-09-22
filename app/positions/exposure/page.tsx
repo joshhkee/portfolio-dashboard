@@ -71,7 +71,8 @@ export default async function ExposurePage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <div>
-          <h1 className="text-sm text-ink-300">Exposure</h1>
+          {/* No heading of its own: the section tab above already names this
+              page, so repeating it here would just be two titles. */}
           <p className="text-xs text-ink-500">
             Holdings only — {lines.length} position{lines.length === 1 ? "" : "s"}, S$
             {formatAmount(bySector.totalValueSgd)}. Cash is excluded: it has no sector, and counting

@@ -90,7 +90,7 @@ export default async function AttributionPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <div>
-          <h1 className="text-sm text-ink-300">Attribution</h1>
+          {/* No heading of its own: the section tab above names this page. */}
           <p className="text-xs text-ink-500">
             {matrix.rows.length} instrument{matrix.rows.length === 1 ? "" : "s"} ever traded,
             measured from {formatShortDate(new Date(`${matrix.baselineDay}T00:00:00Z`))} — the day
