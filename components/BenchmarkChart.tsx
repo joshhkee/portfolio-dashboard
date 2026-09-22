@@ -11,15 +11,12 @@ import {
   Tooltip,
   ReferenceLine,
 } from "recharts";
+import { alphaBeta, benchmarkVerdict, growthIndex, rebaseTo100 } from "@/lib/benchmarks";
 import {
-  alphaBeta,
-  benchmarkDailyReturns,
-  benchmarkVerdict,
-  growthIndex,
   portfolioDailyReturns,
-  rebaseTo100,
-} from "@/lib/benchmarks";
-import type { PerfPoint } from "@/lib/performance";
+  priceReturns,
+  type PerfPoint,
+} from "@/lib/performance";
 import BenchmarkExplainer from "@/components/BenchmarkExplainer";
 
 /** Same order as the value chart's series so the two read consistently: the
@@ -155,7 +152,7 @@ export default function BenchmarkChart({
     }));
 
     const stats = hasBenchmark
-      ? alphaBeta(portfolioDailyReturns(points), benchmarkDailyReturns(aligned))
+      ? alphaBeta(portfolioDailyReturns(points), priceReturns(aligned))
       : null;
 
     // The plain-language answer, derived from the same two series the chart

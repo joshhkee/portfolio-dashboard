@@ -12,7 +12,7 @@
 // instead of against pixels.
 
 import { fetchHistoricalCloses, type HistoricalCloses } from "@/lib/prices";
-import type { PerfPoint } from "@/lib/performance";
+import { portfolioDailyReturns, type PerfPoint } from "@/lib/performance";
 
 export interface BenchmarkDef {
   key: string;
@@ -79,77 +79,11 @@ export async function getBenchmarkCloses(
   return request;
 }
 
-/**
- * One close per requested date, carrying the previous close forward.
- *
- * Benchmark series are trading-day only while DailySnapshot rows are
- * calendar-daily, so an exact-date lookup would leave every weekend and
- * holiday as a hole. Carrying the last close forward keeps the two series
- * the same length and index-aligned — which matters because the regression
- * below pairs them positionally.
- *
- * Dates before the benchmark has any data yield null rather than the first
- * later close, so a window that starts earlier than the index (or a symbol
- * Yahoo returns nothing for) shows as a gap instead of a fabricated flat line.
- */
-export function alignCloses(dates: string[], closes: HistoricalCloses): (number | null)[] {
-  const keys = Object.keys(closes).sort();
-  if (keys.length === 0) return dates.map(() => null);
-
-  const out: (number | null)[] = [];
-  let cursor = -1; // index into keys of the newest close <= the current date
-  for (const date of dates) {
-    while (cursor + 1 < keys.length && keys[cursor + 1] <= date) cursor++;
-    out.push(cursor >= 0 ? closes[keys[cursor]] : null);
-  }
-  return out;
-}
-
 /** Rescale so the first usable value is exactly 100. */
 export function rebaseTo100(values: (number | null)[]): (number | null)[] {
   const base = values.find((v) => v !== null && v > 0);
   if (base === undefined || base === null) return values.map(() => null);
   return values.map((v) => (v === null ? null : (v / base) * 100));
-}
-
-/** Fractional change between consecutive values; NaN where a pair is unusable. */
-export function benchmarkDailyReturns(values: (number | null)[]): number[] {
-  const out: number[] = [];
-  for (let i = 1; i < values.length; i++) {
-    const prev = values[i - 1];
-    const cur = values[i];
-    if (prev === null || cur === null || prev <= 0) {
-      out.push(NaN);
-      continue;
-    }
-    out.push(cur / prev - 1);
-  }
-  return out;
-}
-
-/**
- * Daily portfolio returns with contributions removed — the same formula
- * timeWeightedReturn() chains, exposed per-day so it can be regressed against
- * a benchmark. Losing more than the whole portfolio in one day is a bad
- * snapshot rather than a return, so it's clamped; a zero/negative base yields
- * NaN, which the regression drops instead of letting it poison the fit.
- */
-export function portfolioDailyReturns(points: PerfPoint[]): number[] {
-  const out: number[] = [];
-  for (let i = 1; i < points.length; i++) {
-    const prev = points[i - 1];
-    const cur = points[i];
-    if (prev.totalValueSgd <= 0) {
-      out.push(NaN);
-      continue;
-    }
-    const newMoney = cur.costBasisSgd - prev.costBasisSgd;
-    let daily = (cur.totalValueSgd - prev.totalValueSgd - newMoney) / prev.totalValueSgd;
-    if (!Number.isFinite(daily)) daily = NaN;
-    else if (daily < -1) daily = -1;
-    out.push(daily);
-  }
-  return out;
 }
 
 /**

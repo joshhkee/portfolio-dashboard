@@ -1,14 +1,7 @@
 import { describe, it, expect } from "vitest";
-import {
-  alignCloses,
-  alphaBeta,
-  benchmarkDailyReturns,
-  benchmarkVerdict,
-  growthIndex,
-  portfolioDailyReturns,
-  rebaseTo100,
-} from "@/lib/benchmarks";
-import type { PerfPoint } from "@/lib/performance";
+import { alphaBeta, benchmarkVerdict, growthIndex, rebaseTo100 } from "@/lib/benchmarks";
+import { portfolioDailyReturns, priceReturns, type PerfPoint } from "@/lib/performance";
+import { alignCloses } from "@/lib/prices";
 
 function point(date: string, totalValueSgd: number, costBasisSgd: number): PerfPoint {
   return { date, totalValueSgd, costBasisSgd };
@@ -90,9 +83,9 @@ describe("growthIndex", () => {
   });
 });
 
-describe("benchmarkDailyReturns", () => {
+describe("priceReturns", () => {
   it("returns zero for a carried-forward (market closed) day", () => {
-    const returns = benchmarkDailyReturns([100, 100, 110]);
+    const returns = priceReturns([100, 100, 110]);
     expect(returns[0]).toBe(0);
     // Compared approximately on purpose: 110/100 - 1 is 0.10000000000000009,
     // so exact equality here would be testing IEEE 754, not the function.
@@ -100,7 +93,7 @@ describe("benchmarkDailyReturns", () => {
   });
 
   it("marks unusable pairs as NaN so the regression can drop them", () => {
-    const returns = benchmarkDailyReturns([null, 100, null]);
+    const returns = priceReturns([null, 100, null]);
     expect(returns).toHaveLength(2);
     expect(Number.isNaN(returns[0])).toBe(true);
     expect(Number.isNaN(returns[1])).toBe(true);

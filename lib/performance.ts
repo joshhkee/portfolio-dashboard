@@ -129,6 +129,47 @@ export function annualizeReturn(
   return Math.pow(base, 365.25 / days) - 1;
 }
 
+/** Fractional change between consecutive values; NaN where a pair is unusable. */
+export function priceReturns(values: (number | null)[]): number[] {
+  const out: number[] = [];
+  for (let i = 1; i < values.length; i++) {
+    const prev = values[i - 1];
+    const cur = values[i];
+    if (prev === null || cur === null || prev <= 0) {
+      out.push(NaN);
+      continue;
+    }
+    out.push(cur / prev - 1);
+  }
+  return out;
+}
+
+/**
+ * Daily portfolio returns with contributions removed — the same formula
+ * timeWeightedReturn() chains, exposed per-day so it can be regressed against
+ * a benchmark or fed to a risk statistic. Losing more than the whole
+ * portfolio in one day is a bad snapshot rather than a return, so it's
+ * clamped; a zero/negative base yields NaN, which consumers drop instead of
+ * letting it poison their result.
+ */
+export function portfolioDailyReturns(points: PerfPoint[]): number[] {
+  const out: number[] = [];
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1];
+    const cur = points[i];
+    if (prev.totalValueSgd <= 0) {
+      out.push(NaN);
+      continue;
+    }
+    const newMoney = cur.costBasisSgd - prev.costBasisSgd;
+    let daily = (cur.totalValueSgd - prev.totalValueSgd - newMoney) / prev.totalValueSgd;
+    if (!Number.isFinite(daily)) daily = NaN;
+    else if (daily < -1) daily = -1;
+    out.push(daily);
+  }
+  return out;
+}
+
 export interface DrawdownPoint {
   date: string;
   /** Fraction below the running peak, e.g. -0.138 for −13.8%. Zero at a new high. */

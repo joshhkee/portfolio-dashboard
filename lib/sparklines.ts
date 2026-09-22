@@ -14,6 +14,7 @@
 // repeat inside the hour is served from memory anyway; the cache here also
 // covers the shaping (an ascending array per ticker) and the cap below.
 
+import { mapWithConcurrency } from "@/lib/concurrency";
 import { fetchHistoricalCloses, priceKey, toYahooSymbol } from "@/lib/prices";
 
 export const SPARKLINE_RANGE = "1mo";
@@ -34,28 +35,6 @@ const cache = new Map<string, { at: number; data: number[] }>();
 export interface SparklineKey {
   region: string;
   ticker: string;
-}
-
-/**
- * Run an async mapper with at most `limit` promises in flight, resolving to
- * results in the input order. Small enough not to justify a dependency.
- */
-export async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T, index: number) => Promise<R>
-): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let next = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    for (;;) {
-      const index = next++;
-      if (index >= items.length) return;
-      results[index] = await fn(items[index], index);
-    }
-  });
-  await Promise.all(workers);
-  return results;
 }
 
 /**

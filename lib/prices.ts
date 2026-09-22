@@ -154,6 +154,32 @@ export async function fetchHistoricalCloses(
   }
 }
 
+/**
+ * One close per requested date, carrying the previous close forward.
+ *
+ * Yahoo series are trading-day only while DailySnapshot rows are
+ * calendar-daily, so an exact-date lookup would leave every weekend and
+ * holiday as a hole. Carrying the last close forward keeps two series the
+ * same length and index-aligned — which matters wherever they are paired
+ * positionally (the benchmark regression, the correlation matrix).
+ *
+ * Dates before the series has any data yield null rather than the first
+ * later close, so a window that starts earlier than the series (or a symbol
+ * Yahoo returns nothing for) shows as a gap instead of a fabricated flat line.
+ */
+export function alignCloses(dates: string[], closes: HistoricalCloses): (number | null)[] {
+  const keys = Object.keys(closes).sort();
+  if (keys.length === 0) return dates.map(() => null);
+
+  const out: (number | null)[] = [];
+  let cursor = -1; // index into keys of the newest close <= the current date
+  for (const date of dates) {
+    while (cursor + 1 < keys.length && keys[cursor + 1] <= date) cursor++;
+    out.push(cursor >= 0 ? closes[keys[cursor]] : null);
+  }
+  return out;
+}
+
 /** Descriptive fields per compound "REGION::TICKER" key. */
 export interface MetaMap {
   [compoundKey: string]: QuoteMeta;
