@@ -103,10 +103,13 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 25 | Notes: the ledger derives its own line, and the 64 stored notes cleaned up against the owner's verdicts | **DONE** |
 | 26 | Watchlist: names and today's move from the full quote pipeline, a 30-day trend, and the notes column repurposed to "why I'm watching this" | **DONE** |
 | 27 | Watchlist entry signals (1y range position, % off high, RSI, 50/200-day trend) + the trade-history modal redesigned onto one scroll container | **DONE** |
+| 28 | Watchlist entry-level chart (price + 1y low/high + 50-day average), a gauge-style range bar, and "How to read these" | **DONE** |
+| 29 | Today's movers show the current price beside the day's change | **DONE** |
+| 30 | Accounts: roles, a request-and-approve queue with josh as admin, and "Add account" on Today | IN PROGRESS |
 
 ---
 
-## Resume checkpoint — 2026-09-23 (after Part 27)
+## Resume checkpoint — 2026-09-23 (after Part 29)
 
 **State:** parts 1–7, 9–17 and 19–21 were already done, plus **Part 22** (Today's
 movers, the colour rule, a shorter attention list), **Part 23** (a prominent
@@ -2472,3 +2475,69 @@ sign now, while the colour stays on the percentage alone.
   history to read yet — 0 trading sessions, and these signals need 200"* and
   every cell shows `—` with an explanatory tooltip. The watchlist was back to its
   real **2 rows** afterwards.
+
+---
+
+## Part 28 — the entry-level chart, a range bar that stops looking draggable, and
+the explanation the tiles were missing (DONE)
+
+**The bar was read as a control.** A filled track with a round knob on it is
+what a slider looks like, and the first version was reported as "looks like it
+can be moved". The knob is now a 2px vertical **needle**, the track carries
+**graduations at both ends**, and there is no hover state anywhere on it: a
+control has handles, a gauge has a scale.
+
+**`SignalsExplainer` (new)** — the four tiles stated facts and stopped, which
+was a deliberate first choice and turned out to be one step too austere: "RSI
+27" is only useful to someone who already knows what it implies for a purchase.
+A collapsible panel now gives each measure what it is, how it is normally read,
+and the caveat that makes it honest — range position is a level, not a
+justification; under ~5% off the high there is no cushion so a stop has to sit
+close; RSI can stay extreme for weeks so it is "stretched right now", never a
+date; an uptrend with a dip in it (what `mixed` usually describes) is the
+"buy the pullback" setup, while a downtrend is where cheap keeps getting
+cheaper. It closes by saying plainly what the four cannot tell you — whether the
+company is worth owning, and how large the position should be. Collapsible for
+the same reason `BenchmarkExplainer` is: several paragraphs do not belong open on
+a one-glance page, and a tooltip is unreachable on touch.
+
+**`EntryLevelChart` (new)** — a year of daily closes, with the two levels an
+entry decision actually refers to: the window's low and high drawn as dashed
+ink lines, and the **50-day average** as a second series. Volume was offered and
+declined (it answers "was there conviction", not "where would I buy"). Colours
+follow the app's multi-series rule: price is the primary series and keeps the
+brand gold, the average is a reference in the muted data steel, the levels are
+chrome in the ink greys. The chart and the tiles cannot disagree, because
+`getEntryAnalysis` returns the closes AND the measures from ONE fetch, and the
+chart's average line is `rollingSma` — whose last element a test pins to
+`sma()`, the number the Trend tile prints.
+
+**A real bug, found by measuring the DOM instead of trusting the picture.** The
+chart's SVG had grown to **2577px inside a 1360px panel** — absorbed as
+horizontal scroll, so it looked like a chart that simply ended in March. The
+cause is structural: a `ResponsiveContainer` measures its own container, and
+inside an **auto-layout table cell** that is a feedback loop — the chart writes a
+pixel width into the cell, the cell's min-content then includes that width, the
+table widens, and the observer measures a wider box again. The table is
+`table-fixed` now, so its columns come from the widths declared on the header row
+and no cell's content can move them. Re-measured: SVG **1245px** in a 1261px
+cell, panel scroll **0**.
+
+**Verification:** XLV's chart draws 252 daily closes with the dashed high at
+US$175.68 and low at US$134.13 matching the tiles exactly; the explainer opens
+with four terms and four paragraphs (360–460 characters each); the panel scrolls
+neither axis (`scrollWidth === clientWidth`), document overflow 0.
+
+---
+
+## Part 29 — Today's movers show the price (DONE)
+
+The tile said `ONON +8.40%`, which is a percentage with nothing to attach it to:
+you cannot place an order against a change. Each movers row now reads
+`ONON · US$29.62 · +8.40%` — price in the holding's own currency (US$, S$, HK$),
+neutral ink because a price is a value and colour here means up or down, with the
+change in a fixed-width cell so the percentages form a column. The link's
+tooltip still carries what is held (`S$1,888.55 held · ONON at US$29.62`), since
+the position value is the one thing the row deliberately leaves out to stay
+readable at a third of the window's width. Measured: 6 movers, panel 415px, no
+overflow inside the panel or the document.

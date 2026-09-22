@@ -11,7 +11,7 @@ import TickerName from "@/components/TickerName";
 import RangeBar, { rangePositionLabel } from "@/components/RangeBar";
 import WatchlistSignals from "@/components/WatchlistSignals";
 import type { WatchlistRow } from "@/lib/watchlist";
-import type { EntrySignals } from "@/lib/entry-signals";
+import type { EntrySeries, EntrySignals } from "@/lib/entry-signals";
 
 export default function WatchlistPanel({ initialRows }: { initialRows: WatchlistRow[] }) {
   const router = useRouter();
@@ -23,6 +23,7 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
   const [editing, setEditing] = useState<number | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [signals, setSignals] = useState<Record<string, EntrySignals> | null>(null);
+  const [entrySeries, setEntrySeries] = useState<Record<string, EntrySeries>>({});
 
   // One batched request for every row's 30-day trend, exactly as the positions
   // tables do — see app/api/sparklines/route.ts. Keyed by priceKey(), which is
@@ -58,12 +59,17 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
     if (!trendKeys) return;
     let cancelled = false;
     fetch(`/api/watchlist/signals?keys=${encodeURIComponent(trendKeys)}`)
-      .then((res) => (res.ok ? res.json() : { signals: {} }))
+      .then((res) => (res.ok ? res.json() : { signals: {}, series: {} }))
       .then((data) => {
-        if (!cancelled) setSignals(data.signals ?? {});
+        if (cancelled) return;
+        setSignals(data.signals ?? {});
+        setEntrySeries(data.series ?? {});
       })
       .catch(() => {
-        if (!cancelled) setSignals({});
+        if (!cancelled) {
+          setSignals({});
+          setEntrySeries({});
+        }
       });
     return () => {
       cancelled = true;
@@ -217,7 +223,16 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
             Nothing on the watchlist yet. Track a ticker you are considering buying.
           </p>
         ) : (
-          <table className="ledger-table table-compact">
+          /* `table-fixed`, and that is load-bearing rather than stylistic: the
+             expanded row contains a chart that measures its own container, and
+             in an auto-layout table that is a feedback loop — the chart sets a
+             pixel width from the cell, the cell's min-content then includes
+             that width, the table widens, and the observer measures a wider box
+             again. It ran to 2577px inside a 1360px panel, absorbed as
+             horizontal scroll. With a fixed layout the columns come from the
+             widths declared on the header row and no cell's content can move
+             them, so the chart has a stable box to fill. */
+          <table className="ledger-table table-compact table-fixed">
             <thead>
               {/* Every column but `Why` is pinned to a width, so the slack in a
                   full-width table lands on the one column whose contents
@@ -380,7 +395,11 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
                             the detail row sets the width of the whole table. */}
                         <td colSpan={8} className="whitespace-normal px-4 py-4">
                           {signal ? (
-                            <WatchlistSignals signals={signal} symbol={symbol} />
+                            <WatchlistSignals
+                              signals={signal}
+                              series={entrySeries[key] ?? null}
+                              symbol={symbol}
+                            />
                           ) : (
                             <p className="text-sm text-ink-300">Loading signals…</p>
                           )}

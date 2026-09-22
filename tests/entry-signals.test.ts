@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   sma,
+  rollingSma,
   rsiWilder,
   rsiZone,
   entrySignals,
@@ -28,6 +29,26 @@ describe("sma", () => {
     expect(sma([1, 2, 3], 4)).toBeNull();
     expect(sma([], 1)).toBeNull();
     expect(sma([1, 2], 0)).toBeNull();
+  });
+});
+
+describe("rollingSma", () => {
+  it("is null until there are n values, then tracks each window", () => {
+    // A chart that started its 50-day line at the left edge would be drawing an
+    // average of three sessions and calling it a 50-day average.
+    expect(rollingSma([1, 2, 3], 2)).toEqual([null, 1.5, 2.5]);
+    expect(rollingSma([1, 2, 3], 4)).toEqual([null, null, null]);
+  });
+
+  it("ends exactly where sma() lands, so a chart and its tile cannot disagree", () => {
+    const values = Array.from({ length: 260 }, (_, i) => 100 + Math.sin(i / 5) * 20 + i * 0.1);
+    for (const n of [20, 50, 200]) {
+      expect(rollingSma(values, n).at(-1)).toBeCloseTo(sma(values, n)!, 10);
+    }
+  });
+
+  it("handles the degenerate window instead of dividing by zero", () => {
+    expect(rollingSma([1, 2], 0)).toEqual([null, null]);
   });
 });
 

@@ -43,7 +43,22 @@ const CONCURRENCY = 4;
  *  thousands of tickers. */
 export const MAX_SIGNAL_KEYS = 60;
 
-const cache = new Map<string, { at: number; data: EntrySignals }>();
+const cache = new Map<string, { at: number; data: EntryAnalysisEntry }>();
+
+/** One instrument's year, as a chart needs it: parallel arrays so a point is
+ *  the same index in each. */
+export interface EntrySeries {
+  /** "YYYY-MM-DD", ascending. */
+  dates: string[];
+  closes: number[];
+  /** The 50-day average per date, null before it exists. */
+  sma50Line: (number | null)[];
+}
+
+export interface EntryAnalysis {
+  signals: Record<string, EntrySignals>;
+  series: Record<string, EntrySeries>;
+}
 
 export interface EntrySignals {
   /** Daily closes the figures below were computed from. */
@@ -97,6 +112,27 @@ export function sma(values: number[], n: number): number | null {
   let sum = 0;
   for (let i = values.length - n; i < values.length; i++) sum += values[i];
   return sum / n;
+}
+
+/**
+ * The same average at every point, for a chart to draw.
+ *
+ * Index i holds the average of the n values ending at i, or null while there
+ * are not yet n of them — so the line starts where the average first exists
+ * rather than at the left edge pretending 3 sessions make a 50-day average.
+ *
+ * The last element is what `sma()` returns, and a test pins that: a chart whose
+ * line ends anywhere other than the number printed in the tile beside it would
+ * make both of them suspect.
+ */
+export function rollingSma(values: number[], n: number): (number | null)[] {
+  if (n <= 0) return values.map(() => null);
+  return values.map((_, i) => {
+    if (i + 1 < n) return null;
+    let sum = 0;
+    for (let j = i - n + 1; j <= i; j++) sum += values[j];
+    return sum / n;
+  });
 }
 
 /**
@@ -199,29 +235,41 @@ export function entrySignals(closes: number[]): EntrySignals {
 }
 
 /**
- * Signals for a set of (region, ticker) pairs, keyed by `priceKey()`.
+ * Signals AND the series they came from, for a set of (region, ticker) pairs,
+ * keyed by `priceKey()`.
  *
  * Batched like the sparklines endpoint and for the same reason: a request per
  * row is a waterfall. Tickers whose history fetch fails, or that are too young
  * to have 200 sessions, come back with a zero-session shell — present, so the
  * UI can say "not enough history", rather than absent, which is
  * indistinguishable from still-loading.
+ *
+ * Both halves come back from ONE fetch: the chart needs the closes the signals
+ * were computed from, and asking for them twice would either be two upstream
+ * calls or a second copy of the shaping. The averages on the chart are drawn
+ * from the same numbers as the averages in the tiles, which is the only way
+ * they can be guaranteed to agree.
  */
-export async function getEntrySignals(
+export async function getEntryAnalysis(
   keys: { region: string; ticker: string }[]
-): Promise<Record<string, EntrySignals>> {
+): Promise<EntryAnalysis> {
   const unique = new Map<string, { region: string; ticker: string }>();
   for (const k of keys) {
     if (!k.region || !k.ticker) continue;
     unique.set(priceKey(k.region, k.ticker), k);
   }
 
-  const out: Record<string, EntrySignals> = {};
+  const signals: Record<string, EntrySignals> = {};
+  const series: Record<string, EntrySeries> = {};
   const stale: { region: string; ticker: string }[] = [];
   for (const [key, k] of unique) {
     const hit = cache.get(key);
-    if (hit && Date.now() - hit.at < TTL_MS) out[key] = hit.data;
-    else stale.push(k);
+    if (hit && Date.now() - hit.at < TTL_MS) {
+      signals[key] = hit.data.signals;
+      series[key] = hit.data.series;
+    } else {
+      stale.push(k);
+    }
   }
 
   await mapWithConcurrency(stale, CONCURRENCY, async (k) => {
@@ -231,15 +279,24 @@ export async function getEntrySignals(
     // what every function above assumes (an SMA of the last n, an RSI that
     // walks forward), and a reversed series would produce a plausible-looking
     // wrong answer rather than an error.
-    const series = Object.keys(closes)
-      .sort()
-      .map((day) => closes[day]);
-    const data = entrySignals(series);
+    const dates = Object.keys(closes).sort();
+    const values = dates.map((day) => closes[day]);
+    const data: EntryAnalysisEntry = {
+      signals: entrySignals(values),
+      series: { dates, closes: values, sma50Line: rollingSma(values, 50) },
+    };
     cache.set(key, { at: Date.now(), data });
-    out[key] = data;
+    signals[key] = data.signals;
+    series[key] = data.series;
   });
 
-  return out;
+  return { signals, series };
+}
+
+/** What the cache holds per instrument — both halves, computed together. */
+interface EntryAnalysisEntry {
+  signals: EntrySignals;
+  series: EntrySeries;
 }
 
 /** Parse the `keys` query parameter. Accepts both separators for the same

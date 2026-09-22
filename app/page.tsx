@@ -3,7 +3,7 @@ import { Plus, TriangleAlert, ChevronRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getOpenPositionsFor } from "@/lib/get-positions";
 import { NativeMoney, Percent, PlainMoney, formatAmount } from "@/components/SignedNumber";
-import { currencySymbol, convertCurrency, fetchFxRates } from "@/lib/fx";
+import { currencySymbol, currencyForRegion, convertCurrency, fetchFxRates } from "@/lib/fx";
 import { formatShortDate } from "@/lib/dates";
 import { dayKey, getSnapshots, recordTodaySnapshot } from "@/lib/snapshots";
 import { depositSchedule } from "@/lib/schedule";
@@ -23,13 +23,16 @@ interface AttentionItem {
   linkLabel: string;
 }
 
-/** One row of the movers tile: the instrument, and how far it moved today. */
+/** One row of the movers tile: the instrument, what it costs, and how far it
+ *  moved today. */
 interface MoverRow {
   region: string;
   ticker: string;
   valueSgd: number;
   /** Latest session's change as a fraction, e.g. 0.031 for +3.1%. */
   dayChangePct: number;
+  /** Latest price in the holding's own currency. */
+  price: number;
 }
 
 /**
@@ -53,11 +56,19 @@ function MoverColumn({ label, rows }: { label: string; rows: MoverRow[] }) {
             href={`/positions/${row.region.toLowerCase()}?ticker=${encodeURIComponent(
               row.ticker
             )}`}
-            title={`S$${formatAmount(row.valueSgd)} held`}
-            className="flex items-baseline justify-between gap-2 text-xs transition hover:text-accent motion-reduce:transition-none"
+            title={`S$${formatAmount(row.valueSgd)} held · ${row.ticker} at ${currencySymbol[currencyForRegion(row.region)]}${formatAmount(row.price)}`}
+            className="flex items-baseline gap-2 text-xs transition hover:text-accent motion-reduce:transition-none"
           >
             <span className="num truncate text-ink-100">{row.ticker}</span>
-            <span className="num shrink-0">
+            {/* The price, so a mover is a price you can act on rather than a
+                percentage with nothing to attach it to. Neutral ink: a price
+                is a value, and colour here means up or down. The change keeps
+                a fixed width so the percentages line up down the column. */}
+            <span className="num ml-auto shrink-0 text-ink-300">
+              {currencySymbol[currencyForRegion(row.region)]}
+              {formatAmount(row.price)}
+            </span>
+            <span className="num w-[3.75rem] shrink-0 text-right">
               <Percent value={row.dayChangePct} />
             </span>
           </Link>
@@ -212,6 +223,7 @@ export default async function TodayPage() {
             ticker: p.ticker,
             valueSgd: p.totalHoldingsConverted,
             dayChangePct: p.dayChangePct,
+            price: p.currentPrice,
           },
         ]
   );
