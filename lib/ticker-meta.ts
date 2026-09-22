@@ -19,6 +19,7 @@ import {
   toYahooSymbol,
   type QuoteMeta,
 } from "@/lib/prices";
+import { suggestSector } from "@/lib/sectors";
 
 export interface TickerMetaEntry {
   region: string;
@@ -113,18 +114,33 @@ export function mergeMeta(existing: ExistingMeta | null, incoming: QuoteMeta) {
 export async function getTickerMetaMaps(): Promise<{
   names: Record<string, string>;
   sectors: Record<string, string>;
+  /** "auto" | "manual" for each tagged instrument, so a reader can tell a
+   * suggested tag from a chosen one. Absent means "no tag". */
+  sectorSources: Record<string, string>;
+  instrumentTypes: Record<string, string>;
 }> {
   const rows = await prisma.tickerMeta.findMany({
-    select: { region: true, ticker: true, name: true, sector: true },
+    select: {
+      region: true,
+      ticker: true,
+      name: true,
+      sector: true,
+      sectorSource: true,
+      instrumentType: true,
+    },
   });
   const names: Record<string, string> = {};
   const sectors: Record<string, string> = {};
+  const sectorSources: Record<string, string> = {};
+  const instrumentTypes: Record<string, string> = {};
   for (const r of rows) {
     const key = priceKey(r.region, r.ticker);
     if (r.name) names[key] = r.name;
     if (r.sector) sectors[key] = r.sector;
+    if (r.sector && r.sectorSource) sectorSources[key] = r.sectorSource;
+    if (r.instrumentType) instrumentTypes[key] = r.instrumentType;
   }
-  return { names, sectors };
+  return { names, sectors, sectorSources, instrumentTypes };
 }
 
 /** Just the names. Thin delegate so existing callers are unaffected. */
@@ -133,32 +149,53 @@ export async function getNameMap(): Promise<Record<string, string>> {
 }
 
 /**
- * Hand-tag an instrument's exposure (sector / asset class).
+ * The tag an instrument should get when nobody has classified it.
  *
- * Deliberately NOT part of the auto-lookup path: no free data source
- * classifies these instruments, so this value is only ever set by the owner.
- * Passing a blank tag clears it back to "unclassified" rather than storing an
- * empty string, so the exposure breakdown can report what is genuinely
- * unknown. A blank upsert must not create a row out of nothing, hence the
- * existence check.
+ * Exported so the exposure page can offer the same suggestion the writer would
+ * apply, from one implementation — a row that says "suggested: Financials" and
+ * a row that gets tagged "Financials" on creation must never disagree.
+ */
+export function suggestedSectorFor(instrument: {
+  region: string;
+  ticker: string;
+  name?: string | null;
+  instrumentType?: string | null;
+}): string | null {
+  return suggestSector(instrument);
+}
+
+/**
+ * Tag an instrument's exposure.
+ *
+ * `source` records who decided: "manual" for anything the owner typed or picked
+ * (the default, because that is what a call with no source means), "auto" when
+ * a batch is applying suggestions. The distinction is the whole reason a
+ * suggested tag can be applied automatically without pretending it was a
+ * decision — and it is what lets the table mark a guess as a guess.
+ *
+ * Passing a blank tag clears `sector` AND `sectorSource` back to "unclassified"
+ * rather than storing an empty string, so clearing a tag really does return the
+ * instrument to "nobody has said", and a later auto-tag pass may suggest again.
+ * A blank upsert must not create a row out of nothing, hence the updateMany.
  */
 export async function setTickerSector(
   region: string,
   ticker: string,
-  sector: string | null
+  sector: string | null,
+  source: "auto" | "manual" = "manual"
 ): Promise<void> {
   const trimmed = sector?.trim().replace(/\s+/g, " ") || null;
   if (trimmed === null) {
     await prisma.tickerMeta.updateMany({
       where: { region, ticker },
-      data: { sector: null },
+      data: { sector: null, sectorSource: null },
     });
     return;
   }
   await prisma.tickerMeta.upsert({
     where: { region_ticker: { region, ticker } },
-    update: { sector: trimmed },
-    create: { region, ticker, sector: trimmed },
+    update: { sector: trimmed, sectorSource: source },
+    create: { region, ticker, sector: trimmed, sectorSource: source },
   });
 }
 
@@ -167,8 +204,15 @@ export async function setTickerSector(
  * holdings path, which already has this data in hand from the price call —
  * so caching it costs no extra network request.
  *
- * Only the fetched fields are written, so `sector` — which is hand-entered and
- * never auto-derived — survives every refresh untouched.
+ * Only the fetched fields are written, so an existing `sector` survives every
+ * refresh untouched — including one the owner cleared on purpose, which is why
+ * the suggestion below is applied on the CREATE path only. Re-filling a cleared
+ * tag on the next render would be a guess overriding an explicit "no".
+ *
+ * A brand-new instrument does get a first-draft tag from lib/sectors.ts: the
+ * owner asked for new stocks to arrive already labelled, and the draft is
+ * marked `sectorSource: "auto"` so the table can show it as a suggestion rather
+ * than as something they decided.
  */
 export async function ensureTickerMeta(
   entries: TickerMetaEntry[],
@@ -189,11 +233,26 @@ export async function ensureTickerMeta(
       // loop wrote 18 rows on every render just to restate what they said,
       // and `fetchedAt` alone made "unchanged" look like a change.
       if (existing && metaIsUnchanged(existing, merged)) continue;
+
+      const suggested = existing
+        ? null
+        : suggestedSectorFor({
+            region,
+            ticker,
+            name: merged.name,
+            instrumentType: merged.instrumentType,
+          });
       writes.push(
         prisma.tickerMeta.upsert({
           where: { region_ticker: { region, ticker } },
           update: { ...merged, fetchedAt: new Date() },
-          create: { region, ticker, ...merged, fetchedAt: new Date() },
+          create: {
+            region,
+            ticker,
+            ...merged,
+            ...(suggested ? { sector: suggested, sectorSource: "auto" } : {}),
+            fetchedAt: new Date(),
+          },
         })
       );
     }

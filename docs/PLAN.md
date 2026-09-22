@@ -45,11 +45,13 @@ every checkpoint keeps it green:
 - Branch: `freebuff/analyse-my-current-portfolio-dashboard-project-and-29b0adb2-a864-46b1-9352-6fb3fcb2b204`
   (`origin` -> `github.com/joshhkee/portfolio-dashboard`).
 - A batch of work rides ONE long-lived pull request (same branch -> `main`).
-  #3–#8 are all merged. **The open PR is #9**
-  (https://github.com/joshhkee/portfolio-dashboard/pull/9), carrying parts 12–14a
-  plus the Prisma build fix. Nothing should open a second PR while one is
-  already open for this branch — but DO open a new one when the previous batch
-  was merged, because a merged PR cannot be reopened to carry later work.
+  #3–#10 are all merged. **The open PR is #11**
+  (https://github.com/joshhkee/portfolio-dashboard/pull/11), carrying Part 20.
+  Nothing should open a second PR while one is already open for this branch —
+  but DO open a new one when the previous batch was merged, because a merged PR
+  cannot be reopened to carry later work. This happens every time: the owner
+  merges each PR between checkpoints, so check for an open PR before pushing
+  rather than assuming yesterday's is still the one to update.
 - Push normally. **Never** force-push, switch branches, or change git config.
 - A clean `git push` is NOT proof the PR is conflict-free — re-read the PR and
   check `mergeable` / `mergeable_state` explicitly.
@@ -90,34 +92,47 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 16 | Accounts: username + password, per-account `lastSeenAt` | **DONE** — no account created yet; make the first one at `/accounts` (Part 19) or `npm run user:add` (the shared-password gate still works) |
 | 17 | Today: hero + since-last-visit, needs-attention, schedule line, one chart, largest positions | **DONE** |
 | 18 | Activity: the four ledgers merged into one filterable timeline | TODO — proposed, not built |
-| 19 | Accounts UI: add / reset / remove accounts at `/accounts` | **DONE** — the app is back to **0 accounts**, so the first real account is the owner's to create on `/accounts` |
+| 19 | Accounts UI: add / reset / remove accounts at `/accounts` | **DONE** — the owner created their own account (`josh`); the bootstrap is closed |
+| 20 | Today fits one desktop screen: chart beside the largest positions | **DONE** — measured 0px of scroll at 1440×900, 1440×780 and 1024×800 |
+| 21 | Exposure page pass + tagging as a system (vocabulary, dropdown, suggestions, batch) | **DONE** — the sector donut stays Unclassified until the owner tags ("Accept the 18 suggestions" is one click) |
 
 ---
 
-## Resume checkpoint — 2026-09-22 (after Part 19)
+## Resume checkpoint — 2026-09-22 (after Part 21)
 
 **State:** parts 1–7 and 9–17 finished and verified, plus **Part 19** — the
 accounts UI (`/accounts`: create, reset, remove), with the bootstrap rule that
 lets the shared-password visitor create the very first account in the browser
-instead of a shell. Earlier this round: the **14b removal** (the `/exposure`
-purchase-date FX split and its machinery are gone), consistent `S$` labelling,
-the **five-object IA** with the old URLs redirected, **accounts**, and the
-**dashboard rebuilt as Today** — 12 panels to 4, 4 charts to 1, 448 rendered
-figures to 31.
+instead of a shell — **Part 20** — Today now fits one desktop screen (the
+chart and the largest positions share a row, the chart takes the leftover
+height, and the late-month count is gone from the page) — and **Part 21** — the
+exposure page rebuilt around a ten-tag vocabulary: a real tag dropdown, a
+funds-vs-stocks view that needs no tagging at all, per-row suggestions the owner
+accepts rather than applies, batch tagging by selection, and the donut's centre
+figure no longer fighting its own tooltip. Earlier this round: the
+**14b removal** (the `/exposure` purchase-date FX split and its machinery are
+gone), consistent `S$` labelling, the **five-object IA** with the old URLs
+redirected, **accounts**, and the **dashboard rebuilt as Today** — 12 panels to
+4, 4 charts to 1, 448 rendered figures to 31.
 
-**Next action:** whichever the owner picks —
-**Part 18 the `/activity` ledger**, **14b's two remaining panels** (realized FX
-on the 25 conversions; unrealized FX on the foreign cash), the **monolith split**
-(`app/page.tsx` and `lib/portfolio-engine.ts` are both large enough that a
-maintainer would flag them), or **Part 8** (notes redesign, still blocked on an
-owner decision).
+**Next action:** the owner asked for the exposure page first and the rest of the
+tabs after ("and later all the tabs, check them in the preview for unnecessary
+space or other out of place features"), so the next UI pass is **`/money`,
+`/performance`, `/positions/us|sg|hk`, `/positions/trades` and `/watchlist`** in
+that order — the exposure page found four real defects (a 933px-wide input, a
+centre figure sitting on its own ring, a tooltip painted under that figure, and
+a duplicated coverage caption), so assume the same class of thing elsewhere.
+After that, whichever the owner picks — **Part 18 the `/activity` ledger**,
+**14b's two remaining panels** (realized FX on the 25 conversions; unrealized FX
+on the foreign cash), the **monolith split** (`app/page.tsx` and
+`lib/portfolio-engine.ts` are both large enough that a maintainer would flag
+them), or **Part 8** (notes redesign, still blocked on an owner decision).
 
-**The accounts state to be aware of before touching auth again:** the `User`
-table is **empty** — every verification account was deleted after it was used,
-and the count was checked back to 0. That is deliberate: the bootstrap rule only
-exists while the count is 0, so the owner's own account should be the first one
-created, from `/accounts`. Once they create it, only an account can add more,
-and the shared password can still sign in but can no longer manage accounts.
+**The accounts state to be aware of before touching auth again:** the owner's
+account **`josh` exists** (created on `/accounts` on 2026-09-22), so the
+bootstrap is closed: the shared password still signs in but can no longer manage
+accounts, and only an account can add more. Every temporary verification account
+was deleted after use; the `User` table is otherwise empty.
 
 **Environment notes that are easy to lose:**
 - The database is SHARED with the main checkout, so a migration or an account
@@ -138,11 +153,15 @@ and the shared password can still sign in but can no longer manage accounts.
 Part 14b" — and the body below is kept because its data-quality findings are
 still current.)
 
-**Part 10 needs no further action on the database:** migration
-`20260922140000_add_ticker_sector` is applied and the column exists. No sector
-tags are stored yet (the DB is exactly as it was found), so the sector donut
-correctly reads Unclassified 100% until the owner tags instruments on
-`/exposure`.
+**Part 10 / Part 21 and the database:** migrations
+`20260922140000_add_ticker_sector` and
+`20260922170000_add_ticker_sector_source` are both applied (the second is
+nullable and additive, so the deployed revision that does not know the column
+exists keeps working against the same shared database). **No sector tags are
+stored yet** — the DB is exactly as it was found after Part 21's write test, so
+the sector donut correctly reads Unclassified 100% until the owner tags
+instruments on `/exposure`. One click does all eighteen: "Accept the 18
+suggestions".
 
 **Git:** parts 1–4 merged into `main` through pull requests #3, #4 and #5
 (`6a357af`, `c166bf0`, `c6071c5`); the Ctrl+K / benchmark-explainer notes plus
@@ -158,16 +177,19 @@ while CI runs.
 **Verification on the current tree (all green at the end of this session):**
 
 ```
-npm test                                     -> 16 files, 242 tests passed
+npm test                                     -> 17 files, 270 tests passed
 npx tsc --noEmit                             -> clean
 npx eslint app components lib tests scripts  -> clean
 npm run build                                -> succeeded (see the build note below)
 ```
 
 (The count went 230 -> 216 when the 14 FX-split tests left with their code, then
-216 -> 229 with Part 16's 13 auth tests, then 242 with Part 19's 13 account-rule
-tests. Note `scripts/` is in the eslint target — the create-user script is app
-code and should be linted like the rest.)
+216 -> 229 with Part 16's 13 auth tests, 242 with Part 19's 13 account-rule
+tests, 248 with Part 20's 6 sparkline-key parser tests, and 270 with Part 21's 15
+sector-classifier tests plus 7 exposure tests (`instrumentTypeExposure`,
+`capBreakdown`) and the `ExposureLine` fixture's new field. Note `scripts/` is in
+the eslint target — the create-user script is app code and should be linted like
+the rest.)
 
 **Live preview:** a dev server runs from this worktree, but **Next picks the
 port** — 3000 when it is free, otherwise a random high one (it landed on 59495
@@ -1608,3 +1630,212 @@ app's, behaviour.
 **Not built, deliberately:** per-account roles or permissions (accounts are
 identities, not access levels — the owner chose this in Part 16 and nothing here
 changes it), email/password reset links, and any account-to-`Contributor` link.
+
+---
+
+## Part 20 — Today in one screen (DONE)
+
+**The owner's rule, stated as a rule this time:** the home screen must be
+readable in one look on a desktop, and that must stay true as it grows —
+"as much as possible, this should always be the philosophy of the home screen, a
+one snapshot view".
+
+**Measured before changing anything** (1440×821, real DOM):
+
+| block | height |
+|---|---|
+| header | 38 |
+| hero (value + needs attention) | 227 |
+| deposits line | 42 |
+| chart (incl. range control) | 376 |
+| largest positions | 373 |
+| **document** | **1272 — 451px of scrolling** |
+
+**What changed.** Those last two blocks now share a row (`lg:grid-cols-5`, the
+chart 3 wide and the positions 2), which removes 373px of stacking and leaves the
+row as tall as its taller half. The page root gets a definite height on `lg`
+(`calc(100dvh - 121px)` — 57px bar + main's 32px padding twice, measured), and the
+chart is the column that flexes: `fill` hands it the leftover height instead of
+its fixed 256px plot, with a 180px floor below which a line chart stops being
+readable. A taller window therefore spends the space on the chart, a shorter one
+shrinks it, and the non-shrinkable blocks (hero, deposit line, position rows)
+were trimmed to make sure the row always has room: hero padding and gaps, the
+position rows' vertical padding, and the page's own gaps.
+
+**`fill` is a contract, not a preference.** It is threaded through
+`PortfolioPerformance` and `PortfolioValueChart`, and both document why it must
+not be used where an ancestor has no definite height: `height="100%"` inside an
+auto-height parent resolves to nothing. It is passed by the dashboard only, so
+`/performance` keeps three fixed, comparable charts.
+
+**Late months are no longer on this page at all.** The owner asked for the
+"7 of 18 months late" count to go, and the same fact was also a "Needs
+attention" item — which made it the second thing a reader saw, on a page whose
+whole job is to say what needs a decision. Both are gone: `/money` still marks
+each late month with its clock badge and shows the schedule in full, and the
+deposit line here states only what arrived and what is due next. (Rationale, from
+the owner's own model: money in the account earns nothing, so a late deposit is a
+note, not an alarm.)
+
+**Verified in the running app**, at four viewports, by measuring the DOM rather
+than looking at it:
+
+| viewport | vertical scroll | chart plot | layout |
+|---|---|---|---|
+| 1440×900 | **0px** | grows to fill | chart \| positions side by side |
+| 1440×780 | **0px** | 192px | side by side |
+| 1024×800 | **0px** | 180px (floor) | side by side, no horizontal overflow |
+| 420×860 | page scrolls (expected) | — | stacked, full width, no overflow |
+
+**The sparkline bug this page had been hiding.** Every row in "Largest
+positions" showed a dash instead of a trend, and it turned out not to be a
+loading state: `TopPositions` sends keys built with `priceKey()` —
+`"REGION::TICKER"` — while `app/api/sparklines/route.ts` split them on a SINGLE
+colon. `"US::VOO"` therefore parsed as region `"US"` and ticker `""`, the whole
+list was discarded, and the endpoint answered `{series:{}}` in 6ms with nothing
+logged. The positions table worked only because it happened to build its keys
+with one colon — which is exactly the kind of accidental agreement that hides a
+bug for months.
+
+Fixed at the root: `parseSparklineKeys()` in `lib/sparklines.ts` accepts both
+separators (the response is keyed by `priceKey`, so handing a key back is the
+obvious thing for a caller to do), drops anything without both halves, and keeps
+the cap. `PositionsTable` now uses `priceKey()` too, so the app has one format
+instead of two. Six tests cover it, including the literal regression
+(`"US::VOO"`) and a mixed list. Confirmed live: five polylines render in the
+dashboard rows, and the endpoint returns 22/21/21/21/21 closes for the five
+holdings.
+
+**A note on this session's environment, for whoever debugs here next:** while
+this part was being built the same dev server served `/` in **28–53 seconds**
+under load (the log records it), because `lib/prisma.ts` pins
+`connection_limit=1` and every queued page waits on that single pooled
+connection. It recovers to 2.7–6.3s once the concurrent requests stop. Nothing
+here changed that; it is recorded because "the site is slow" is a recurring
+complaint and this is the mechanism.
+
+## Part 21 — the exposure page, and tagging as a system (DONE)
+
+**What the owner asked for**, in four parts: the ring's centre text is too large
+and sits on the graph; the tooltip (whose design they like) is painted *under*
+that centre figure and is illegible; the tag input is far too large; and the
+tags should be a system with a dropdown for tagging instruments in the same
+sector. Plus two standing requests: no information added just to fill space, and
+a discussion of which tags these instruments should get.
+
+**Measured before changing anything** (real DOM, 1440px):
+
+| symptom | measurement | cause |
+|---|---|---|
+| figure on the ring | hole ~99px, `S$62,258.57` renders 92px wide at 14px = **93% fill** | donut 160px with `innerRadius="62%"` |
+| tooltip illegible | tooltip is a positioned sibling with `z-index: auto`, the centre label is painted **after** it | stacking order, not the tooltip's design |
+| input too large | **933px** wide in a ~1130px row | `flex-1` with nothing bounding it |
+
+**All six tooltips already share one recipe** (`panel border-ink-600 bg-ink-850
+p-3 text-xs shadow-xl`), so "implement it throughout the site" needed no port —
+only the one stacking fix, in `app/globals.css` (`.recharts-tooltip-wrapper {
+z-index: 20 }`), which every chart inherits, plus the donut's header tone now
+matching the other five (`text-ink-300`, was `text-ink-100`). Verified by
+dispatching a hover at the USD sector: the panel paints above the ring and the
+centre figure **fades out** while it is showing, because at this size a tooltip
+covers the hole anyway and a number half-hidden behind a panel is worse than no
+number.
+
+**The donut, corrected:** 176px, `innerRadius="66%"`, centre figure 12px — the
+number now occupies about two thirds of the hole instead of 93% of it. Slices are
+capped at the palette: **five named + "Other tags"** fills the six `data.*`
+colours exactly, and the folded buckets are listed behind a disclosure under the
+legend rather than dropped. The unclassified slice keeps its own desaturated grey
+(`#8f8b85`), so it never reads as just another exposure category.
+
+**One panel, two cuts of the same holdings.** "By sector" (hand-tagged) and "By
+type" (reported by the lookup) are the same circle sliced two ways, so they share
+a panel and a toggle rather than two donuts side by side. The type view needs no
+owner input, which is why it is complete from the first render: **51% of the
+holdings sit inside a fund** — the one thing a sector tag on a fund cannot say.
+The switch replays `.swap-in` on a keyed container, the same motion the period
+selectors use.
+
+**The tag vocabulary — ten tags, and what they deliberately refuse to claim.**
+`lib/sectors.ts` holds both halves of the system so they cannot drift: the
+vocabulary the dropdown offers, and the classifier that drafts a tag.
+`SECTOR_TAGS` is *not* GICS. 61.6% of this portfolio is index and sector **funds**,
+and a fund has no sector — VOO is not "Technology" even though technology is a
+third of it — so a tag answers the question the owner can act on ("what did I
+choose to buy, and how much is on that one idea") rather than claiming a
+look-through breakdown no free source provides. Two pairs worth knowing:
+**D05 + XLF** are one exposure (financials, 33% of the portfolio, which is where
+a shared label does real work), and **B + SLV** are one trade (precious metals)
+with two instruments. Two entries are recorded as judgement calls: **IREN**
+(revenue is now AI data centres, filed under US Tech; a Crypto tag would be a
+singleton covering 3%) and **VUG** (large-cap growth is mostly technology, but
+tagging a broad growth index "US Tech" would overstate a bet nobody made, so it
+is left unclassified rather than guessed into the wrong bucket).
+
+`suggestSector()` covers **all 18 held instruments by name and ticker**, pinned by
+`tests/sectors.test.ts` — which also pins the two rules that were learned from a
+failing test rather than chosen: `\b` goes at the START of a pattern ("Financial"
+with a trailing boundary does not match "Financials"), and the words kept whole
+are the ones where inflecting changes the meaning ("gold" matched Goldman Sachs,
+so it takes a lookahead).
+
+**Tagging as a system, in the table.** A `TagSelect` combobox: dropdown over the
+vocabulary, free text still allowed (the vocabulary is not a cage, and legacy
+tags keep rendering *and* stay pickable), `↑/↓` only move within the popup so the
+caret never jumps mid-word, Enter commits, Escape reverts rather than clears.
+Rows carry checkboxes, so a sector can be applied to several instruments at once —
+which is the point of grouping. Where the classifier has a draft it is **offered,
+never applied**: "suggested: Financials →" on its own line, plus one batch button
+("Accept the 18 suggestions").
+
+**The bug that would have made the two paths disagree:** accepting a suggestion
+one row at a time wrote `sectorSource: "manual"` while the batch path wrote
+`"auto"`, so the same tag on the same instrument would have been marked
+differently depending on which button was pressed. Both paths are `"auto"` now —
+the tag is the classifier's, and the chip means "nobody typed this".
+
+**What the owner asked me to judge rather than pad.** Added: **weight %** (rows
+are value-sorted, but D05 is 30.6% and OV8 is 1.0% — tagging effort should follow
+that number) and **instrument type** (Fund/Stock; not decoration but the honest
+disclaimer, since a sector label on a fund is a simplification). Rejected, with
+reasons: **region and currency** (one click away on the region tabs), **cost
+basis / unrealised P&L** (that is the positions tables' job — duplicating it makes
+this a second positions page), and **"last tagged by"** (accounts are identities,
+not roles, so there is nobody to attribute it to).
+
+Two smaller fixes came out of the same pass. The header's coverage caption
+("0% of value is sector-tagged") duplicated what the sector panel already says
+under its own caption, so it is stated once. And `.field` gained
+`placeholder:text-ink-500`: the browser default placeholder colour (#9ca3af) is
+*lighter* than this theme's muted text, so a placeholder read as a filled-in
+value — which is exactly why "suggested: Financials" looked like something
+already typed into the box. The placeholder is now "untagged" and the suggestion
+is stated once, where it is clickable.
+
+**Schema.** `TickerMeta.sectorSource` (`"auto" | "manual" | null`), migration
+`20260922170000_add_ticker_sector_source`, additive and nullable so the deployed
+revision ignores it. A new instrument gets a draft automatically at creation
+(`ensureTickerMeta`), and a **cleared** tag is never re-filled by a later refresh —
+that would be a guess overriding an explicit "no".
+
+**Verified against the running app**, not by reading it:
+
+- Donut: `svg 176x176`, sector path `M 171,88 A 83,83…` drawn, centre figure ~65%
+  of the hole, hover puts the tooltip above the ring and fades the figure.
+- Toggle: clicking "By type" switches to `aria-pressed=true` with
+  `Funds (ETF) 51.0% / Single stocks 49.0%`, caption and `.swap-in` both updated.
+- Dropdown: opens with all ten tags in order.
+- Write path, end to end: clicking a suggestion wrote D05 → Financials, the row
+  read `Saved` with the `auto` chip, and the bar went to "17 of 18 untagged".
+  Then "Untag selected" put it back to empty **and the DB is as it was found**:
+  18 of 18 untagged, no rows written.
+- Responsive: at 420×860 the row wraps, the tag control takes its own line, and
+  horizontal overflow is **0px**.
+- `npm test` 17 files / **270 tests**, `tsc --noEmit`, `eslint` and `next build`
+  all clean.
+
+**One environment trap worth recording:** Next 16's dev server *blocks cross-origin
+dev resources*, so loading the app on `127.0.0.1:port` while it was started on
+`localhost` silently breaks hydration — the page renders, the charts never
+measure, and nothing is logged beyond HMR websocket failures. Use the host the
+server printed, not an equivalent one.

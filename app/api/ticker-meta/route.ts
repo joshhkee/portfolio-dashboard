@@ -49,7 +49,15 @@ export async function PATCH(req: NextRequest) {
     await setTickerNameOverride(region, ticker, typeof body.name === "string" ? body.name : null);
   }
   if (hasSector) {
-    await setTickerSector(region, ticker, typeof body.sector === "string" ? body.sector : null);
+    // `source: "auto"` is the batch-apply path: the tag is lib/sectors.ts's
+    // suggestion rather than a choice, and storing that distinction is what
+    // lets the table show which tags the owner actually decided.
+    await setTickerSector(
+      region,
+      ticker,
+      typeof body.sector === "string" ? body.sector : null,
+      body.source === "auto" ? "auto" : "manual"
+    );
   }
 
   return NextResponse.json({

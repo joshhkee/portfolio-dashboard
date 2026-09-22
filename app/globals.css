@@ -81,6 +81,17 @@
   .panel {
     @apply rounded-lg border border-ink-700 bg-ink-900;
   }
+  /* Chart tooltips must paint above everything the chart draws inside itself.
+     Recharts renders its tooltip as an absolutely-positioned sibling of the
+     chart's SVG with no z-index, so anything the chart paints LATER in the DOM
+     that is also positioned wins the paint order — which is exactly what put
+     the donut's centre figure on top of its own tooltip and made the panel
+     read as translucent. Lifting the wrapper fixes every chart at once, since
+     the stacking fault lives in Recharts' markup rather than in any one
+     chart's props. */
+  .recharts-tooltip-wrapper {
+    z-index: 20;
+  }
   /* Headline figures — "Total holdings", "Unrealized P/L", the attribution
      total. They sit in a row, and the row has to WRAP: a text-3xl number plus
      its label is ~200px, so two of them side by side (plus the row's gap)
@@ -125,8 +136,13 @@
   .stat-value {
     @apply num mt-1 text-2xl font-medium sm:text-3xl;
   }
+  /* `placeholder:text-ink-500` is not decoration: the browser default is a
+     blue-grey (#9ca3af) that is LIGHTER than this theme's muted text, so a
+     placeholder reads as a filled-in value on the dark background. Every field
+     in the app inherits the fix from here, which is why "suggested: Financials"
+     used to look like something already typed into the tag box. */
   .field {
-    @apply w-full rounded-md border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100 outline-none transition focus:border-accent;
+    @apply w-full rounded-md border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100 outline-none transition placeholder:text-ink-500 focus:border-accent;
   }
   .btn-primary {
     @apply rounded-md bg-accent px-4 py-2 text-sm font-medium text-ink-950 transition hover:bg-accentHover disabled:cursor-not-allowed disabled:opacity-50;

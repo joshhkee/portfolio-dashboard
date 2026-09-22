@@ -1,14 +1,17 @@
 import { getOpenPositionsFor } from "@/lib/get-positions";
-import { getTickerMetaMaps } from "@/lib/ticker-meta";
+import { getTickerMetaMaps, suggestedSectorFor } from "@/lib/ticker-meta";
 import { priceKey } from "@/lib/prices";
 import { fetchFxRates } from "@/lib/fx";
 import {
   UNCLASSIFIED_LABEL,
+  capBreakdown,
   currencyExposure,
+  instrumentTypeExposure,
   sectorExposure,
   toExposureLines,
 } from "@/lib/exposure";
 import ExposureDonut from "@/components/ExposureDonut";
+import ExposureSummary, { type ExposureView } from "@/components/ExposureSummary";
 import SectorTagEditor from "@/components/SectorTagEditor";
 import { formatAmount } from "@/components/SignedNumber";
 
@@ -33,6 +36,12 @@ export const dynamic = "force-dynamic";
  * the rate that priced a holding is a conversion the ledger records, not the
  * day the trade happened. Keeping the purchase-date version would have stood
  * a second, contradicting FX story next to the real conversions.
+ *
+ * Three cuts of the same holdings, not three pages: by hand-entered tag (what
+ * was chosen), by instrument type (fund vs single stock, which needs no owner
+ * input and so is complete from the first render), and by currency (what the
+ * value is denominated in). The first two share one panel because they are the
+ * same circle sliced two ways.
  */
 export default async function ExposurePage() {
   // FX rates are fetched ONCE and handed to the position loader, rather than
@@ -55,56 +64,71 @@ export default async function ExposurePage() {
       name: p.name,
       valueSgd: p.totalHoldingsConverted,
     })),
-    meta.sectors
+    meta.sectors,
+    meta.instrumentTypes
   );
-  const bySector = sectorExposure(lines);
+  // Capped to what a six-colour palette can draw without repeating a colour;
+  // the folded buckets are handed to the legend rather than dropped.
+  const sectorRaw = sectorExposure(lines);
+  const typeRaw = instrumentTypeExposure(lines);
+  const bySector = capBreakdown(sectorRaw);
+  const byType = capBreakdown(typeRaw);
   const byCurrency = currencyExposure(lines);
+
+  // The share of the portfolio held through a wrapper rather than as a share —
+  // the number the sector tags cannot express, since a tag on a fund labels
+  // the fund and not a look-through of what is inside it.
+  const fundsWeight = typeRaw.buckets.find((b) => b.label === "Funds (ETF)")?.weight ?? 0;
+
+  const views: ExposureView[] = [
+    {
+      label: "By sector",
+      hint: `${sectorRaw.classified.positions} of ${sectorRaw.positions} holdings tagged`,
+      slices: bySector.slices,
+      unclassified: bySector.unclassified,
+      folded: bySector.folded,
+      totalSgd: sectorRaw.totalValueSgd,
+      note: sectorRaw.unclassified
+        ? `${UNCLASSIFIED_LABEL} is money in instruments nobody has tagged yet — it is not an "Other" sector. Tag them below and this slice becomes real exposure.`
+        : undefined,
+    },
+    {
+      label: "By type",
+      hint: `${(fundsWeight * 100).toFixed(0)}% of holdings sit inside a fund`,
+      slices: byType.slices,
+      unclassified: byType.unclassified,
+      folded: byType.folded,
+      totalSgd: typeRaw.totalValueSgd,
+      note: typeRaw.unclassified
+        ? `${UNCLASSIFIED_LABEL} here means the lookup has not reported an instrument type — these are the positions with no live quote above, not funds. They are counted, just not named.`
+        : undefined,
+    },
+  ];
 
   // Positions with no live quote (some HK tickers aren't covered) are valued at
   // cost basis by withLivePrices, so they stay in the breakdowns and the page
   // says so, rather than presenting a cost basis as a market value.
   const unpriced = positions.filter((p) => p.priceUnavailable);
   const unpricedValueSgd = unpriced.reduce((sum, p) => sum + p.totalHoldingsConverted, 0);
-  const tagged = bySector.coverage;
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        {/* No heading of its own: the section tab above already names this
+            page, so repeating it here would just be two titles. The coverage
+            figure that used to sit opposite was stating what the sector panel
+            already says under its own caption, so it is only stated once. */}
         <div>
-          {/* No heading of its own: the section tab above already names this
-              page, so repeating it here would just be two titles. */}
           <p className="text-xs text-ink-500">
             Holdings only — {lines.length} position{lines.length === 1 ? "" : "s"}, S$
-            {formatAmount(bySector.totalValueSgd)}. Cash is excluded: it has no sector, and counting
-            it would flatter every share below.
+            {formatAmount(sectorRaw.totalValueSgd)}. Cash is excluded: it has no sector, and
+            counting it would flatter every share below.
           </p>
         </div>
-        <p className="text-xs text-ink-500">
-          {tagged >= 1
-            ? "Every position is sector-tagged"
-            : `${(tagged * 100).toFixed(0)}% of value is sector-tagged`}
-        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <section className="panel flex flex-col gap-4 p-5">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <p className="text-sm text-ink-300">By sector</p>
-            <p className="text-xs text-ink-500">
-              {bySector.classified.positions} of {bySector.positions} tagged
-            </p>
-          </div>
-          <ExposureDonut
-            slices={bySector.buckets}
-            unclassified={bySector.unclassified}
-            totalSgd={bySector.totalValueSgd}
-            unclassifiedNote={
-              bySector.unclassified
-                ? `${UNCLASSIFIED_LABEL} is money in instruments nobody has tagged yet — it is not an "Other" sector. Tag them below and this slice becomes real exposure.`
-                : undefined
-            }
-          />
-        </section>
+        <ExposureSummary views={views} />
 
         <section className="panel flex flex-col gap-4 p-5">
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -138,19 +162,33 @@ export default async function ExposurePage() {
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <p className="text-sm text-ink-300">Tag the holdings</p>
           <p className="text-xs text-ink-500">
-            Biggest holding first · Enter saves, Escape reverts
+            Biggest holding first · Enter saves, Escape reverts · the dropdown reuses a tag
           </p>
         </div>
         <SectorTagEditor
+          totalSgd={sectorRaw.totalValueSgd}
           positions={[...positions]
             .sort((a, b) => b.totalHoldingsConverted - a.totalHoldingsConverted)
-            .map((p) => ({
-              region: p.region,
-              ticker: p.ticker,
-              name: p.name,
-              valueSgd: p.totalHoldingsConverted,
-              sector: meta.sectors[priceKey(p.region, p.ticker)] ?? null,
-            }))}
+            .map((p) => {
+              const key = priceKey(p.region, p.ticker);
+              return {
+                region: p.region,
+                ticker: p.ticker,
+                name: p.name,
+                valueSgd: p.totalHoldingsConverted,
+                sector: meta.sectors[key] ?? null,
+                sectorSource: meta.sectorSources[key] ?? null,
+                // The same classifier the writer uses, so the tag a row offers
+                // and the tag a newly seen instrument gets cannot disagree.
+                suggested: suggestedSectorFor({
+                  region: p.region,
+                  ticker: p.ticker,
+                  name: p.name,
+                  instrumentType: p.instrumentType,
+                }),
+                instrumentType: p.instrumentType ?? null,
+              };
+            })}
         />
       </section>
     </div>

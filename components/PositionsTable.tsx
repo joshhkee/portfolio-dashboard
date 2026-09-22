@@ -71,8 +71,11 @@ export default function PositionsTable({
   // without usable history simply stay absent, and the cell renders a dash
   // instead of an invented flat line.
   const [spark, setSpark] = useState<Record<string, number[]>>({});
+  // priceKey(), not a hand-built "region:ticker": the response is keyed by
+  // priceKey and one format in the app is one format that cannot drift out of
+  // step with the parser again (see lib/sparklines.ts).
   const sparkKeys = useMemo(
-    () => rows.map((r) => `${r.region}:${r.ticker}`).join(","),
+    () => rows.map((r) => priceKey(r.region, r.ticker)).join(","),
     [rows]
   );
 
@@ -249,9 +252,8 @@ export default function PositionsTable({
             {sorted.map((r) => {
               const symbol = currencySymbol[currencyForRegion(r.region)];
               // Looked up by the compound "REGION::TICKER" key the API returns
-              // (see priceKey) — the request parameter uses a single-colon
-              // transport form, but the response is keyed like every other
-              // price map in the app.
+              // (see priceKey), which is also the form the request is made in
+              // — one format in and out.
               const trend = spark[priceKey(r.region, r.ticker)];
               const isHit =
                 highlightTicker !== null &&

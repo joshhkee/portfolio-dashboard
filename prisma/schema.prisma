@@ -127,12 +127,17 @@ model TickerMeta {
   // Set when the owner edits `name` by hand. Auto-lookup must never
   // overwrite a name once this is true.
   nameOverridden Boolean   @default(false)
-  // Exposure tag: a free-text industry/asset-class label ("Banks",
-  // "Semiconductors", "US Equity Index"). Hand-entered, because no free
-  // data source classifies these instruments, and deliberately NULL —
-  // never a silent "Other" — so an untagged holding stays visibly
-  // unknown rather than being counted as a real exposure bucket.
+  // Exposure tag: one of the ten tags in lib/sectors.ts ("Financials",
+  // "US Tech", "Precious Metals", ...). No free data source classifies
+  // these instruments, so a NEW instrument gets a first draft from
+  // suggestSector() and the owner edits it; deliberately NULL — never a
+  // silent "Other" — so an untagged holding stays visibly unknown rather
+  // than being counted as a real exposure bucket.
   sector         String?
+  // Where `sector` came from: "auto" when it was suggested by
+  // lib/sectors.ts rather than chosen, so the table can mark a guess as a
+  // guess and the owner can tell the two apart. NULL means no tag at all.
+  sectorSource   String?
   fetchedAt      DateTime?
   updatedAt      DateTime  @updatedAt
 

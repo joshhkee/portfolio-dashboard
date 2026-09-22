@@ -36,8 +36,11 @@ export interface ExposureLine {
   name: string | null;
   /** Holding value in SGD. */
   valueSgd: number;
-  /** Hand-entered exposure tag, or null when it has never been classified. */
+  /** Exposure tag, or null when it has never been classified. */
   sector: string | null;
+  /** "ETF" | "EQUITY" | ..., as the name lookup reported it. Used for the
+   * funds-vs-single-stocks view, which needs no tagging at all. */
+  instrumentType: string | null;
 }
 
 export interface ExposureBucket {
@@ -173,6 +176,75 @@ export function currencyExposure(lines: ExposureLine[]): ExposureBreakdown {
   return groupExposure(lines, (l) => currencyForRegion(l.region));
 }
 
+/** How the instrument type reads in the legend, since "EQUITY" is not a word
+ * anyone says out loud. Anything the lookup did not report stays unclassified
+ * rather than being called a stock by default. */
+const TYPE_LABELS: Record<string, string> = {
+  ETF: "Funds (ETF)",
+  EQUITY: "Single stocks",
+};
+
+/**
+ * Exposure by what the instrument IS, which is the axis the sector tags cannot
+ * show and the one this portfolio most needs: 61.6% of it sits in funds, and
+ * tagging a fund by sector hides that a fund is a basket. Needs no owner input
+ * — the name lookup already reports the type — so this view is complete from
+ * the first render.
+ */
+export function instrumentTypeExposure(lines: ExposureLine[]): ExposureBreakdown {
+  return groupExposure(lines, (l) =>
+    l.instrumentType ? (TYPE_LABELS[l.instrumentType.toUpperCase()] ?? l.instrumentType) : null
+  );
+}
+
+/** Label for the bucket that folds everything past the named top slices. */
+export const OTHER_TAGS_LABEL = "Other tags";
+
+/** How many named slices a donut can carry from the six-colour data palette
+ * before it starts repeating colours: five named + "Other tags" fills the
+ * palette exactly, and the unclassified slice draws in its own grey. */
+export const MAX_NAMED_SLICES = 5;
+
+export interface CappedBreakdown {
+  /** What the donut draws: the biggest named buckets, then "Other tags". */
+  slices: ExposureBucket[];
+  unclassified: UnclassifiedSlice | null;
+  /** The named buckets folded into "Other tags", biggest first. Empty when
+   * nothing was folded, which is the common case for a small portfolio. */
+  folded: ExposureBucket[];
+}
+
+/**
+ * Cap a breakdown to what a donut can actually show.
+ *
+ * Ten tags in six colours means `seriesColor()` wraps, so two slices would be
+ * drawn identically — the one failure a colour-coded chart cannot survive. The
+ * named top slices keep their own colours, everything else is summed into
+ * "Other tags" (palette slot six), and the folded buckets are returned so the
+ * legend can show them on demand rather than dropping them.
+ */
+export function capBreakdown(
+  breakdown: ExposureBreakdown,
+  max: number = MAX_NAMED_SLICES
+): CappedBreakdown {
+  const named = breakdown.buckets;
+  if (named.length <= max + 1) {
+    // One spare slot: folding a single bucket into "Other tags" would say less
+    // than naming it.
+    return { slices: named, unclassified: breakdown.unclassified, folded: [] };
+  }
+
+  const top = named.slice(0, max);
+  const folded = named.slice(max);
+  const other: ExposureBucket = {
+    label: OTHER_TAGS_LABEL,
+    valueSgd: folded.reduce((sum, b) => sum + b.valueSgd, 0),
+    weight: folded.reduce((sum, b) => sum + b.weight, 0),
+    positions: folded.reduce((sum, b) => sum + b.positions, 0),
+  };
+  return { slices: [...top, other], unclassified: breakdown.unclassified, folded };
+}
+
 /**
  * Attach sector tags (keyed by compound region::ticker) to valued positions.
  *
@@ -186,7 +258,8 @@ export function toExposureLines(
     name: string | null;
     valueSgd: number;
   }[],
-  sectors: Record<string, string>
+  sectors: Record<string, string>,
+  instrumentTypes: Record<string, string> = {}
 ): ExposureLine[] {
   return positions.map((p) => {
     const key = priceKey(p.region, p.ticker);
@@ -197,6 +270,7 @@ export function toExposureLines(
       name: p.name,
       valueSgd: p.valueSgd,
       sector: sectors[key] ?? null,
+      instrumentType: instrumentTypes[key] ?? null,
     };
   });
 }
