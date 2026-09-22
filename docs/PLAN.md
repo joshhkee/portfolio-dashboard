@@ -85,19 +85,29 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 12 | Responsive & loading polish (mobile tables, skeletons) | **DONE** |
 | 13 | Range-selector transitions + load-time optimisation | **DONE** |
 | 14a | Deposit schedule: `Contribution.paidOn` + a quiet late flag | **DONE** |
-| 14b | Currency reporting: price-only P&L, realized FX, foreign cash | TODO — see the Part 14b section |
+| 14b | Currency reporting: price-only P&L, realized FX, foreign cash | **REMOVAL DONE** (purchase-date FX split deleted); the two replacement panels are still TODO — see the Part 14b section |
 
 ---
 
-## Resume checkpoint — 2026-09-22 (after Part 14a)
+## Resume checkpoint — 2026-09-22 (after Part 14b)
 
-**State:** parts 1–7 and 9–13 finished and verified, plus **14a** (the deposit
-schedule) and a full reconciliation of the owner's revised deposit/exchange
-ledger into the database. Next action: **Part 14b (currency reporting)** — see
-its section at the end. Part 8 (notes redesign) is still blocked on an owner
-decision. (This heading said "after Part 11" until 14a landed; the body below
-is kept because its environment notes and data-quality findings are still
-current.)
+**State:** parts 1–7 and 9–14a finished and verified, plus the **removal half of
+14b** — the `/exposure` purchase-date FX split is gone, along with the machinery
+and tests behind it, and every SGD figure in the app now carries an `S$` instead
+of a bare `$`. The four smaller fixes from the same round are in too: the
+attribution table's pinned Instrument column no longer scrolls away, its Total
+column carries the symbol, Keng's S$3,900 top-up is attributed to April 2025,
+and the late-deposit flag is a dim clock glyph whose tooltip names the month and
+the date it landed.
+
+**Next action:** whichever of these the owner picks —
+**14b's two remaining panels** (realized FX on the 25 conversions; unrealized FX
+on the foreign cash), **Part 8** (notes redesign, still blocked on an owner
+decision), or part 15 onward from the backlog. Part 12's responsive work and
+part 13's load-time fix are both done and merged into this branch's open PR.
+(This heading said "after Part 11" until 14a landed, and "after Part 14a" until
+the 14b removal landed; the body below is kept because its environment notes and
+data-quality findings are still current.)
 
 **Part 10 needs no further action on the database:** migration
 `20260922140000_add_ticker_sector` is applied and the column exists. No sector
@@ -109,7 +119,10 @@ correctly reads Unclassified 100% until the owner tags instruments on
 (`6a357af`, `c166bf0`, `c6071c5`); the Ctrl+K / benchmark-explainer notes plus
 the parts 8–12 backlog through #7; part 9 through #6. Both #6 and #7 are MERGED,
 so part 10 onward rides a fresh pull request (see below) — check the open PR's
-number before quoting it, it changes each batch. **One pull request per checkpoint** (see "Pull-request
+number before quoting it, it changes each batch. At the end of this session that
+was **#9**, open and reading `mergeable: true / clean`, carrying parts 12-14b
+(its body was rewritten to cover the 14b removal, so the earlier "Parts 12-14a"
+title is no longer what it says). **One pull request per checkpoint** (see "Pull-request
 workflow") — never force-push, and re-read the PR's `mergeable_state` after
 every push, because GitHub computes it asynchronously and it reads `unstable`
 while CI runs.
@@ -117,11 +130,14 @@ while CI runs.
 **Verification on the current tree (all green at the end of this session):**
 
 ```
-npm test                                     -> 14 files, 230 tests passed
+npm test                                     -> 14 files, 216 tests passed
 npx tsc --noEmit                             -> clean
-npx eslint app components lib tests prisma   -> clean
+npx eslint app components lib tests          -> clean
 npm run build                                -> succeeded (see the build note below)
 ```
+
+(The count fell 230 -> 216 because the 14 FX-split tests were deleted with the
+code they covered — not because tests stopped running.)
 
 **Live preview:** a dev server runs from this worktree, but **Next picks the
 port** — 3000 when it is free, otherwise a random high one (it landed on 59495
