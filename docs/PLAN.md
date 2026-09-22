@@ -44,6 +44,9 @@ every checkpoint keeps it green:
 
 - Branch: `freebuff/analyse-my-current-portfolio-dashboard-project-and-29b0adb2-a864-46b1-9352-6fb3fcb2b204`
   (`origin` -> `github.com/joshhkee/portfolio-dashboard`).
+- Open pull request: **#6** — https://github.com/joshhkee/portfolio-dashboard/pull/6
+  (same branch -> `main`). It carries parts 5–12; nothing should open a second
+  PR for this branch.
 - Push normally. **Never** force-push, switch branches, or change git config.
 - A clean `git push` is NOT proof the PR is conflict-free — re-read the PR and
   check `mergeable` / `mergeable_state` explicitly.
