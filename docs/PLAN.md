@@ -83,7 +83,7 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 10 | Exposure analytics (sector tags, currency + FX attribution) | **DONE** |
 | 11 | Contribution attribution (per position, per period) | **DONE** |
 | 12 | Responsive & loading polish (mobile tables, skeletons) | **DONE** |
-| 13 | Range-selector transitions + load-time optimisation | TODO — **start here** |
+| 13 | Range-selector transitions + load-time optimisation | **DONE** |
 
 ---
 
@@ -961,3 +961,88 @@ Owner request, two halves:
 **Acceptance:** the same routes render substantially faster with the same
 numbers, and every range/period control animates on change with a
 reduced-motion path.
+
+### Part 13 — DONE (2026-09-22)
+
+**The slow pages had nothing to do with the preview.** The dev server logs its
+own breakdown, and it put the time in application code, not in Next: `GET /`
+**18.1s** and `GET /holdings/us` **9.1s**, against `next.js: 23ms` per request.
+A throwaway probe outside the framework then split that time up and found the
+cause was not where anyone was looking — the quotes everyone suspected came
+back in **118ms for all 18 tickers**, while the database round trips were the
+cost:
+
+```
+read 64 transactions             3879ms
+SELECT 1 (reuse an open conn)     400-540ms
+```
+
+Two things followed from that.
+
+**1. `ensureTickerMeta()` was doing 36 round trips per render.** It looped over
+every open position and ran a `findUnique` AND an `upsert` for each. At ~350ms
+a query against the Supabase pooler in Sydney that is ~13s of the ~18s page,
+on every holdings/exposure/overview render, to restate reference data that had
+not changed. It now reads the table once, compares, and writes only what
+actually differs — `fetchedAt` is deliberately excluded from that comparison,
+because treating "last checked" as a change is exactly what made every render a
+write. The caller reads the same rows once and shares them for names too.
+Related: the dashboard was issuing four separate reads of `transaction` per
+load, and `getOpenPositionsFor()` now accepts rows the caller already has (the
+same pattern it already used for FX rates).
+
+**2. Parallel queries were 2× slower than sequential ones.** Measured, five warm
+queries each way:
+
+| pool | mode | per query |
+|---|---|---|
+| `connection_limit=5` | parallel | **723ms** |
+| `connection_limit=5` | sequential | 389ms |
+| `connection_limit=1` | parallel | **263ms** |
+
+Opening a connection to that pooler costs ~2.4-3.5s, so every extra pooled
+connection costs more than the parallelism buys. The app fires its reads
+through `Promise.all`, which with a five-connection pool opened several at once
+— and under concurrent loads the pool starved outright: **31 `P2024` "Timed out
+fetching a new connection" failures** in the dev log, whose 10s timeout was
+itself part of the reported slowness. `lib/prisma.ts` now pins the pool to one
+connection (`PRISMA_CONNECTION_LIMIT` overrides) with a 30s queue timeout.
+
+**Also:** `recordTodaySnapshot()` ran three reads, nineteen Yahoo historical
+fetches and an upsert on *every* dashboard load to keep today's dot current. It
+now self-throttles to once per five minutes (in-process, stamps only on
+success), which keeps the intent and drops the cost.
+
+| route | before | after |
+|---|---|---|
+| `/` | 18.1s | **1.4-2.3s** |
+| `/holdings/us` | 9.1s | **0.95s** |
+| `/transactions` | 1.5s | 1.8s |
+| `/exposure`, `/attribution`, `/outlay` | — | 1.5-2.0s |
+
+Pool timeouts after the change: **0**.
+
+**Transitions.** A `.swap-in` utility (240ms fade + 6px rise) on a container
+keyed by the current selection, so React remounts it and the browser replays
+the animation: the time-range picker, the benchmark index picker, the
+stakeholder picker, and the month/quarter toggle all animate, and the range
+picker's three charts share one key so they move as a single gesture. Recharts'
+own draw animation is switched OFF on the value chart on purpose — it defaults
+to 1.5s and restarts from a flat line on every data change, which fought the
+crossfade and read as a stutter. Reduced motion is honoured in the stylesheet
+(`@media (prefers-reduced-motion: reduce) { .swap-in { animation: none } }`),
+verified present in the built CSS.
+
+**Verified in the browser, not asserted:** clicking `1Y` put three elements
+into `swap-in/running/240`; the stakeholder picker ran it on the chart block
+and switched the caption to "Keng: value (solid) vs contributed (dashed)";
+the quarter toggle re-rendered to "Portfolio gain over 7 quarters" with both
+the summary and the table animating.
+
+**Left on the table:** the remaining 1-2s per route is ~4-6 sequential round
+trips at ~300ms against a pooler on the other side of the world. A
+short-TTL cross-request cache on the ledger read would remove most of it, but
+it needs invalidation on every write path (transactions, contributions, cash,
+ticker meta) and a stale read after an edit is a far worse bug than a slow
+page — so it is deliberately NOT done here. The measuring probe
+(`tmp-perf-probe.ts`) was deleted after use.

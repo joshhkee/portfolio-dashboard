@@ -134,7 +134,7 @@ export default function StakeholderPerformance({
             type="button"
             onClick={() => setSelected(null)}
             aria-pressed={selected === null}
-            className={`rounded px-2.5 py-1 transition ${
+            className={`rounded px-2.5 py-1 transition duration-200 motion-reduce:transition-none ${
               selected === null ? "bg-accent text-ink-950" : "text-ink-300 hover:text-ink-100"
             }`}
           >
@@ -146,7 +146,7 @@ export default function StakeholderPerformance({
               type="button"
               onClick={() => setSelected(n)}
               aria-pressed={selected === n}
-              className={`rounded px-2.5 py-1 transition ${
+              className={`rounded px-2.5 py-1 transition duration-200 motion-reduce:transition-none ${
                 selected === n ? "bg-accent text-ink-950" : "text-ink-300 hover:text-ink-100"
               }`}
             >
@@ -216,8 +216,12 @@ export default function StakeholderPerformance({
         </table>
       </div>
 
+      {/* Keyed on the selection: going from everyone's pooled lines to one
+          person's value-vs-contributed is a different question being asked of
+          the same chart, and the swap-in makes that change of question legible
+          rather than a jump cut. */}
       {timeline.length >= 2 && (
-        <div className="flex flex-col gap-2">
+        <div key={selected ?? "everyone"} className="swap-in flex flex-col gap-2">
           <p className="text-xs text-ink-300">
             {selected ? (
               <>

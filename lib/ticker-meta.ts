@@ -31,6 +31,57 @@ export interface ExistingMeta {
   nameOverridden: boolean;
 }
 
+/** A stored reference row, with the fields the write decision depends on. */
+export interface StoredMeta extends ExistingMeta {
+  region: string;
+  ticker: string;
+  instrumentType: string | null;
+  exchange: string | null;
+  currency: string | null;
+}
+
+/**
+ * Every cached reference row, in one read.
+ *
+ * This table is small (one row per instrument ever seen, ~27 here), so reading
+ * all of it is cheaper than any per-instrument lookup — and it is what lets
+ * ensureTickerMeta() decide what to write without asking the database once per
+ * position.
+ */
+export async function getTickerMetaRows(): Promise<StoredMeta[]> {
+  return prisma.tickerMeta.findMany({
+    select: {
+      region: true,
+      ticker: true,
+      name: true,
+      nameOverridden: true,
+      instrumentType: true,
+      exchange: true,
+      currency: true,
+    },
+  });
+}
+
+/**
+ * Pure: does writing `merged` over `stored` change anything a reader can see?
+ *
+ * Deliberately ignores `fetchedAt`. That field exists to say when the data was
+ * last checked, so treating it as a reason to write turns every render into a
+ * write, which is exactly the cost this avoids.
+ */
+export function metaIsUnchanged(
+  stored: StoredMeta,
+  merged: Pick<StoredMeta, "name" | "nameOverridden" | "instrumentType" | "exchange" | "currency">
+): boolean {
+  return (
+    stored.name === merged.name &&
+    stored.nameOverridden === merged.nameOverridden &&
+    stored.instrumentType === merged.instrumentType &&
+    stored.exchange === merged.exchange &&
+    stored.currency === merged.currency
+  );
+}
+
 /**
  * Pure: decide what to persist for one instrument.
  *
@@ -119,22 +170,36 @@ export async function setTickerSector(
  * Only the fetched fields are written, so `sector` — which is hand-entered and
  * never auto-derived — survives every refresh untouched.
  */
-export async function ensureTickerMeta(entries: TickerMetaEntry[]): Promise<void> {
-  for (const { region, ticker, meta } of entries) {
-    try {
-      const existing = await prisma.tickerMeta.findUnique({
-        where: { region_ticker: { region, ticker } },
-        select: { name: true, nameOverridden: true },
-      });
+export async function ensureTickerMeta(
+  entries: TickerMetaEntry[],
+  /** Rows the caller already read (see getTickerMetaRows). Passing them in is
+   *  what keeps the steady-state cost of this function at zero queries. */
+  knownRows?: StoredMeta[]
+): Promise<void> {
+  if (entries.length === 0) return;
+  try {
+    const stored = knownRows ?? (await getTickerMetaRows());
+    const byKey = new Map(stored.map((r) => [priceKey(r.region, r.ticker), r]));
+
+    const writes = [];
+    for (const { region, ticker, meta } of entries) {
+      const existing = byKey.get(priceKey(region, ticker)) ?? null;
       const merged = mergeMeta(existing, meta);
-      await prisma.tickerMeta.upsert({
-        where: { region_ticker: { region, ticker } },
-        update: { ...merged, fetchedAt: new Date() },
-        create: { region, ticker, ...merged, fetchedAt: new Date() },
-      });
-    } catch {
-      // Reference data is cosmetic — never let it break a page render.
+      // Nothing to write when every field already matches. Without this the
+      // loop wrote 18 rows on every render just to restate what they said,
+      // and `fetchedAt` alone made "unchanged" look like a change.
+      if (existing && metaIsUnchanged(existing, merged)) continue;
+      writes.push(
+        prisma.tickerMeta.upsert({
+          where: { region_ticker: { region, ticker } },
+          update: { ...merged, fetchedAt: new Date() },
+          create: { region, ticker, ...merged, fetchedAt: new Date() },
+        })
+      );
     }
+    await Promise.all(writes);
+  } catch {
+    // Reference data is cosmetic — never let it break a page render.
   }
 }
 

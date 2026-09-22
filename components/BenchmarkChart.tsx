@@ -188,7 +188,7 @@ export default function BenchmarkChart({
               type="button"
               onClick={() => setSelected(b.key)}
               aria-pressed={selected === b.key}
-              className={`rounded px-2.5 py-1 transition ${
+              className={`rounded px-2.5 py-1 transition duration-200 motion-reduce:transition-none ${
                 selected === b.key ? "bg-accent text-ink-950" : "text-ink-300 hover:text-ink-100"
               }`}
             >
@@ -198,8 +198,14 @@ export default function BenchmarkChart({
         </div>
       </div>
 
+      {/* Keyed on the index so switching benchmark replays the swap-in: the
+          statistics below are measurements OF that index, so animating them
+          together with the line keeps the two visibly in step. */}
       {model && model.stats && (
-        <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
+        <div
+          key={selected}
+          className="swap-in flex flex-wrap items-baseline gap-x-8 gap-y-2"
+        >
           <Stat
             label={`Alpha vs ${benchmarkLabel} (ann.)`}
             value={`${model.stats.alphaAnnual >= 0 ? "+" : ""}${(model.stats.alphaAnnual * 100).toFixed(1)}%`}
@@ -237,7 +243,7 @@ export default function BenchmarkChart({
         />
       )}
 
-      <div className="h-64 w-full">
+      <div key={`chart-${selected}`} className="swap-in h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={model?.chartData ?? []}

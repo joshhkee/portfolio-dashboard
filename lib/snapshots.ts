@@ -85,11 +85,30 @@ export function dayValue(input: DayValueInput) {
   };
 }
 
+/**
+ * How long a recorded snapshot stays fresh enough.
+ *
+ * This used to run on EVERY dashboard load — three reads, nineteen Yahoo
+ * historical fetches and an upsert, per load, forever, to keep intraday
+ * movement visible in today's dot. Against the remote pooler each query costs
+ * 250-700ms, so most of the home page's load time was being spent re-deriving
+ * a value that had barely changed.
+ *
+ * Five minutes keeps the original intent (today's row does track the day) at
+ * one cost per five minutes instead of one per load. An in-process stamp is
+ * enough because this is a single long-lived Node process; a restart simply
+ * records once. Only a SUCCESSFUL write stamps it, so a transient failure
+ * retries on the next load rather than being suppressed for five minutes.
+ */
+const RECORD_MIN_INTERVAL_MS = 5 * 60 * 1000;
+let lastRecordedAt = 0;
+
 /** Upsert today's snapshot. Idempotent per UTC day — recomputes and
- * overwrites today's row on every call so intraday movements are
- * reflected, and never touches past rows. Fails soft: snapshot
+ * overwrites today's row (at most once per RECORD_MIN_INTERVAL_MS) so intraday
+ * movements are reflected, and never touches past rows. Fails soft: snapshot
  * recording must never break a page load. */
 export async function recordTodaySnapshot(): Promise<void> {
+  if (Date.now() - lastRecordedAt < RECORD_MIN_INTERVAL_MS) return;
   try {
     const [rawTxns, contributions, cashRows] = await Promise.all([
       prisma.transaction.findMany({ orderBy: [{ date: "asc" }, { id: "asc" }] }),
@@ -143,6 +162,7 @@ export async function recordTodaySnapshot(): Promise<void> {
       update: value,
       create: { date: dayStart(key), ...value },
     });
+    lastRecordedAt = Date.now();
   } catch {
     // Never let snapshot recording break a page load.
   }

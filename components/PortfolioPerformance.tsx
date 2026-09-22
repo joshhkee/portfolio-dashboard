@@ -53,7 +53,7 @@ export default function PortfolioPerformance({
               type="button"
               onClick={() => setRange(key)}
               aria-pressed={range === key}
-              className={`rounded px-2.5 py-1 transition ${
+              className={`rounded px-2.5 py-1 transition duration-200 motion-reduce:transition-none ${
                 range === key ? "bg-accent text-ink-950" : "text-ink-300 hover:text-ink-100"
               }`}
             >
@@ -63,15 +63,20 @@ export default function PortfolioPerformance({
         </div>
       </div>
 
-      <PortfolioValueChart data={filtered} />
-      <DrawdownChart data={filtered} />
-      {benchmarks.length > 0 && (
-        <BenchmarkChart
-          points={filtered}
-          benchmarks={benchmarks}
-          series={filteredBenchmarks}
-        />
-      )}
+      {/* Keyed on the range so a switch replays the swap-in animation, and the
+          three charts move together — they share one window, so animating them
+          separately would misrepresent them as independent. */}
+      <div key={range} className="swap-in flex flex-col gap-4">
+        <PortfolioValueChart data={filtered} />
+        <DrawdownChart data={filtered} />
+        {benchmarks.length > 0 && (
+          <BenchmarkChart
+            points={filtered}
+            benchmarks={benchmarks}
+            series={filteredBenchmarks}
+          />
+        )}
+      </div>
     </div>
   );
 }
