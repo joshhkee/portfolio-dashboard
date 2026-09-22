@@ -106,10 +106,14 @@ npx eslint app components lib tests -> clean
 npm run build                      -> succeeded (all routes compiled)
 ```
 
-**Live preview:** previously `http://localhost:52422` (dev server from this
-worktree). **The server is not running now** — the Freebuff app restarted after
-this session, which kills it. Restart with `npm run dev -- -p 52422`; the port
-matters, see the env notes.
+**Live preview:** a dev server runs from this worktree, but **Next picks the
+port** — 3000 when it is free, otherwise a random high one (it landed on 59495
+last). Read the "Local:" line in
+`.freebuff/preview-29b0adb2-a864-46b1-9352-6fb3fcb2b204.log` instead of assuming
+a port, and probe the URL before starting another server: a Freebuff app
+restart kills any server started in an earlier session, but a *detached* one
+can survive, so check first to avoid stacking duplicate servers. Full
+procedures are in `.freebuff/run.md`.
 
 **What to do first tomorrow:**
 
