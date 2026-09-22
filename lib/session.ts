@@ -25,6 +25,13 @@ const TOUCH_AFTER_MS = 10 * 60 * 1000;
 export interface SignedInAccount {
   id: number;
   username: string;
+  /** "admin" or "member" — read from the row on every request like everything
+   *  else here, so a role change takes effect on the next page load rather than
+   *  waiting for a token to expire. */
+  role: string;
+  /** Null while the account is a pending request. A pending account cannot sign
+   *  in at all — this is here so the chrome can say so if it ever sees one. */
+  approvedAt: Date | null;
 }
 
 export interface VisitContext {
@@ -61,7 +68,12 @@ async function resolveAccount(): Promise<{
   if (!user) return null;
 
   return {
-    account: { id: user.id, username: user.username },
+    account: {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      approvedAt: user.approvedAt,
+    },
     storedLastSeenAt: user.lastSeenAt,
   };
 }

@@ -105,11 +105,11 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 27 | Watchlist entry signals (1y range position, % off high, RSI, 50/200-day trend) + the trade-history modal redesigned onto one scroll container | **DONE** |
 | 28 | Watchlist entry-level chart (price + 1y low/high + 50-day average), a gauge-style range bar, and "How to read these" | **DONE** |
 | 29 | Today's movers show the current price beside the day's change | **DONE** |
-| 30 | Accounts: roles, a request-and-approve queue with josh as admin, and "Add account" on Today | IN PROGRESS |
+| 30 | Accounts: roles, a request-and-approve queue with josh as admin, and "Add account" on Today | **DONE** |
 
 ---
 
-## Resume checkpoint — 2026-09-23 (after Part 29)
+## Resume checkpoint — 2026-09-23 (after Part 30)
 
 **State:** parts 1–7, 9–17 and 19–21 were already done, plus **Part 22** (Today's
 movers, the colour rule, a shorter attention list), **Part 23** (a prominent
@@ -134,7 +134,17 @@ this a good buy* — with four signals from a year of daily closes (range
 position, % off the 1y high, Wilder RSI(14), price vs the 50/200-day average),
 shown one click below the row rather than as four more columns. It also
 redesigned the trade-history modal onto a **single** scroll container, with a
-position summary strip and one card per trade cycle.
+position summary strip and one card per trade cycle. **Part 28** turned the
+range bar into a gauge (the first version read as a draggable slider), added the
+"How to read these" explainer and a year-long **EntryLevelChart**, and **Part 29**
+put the current price on every row of Today's movers.
+
+**Part 30** gave accounts roles, which is the first change here that is not
+about reading data: `role` + `approvedAt` on `User`, an approval queue for
+requests, `josh` as the admin, and an **Add account** button on Today. A member
+can ask for an account (it cannot sign in until an admin approves it) and can no
+longer reset or remove anyone — including the admin, which would otherwise have
+been a way straight around the queue. See the Part 30 section.
 
 **The colour rule, now written down because it was violated in four places:**
 colour means *up or down*. Gains, losses, returns, and percentages carry
@@ -2541,3 +2551,127 @@ tooltip still carries what is held (`S$1,888.55 held · ONON at US$29.62`), sinc
 the position value is the one thing the row deliberately leaves out to stay
 readable at a third of the window's width. Measured: 6 movers, panel 415px, no
 overflow inside the panel or the document.
+
+---
+
+## Part 30 — Accounts get roles: a request queue, josh as admin, and "Add
+account" on Today (DONE)
+
+Until now an account was all-or-nothing. Any holder could create another, reset
+any other account's password, or delete it — harmless while every account saw
+the same dashboard, and exactly the wrong shape for the first thing the owner
+asked for here: adding an account should not be something anyone can do, and
+should be something an admin can *review*.
+
+**Schema.** `User.role` (`"admin" | "member"`, default `member`) and
+`User.approvedAt` (NULL = a request that cannot sign in yet). Migration
+`20260923100000_add_user_roles_and_approval` backfills `approvedAt` from
+`createdAt` for every existing row, which is not a formality: those accounts were
+made on purpose, by hand or by the CLI, and leaving them NULL would have locked
+out everyone who currently has one. It then makes **`josh` the admin**, guarded
+so it is a no-op where that username does not exist.
+
+**`lib/accounts.ts` — the rules, pure and pinned by tests.** `isAdmin` (the one
+place the string is interpreted), `guardViewAccounts`, `guardManageAccounts`,
+`accountCreationDecision`, `guardReviewRequest`, `guardDeleteAccount`,
+`guardSetPassword`. Three of them encode a dead end worth naming:
+
+- **The bootstrap creates an approved admin, not a member.** An approval queue
+  whose only member cannot approve anything is a dead end, so the very first
+  account is an admin. Once one exists the allowance closes for good — the last
+  account cannot be deleted, so the count can never fall back to zero.
+- **The last admin cannot be deleted** for the same reason, and the refusal says
+  which rule it hit (`guardDeleteAccount` checks self, then the last account,
+  then the last admin).
+- **Resetting someone else's password is admin-only.** Not because a member
+  gaining an identity gains any data — every account sees the same portfolio —
+  but because resetting the admin's password, signing in as them and approving
+yourself would walk straight around the queue.
+
+The refusal is deliberately about the **object** rather than one verb: the same
+rule answers a member trying to create, approve, reset or remove, and a message
+naming only one of those reads as a non-sequitur for the other three. So it is
+`Only an admin can manage accounts.` — while `guardReviewRequest` keeps its own
+"Only an admin can approve account requests", which names the one action it
+guards.
+
+**Login refuses a pending account with its own sentence** — *"That account is
+waiting to be approved by an admin."* — rather than the generic wrong-password
+answer, because the person is not guessing: they are waiting, and the difference
+is the whole feature. The rate limiter is untouched (a pending refusal is not a
+failed attempt).
+
+**`/accounts`** now leads with the queue when there is one: an accent-ringed
+panel, `Approve` and `Refuse` per row (refusing deletes the request — there is no
+email here, and the confirm says so). Below it, the list gains an **ADMIN** badge
+and shows only the controls the rules would allow: `Change password` on your own
+row, `Reset password` and `Remove` for an admin on someone else's. A member gets
+`Request an account` instead of `Add account`, and no queue controls at all. The
+server decides every one of these; hiding them is honesty, not enforcement.
+
+**Today** gained what the owner asked for: an **Add account** button in the
+header, and — when somebody is waiting — a line in the attention list reading
+*"1 account request is waiting for approval."* Two things about how it is built:
+
+- The admin check comes from `readVisit()`, which the page already resolves, not
+  from a second `accountAdminContext()` call, and the request count is added to
+  the **existing** `Promise.all` **only when the caller is an admin** — so the
+  pooler pays one small count for the person who can act on it and nothing for
+  everyone else. The bootstrap state is honestly not detected here (it needs the
+  account count); that state is reachable from the nav's accounts chip, which
+  the layout resolves, and it exists once in the app's life.
+- `AttentionItem.tone` finally does something. It was declared and ignored, so
+every notice drew the same red triangle — which would make a queue of people
+look like a fault. `warn` renders the triangle, `info` an accent mark.
+
+**Two layer-order traps hit again, both real:**
+
+- `border-accent/40` on a `.panel` is **inert** — `.panel` is a component-layer
+  rule carrying `border border-ink-700`, and the components layer beats
+  utilities whatever the class order. The queue panel uses `ring-1
+  ring-accent/30` instead, because `.panel` sets no box-shadow. (Measured:
+  `borderColor` stayed `rgb(46,46,46)` — ink-700 — before the fix.)
+- The create form's fields were sized on the **control** (`field w-40`), where
+  `.field`'s `@apply w-full` discards it. Widths moved to the wrappers, the same
+  fix Part 26 made to the watchlist form. Measured after: 160 / 176 / 176px.
+
+### Verification — against the running app, with the real session
+
+- DB read back: **one** row, `josh`, `role: admin`, `approvedAt` set. Migration
+  reports *"Database schema is up to date"*.
+- A seeded pending account, through the real login route:
+  `403 {"error":"That account is waiting to be approved by an admin."}`.
+- `/accounts` showed the queue with `Approve` / `Refuse` and the headline
+  **"1 identity · 1 request waiting"**; Today showed the **Add account** button
+  **and** *"1 account request is waiting for approval."* — with 0px of document
+  overflow.
+- **Approve clicked in the browser** (the real route, the real cookie): the
+  headline became **"2 identities"**, the notice read *"Approved
+  "zz-preview-check". They sign in with the password they chose."*, the queue
+  disappeared and the row moved into the list.
+- The **same credentials then logged in → 200 + session cookie**, which is the
+  other half of the claim the queue makes.
+- The **member view**, by signing in as that account for real: *Request an
+  account* present; *Add account* absent; *Approve* / *Refuse* absent; *Change
+  password* present; *Reset password* absent; *Remove* absent.
+- A member's create → `201 "pending"`, and that account **could not sign in**
+  (403). A member's DELETE, of an admin's account and of their own, → `403 Only
+  an admin can manage accounts.`
+- Every temporary row was deleted afterwards; the database is back to **one**
+  account, and the throwaway scripts were removed from the tree.
+
+**Checks:** `npx tsc --noEmit` clean, `npx eslint` clean, `npm test` **21 files
+/ 345 tests** (`tests/accounts.test.ts` rewritten for the new signatures — 31
+cases, including the bootstrap-admin rule, the last-admin rule and the
+queue-bypass rule).
+
+**Files:** `prisma/schema.prisma` + the migration, `lib/accounts.ts`,
+`lib/account-admin.ts`, `lib/session.ts`, `app/api/users/route.ts`,
+`app/api/users/[id]/route.ts`, `app/api/users/[id]/approve/route.ts`,
+`app/api/login/route.ts`, `app/accounts/page.tsx`, `components/AccountManager.tsx`,
+`components/Nav.tsx`, `app/layout.tsx`, `app/page.tsx`, `tests/accounts.test.ts`.
+
+**Known gap:** the queue has no notification — an admin finds a request by
+opening Today or the accounts page. That is deliberate for now (this is a
+three-person portfolio, not a service), and it is the first thing to add if a
+request ever sits unapproved for long enough to matter.

@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { Plus, TriangleAlert, ChevronRight } from "lucide-react";
+import { Plus, TriangleAlert, ChevronRight, UserPlus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { countRequests } from "@/lib/account-admin";
+import { isAdmin } from "@/lib/accounts";
 import { getOpenPositionsFor } from "@/lib/get-positions";
 import { NativeMoney, Percent, PlainMoney, formatAmount } from "@/components/SignedNumber";
 import { currencySymbol, currencyForRegion, convertCurrency, fetchFxRates } from "@/lib/fx";
@@ -122,16 +124,31 @@ export default async function TodayPage() {
   // looked at.
   await recordTodaySnapshot();
 
+  // Admin work surfaces here, because this is the page the owner opens first:
+  // an "Add account" button, and a line when somebody is waiting to be let in.
+  //
+  // The role comes from the visit ALREADY resolved above rather than from a
+  // second `accountAdminContext()` call, which would be another round trip to a
+  // remote pooler for a fact the page is holding. One consequence, deliberately
+  // accepted: the bootstrap state (no accounts at all, so the shared password
+  // may create the first one) is not detected here, because detecting it needs
+  // the account count. That state is reachable from the nav's accounts link,
+  // which the layout resolves, and it only exists once in the app's life.
+  const canManageAccounts = isAdmin(visit.account?.role);
+
   // Every read is a round trip to a remote pooler, so they go out together and
   // the ledger is read ONCE and shared: getOpenPositionsFor() replays the same
-  // rows this page already fetched.
-  const [allTransactions, contributions, cashRows, rates, snapshots] = await Promise.all([
-    prisma.transaction.findMany({ orderBy: [{ date: "asc" }, { id: "asc" }] }),
-    prisma.contribution.findMany({ orderBy: { date: "asc" } }),
-    prisma.cashBalance.findMany(),
-    fetchFxRates(),
-    getSnapshots(),
-  ]);
+  // rows this page already fetched. The request count rides along only for an
+  // admin — everyone else sees no trace of the queue and pays nothing for it.
+  const [allTransactions, contributions, cashRows, rates, snapshots, waitingRequests] =
+    await Promise.all([
+      prisma.transaction.findMany({ orderBy: [{ date: "asc" }, { id: "asc" }] }),
+      prisma.contribution.findMany({ orderBy: { date: "asc" } }),
+      prisma.cashBalance.findMany(),
+      fetchFxRates(),
+      getSnapshots(),
+      canManageAccounts ? countRequests() : Promise.resolve(0),
+    ]);
 
   const positions = await getOpenPositionsFor(["US", "SG", "HK"], "SGD", rates, allTransactions);
 
@@ -245,6 +262,18 @@ export default async function TodayPage() {
   // cash is not a problem to report).
   const urgent: AttentionItem[] = [];
 
+  // A person waiting to get in outranks a number being wrong, so it goes first.
+  // Only an admin ever accumulates one of these, so for everyone else the list
+  // is exactly what it was.
+  if (waitingRequests > 0) {
+    urgent.push({
+      tone: "info",
+      text: `${waitingRequests} account ${waitingRequests === 1 ? "request is" : "requests are"} waiting for approval.`,
+      href: "/accounts",
+      linkLabel: "Review it",
+    });
+  }
+
   if (nextMonth && nextOverdue) {
     urgent.push({
       tone: "warn",
@@ -307,6 +336,12 @@ export default async function TodayPage() {
             <Plus size={14} strokeWidth={2.5} />
             Record a deposit
           </Link>
+          {canManageAccounts && (
+            <Link href="/accounts" className="btn-ghost flex items-center gap-1.5">
+              <UserPlus size={14} strokeWidth={2.5} />
+              Add account
+            </Link>
+          )}
         </div>
       </div>
 
@@ -395,7 +430,14 @@ export default async function TodayPage() {
             <ul className="mt-1 flex flex-col gap-2 border-t border-ink-700 pt-3">
               {urgent.map((item) => (
                 <li key={item.text} className="flex items-start gap-2">
-                  <TriangleAlert size={13} strokeWidth={2} className="mt-0.5 shrink-0 text-loss" />
+                  {/* The tone picks the mark: a warning is something wrong with
+                      a number, an info line is something to deal with. Red
+                      triangles on both would make a queue look like a fault. */}
+                  {item.tone === "warn" ? (
+                    <TriangleAlert size={13} strokeWidth={2} className="mt-0.5 shrink-0 text-loss" />
+                  ) : (
+                    <UserPlus size={13} strokeWidth={2} className="mt-0.5 shrink-0 text-accent" />
+                  )}
                   <span className="flex flex-col gap-0.5">
                     <span className="text-xs text-ink-100">{item.text}</span>
                     <Link

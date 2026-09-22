@@ -142,6 +142,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Incorrect username or password" }, { status: 401 });
     }
 
+    // A request that no admin has approved yet is a real row with a real
+    // password — that is what makes it approvable without a second handover —
+    // but it is not yet an account. Said in plain words rather than the generic
+    // "incorrect password", because the person is not guessing: they are
+    // waiting, and the difference is the whole feature.
+    if (!user.approvedAt) {
+      return NextResponse.json(
+        { error: "That account is waiting to be approved by an admin." },
+        { status: 403 }
+      );
+    }
+
     const token = await issueSessionToken(username);
     if (!token) {
       return NextResponse.json(
