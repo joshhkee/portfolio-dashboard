@@ -17,10 +17,17 @@ export default function TickerName({
   region,
   ticker,
   name,
+  maxWidthClass = "max-w-[13rem]",
 }: {
   region: string;
   ticker: string;
   name: string | null;
+  /** Width budget for the name. The default is sized for the ledgers, where
+   *  ten other columns compete for the row and the longest name in the
+   *  portfolio would otherwise set the instrument column to 330px. A table
+   *  with slack to spare should pass a larger one rather than truncate a name
+   *  it has room for. */
+  maxWidthClass?: string;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -74,8 +81,14 @@ export default function TickerName({
   }
 
   return (
-    <span className="group/name mt-0.5 flex items-center gap-1">
-      <span className="truncate text-xs text-ink-300" title={name ?? undefined}>
+    // The width cap bounds the cell in a sized-by-content table. Without it
+    // the longest name sets the width of the whole instrument column — 330px
+    // for "Vanguard Total World Stock Index Fund ETF Shares" — which pushed
+    // the ledger past its container and made the date column break mid-value.
+    // Truncation with the full name on hover is the honest trade, and callers
+    // with a roomier table pass `maxWidthClass` to spend what they have.
+    <span className={`group/name mt-0.5 flex ${maxWidthClass} items-center gap-1`}>
+      <span className="min-w-0 truncate text-xs text-ink-300" title={name ?? undefined}>
         {name ?? "—"}
       </span>
       <button

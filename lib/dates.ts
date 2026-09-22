@@ -42,6 +42,13 @@ const MONTH_ABBR = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
+/** Formats a date as "May 2026" — the month an allocation or a DCA belongs to,
+ * where naming the day would be noise. Same UTC-calendar rule as
+ * `formatShortDate`, for the same reason. */
+export function formatMonthYear(d: Date): string {
+  return `${MONTH_ABBR[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
 /** Formats a transaction/contribution date as "09 Sep 26" — the app's
  * one display format everywhere a date is shown. Deliberately doesn't
  * use toLocaleDateString/Intl at all (not even with a pinned locale):

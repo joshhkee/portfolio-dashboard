@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getOpenPositionsFor } from "@/lib/get-positions";
-import { NativeMoney, Percent } from "@/components/SignedNumber";
+import { Percent, formatAmount } from "@/components/SignedNumber";
 import { currencySymbol, convertCurrency, fetchFxRates } from "@/lib/fx";
 import { formatShortDate } from "@/lib/dates";
 import { xirr } from "@/lib/xirr";
@@ -195,7 +195,9 @@ export default async function PerformancePage() {
         <Stat
           label="Holdings value"
           title="The base every concentration figure below is a share of."
-          value={<NativeMoney value={holdingsValueSgd} symbol={sgd} />}
+          // Neutral: a value held is not a gain. Only the return and risk
+          // figures in this row carry a colour.
+          value={`${sgd}${formatAmount(holdingsValueSgd)}`}
         />
       </div>
 

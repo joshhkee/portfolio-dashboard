@@ -178,10 +178,26 @@ model CashExchange {
 // `lastSeenAt` is written lazily by whichever page asks for it, throttled, and
 // is deliberately nullable: NULL means "never seen", which the dashboard reads
 // as "unknown baseline" rather than "just now".
+// `role` and `approvedAt` are what make an account something that can be
+// REQUESTED rather than only created from the inside. A member can ask for an
+// account; it is created with `approvedAt` NULL, cannot sign in, and sits in the
+// admin's review list until an admin approves it. `role` is deliberately a
+// plain two-value string rather than a table or an enum: there are two roles,
+// they are decided in one place (lib/accounts.ts), and an enum in the database
+// would be a second place to change.
+//
+// The migration backfills `approvedAt` from `createdAt` for every row that
+// already existed — those accounts were made on purpose, by hand or by the CLI,
+// so they are already in — and makes `josh` the first admin, because an
+// approval queue with nobody able to approve is a dead end.
 model User {
   id           Int       @id @default(autoincrement())
   username     String    @unique
   passwordHash String
   createdAt    DateTime  @default(now())
   lastSeenAt   DateTime?
+  /// "admin" or "member". Admins create accounts outright and review requests.
+  role         String    @default("member")
+  /// When an admin let this account in. NULL means it is a pending request.
+  approvedAt   DateTime?
 }

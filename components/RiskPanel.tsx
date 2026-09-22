@@ -209,9 +209,8 @@ export default function RiskPanel({
           </div>
 
           <p className="text-xs text-ink-500">
-            Concentration counts the holdings only, not cash — cash lowers the risk of the whole
-            portfolio but it is not a position. HHI below 15 is diversified, 15–25 moderately
-            concentrated, above 25 concentrated.
+            Holdings only, not cash — cash lowers the portfolio&apos;s risk but it is not a
+            position. HHI: under 15 diversified, 15–25 moderate, over 25 concentrated.
           </p>
         </div>
 
@@ -319,9 +318,9 @@ export default function RiskPanel({
                 </ResponsiveContainer>
               </div>
               <p className="text-xs text-ink-500">
-                The trailing year&apos;s return recalculated each day — a single cumulative number
-                hides that a good year was uneven along the way. Starts {fullDate(rollingStart!)} —
-                the first day with a full year behind it.
+                The trailing year&apos;s return, recalculated daily — a single cumulative number
+                hides an uneven year. Starts {fullDate(rollingStart!)}, the first day with a full
+                year behind it.
               </p>
             </div>
           ) : (

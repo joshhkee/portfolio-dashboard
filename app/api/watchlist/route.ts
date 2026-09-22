@@ -1,28 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { fetchQuotesForPositions } from "@/lib/prices";
+import { fetchPositionQuotes } from "@/lib/prices";
+import { ensureTickerMeta, getNameMap, type TickerMetaEntry } from "@/lib/ticker-meta";
+import { watchlistRows } from "@/lib/watchlist";
 
 export const dynamic = "force-dynamic";
 
 const REGIONS = ["US", "SG", "HK"];
 
-export async function GET() {
+/** Every watchlist row, resolved the same way the page resolves them (one
+ *  shared builder, so a refresh cannot disagree with the first render). */
+async function loadRows() {
   const items = await prisma.watchlistItem.findMany({ orderBy: { createdAt: "asc" } });
-  const quotes = await fetchQuotesForPositions(
+  const quotes = await fetchPositionQuotes(
     items.map((i) => ({ region: i.region, ticker: i.ticker }))
   );
+  const entries: TickerMetaEntry[] = [];
+  for (const item of items) {
+    const meta = quotes.meta[`${item.region}::${item.ticker}`];
+    if (meta) entries.push({ region: item.region, ticker: item.ticker, meta });
+  }
+  await ensureTickerMeta(entries);
+  return watchlistRows(
+    items.map((i) => ({ id: i.id, region: i.region, ticker: i.ticker, notes: i.notes })),
+    quotes,
+    await getNameMap()
+  );
+}
 
-  const rows = items.map((i) => {
-    const price = quotes[`${i.region}::${i.ticker}`] ?? null;
-    return {
-      id: i.id,
-      region: i.region,
-      ticker: i.ticker,
-      notes: i.notes,
-      price,
-    };
-  });
-  return NextResponse.json({ items: rows });
+export async function GET() {
+  return NextResponse.json({ items: await loadRows() });
 }
 
 export async function POST(req: NextRequest) {
@@ -53,6 +60,30 @@ export async function POST(req: NextRequest) {
     },
   });
   return NextResponse.json(item, { status: 201 });
+}
+
+/** Set a row's note.
+ *
+ * The field is "why I am watching this", which is only useful if it can be
+ * written after the ticker was added — the add form is not a place you have a
+ * reason in mind. Blank clears it back to null rather than storing "". */
+export async function PATCH(req: NextRequest) {
+  const body = await req.json();
+  const id = Number(body?.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+  if (typeof body?.notes !== "string" && body?.notes !== null) {
+    return NextResponse.json({ error: "notes must be a string or null" }, { status: 400 });
+  }
+
+  const notes = typeof body.notes === "string" ? body.notes.trim() || null : null;
+  const updated = await prisma.watchlistItem
+    .update({ where: { id }, data: { notes }, select: { id: true, notes: true } })
+    .catch(() => null);
+  if (!updated) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  return NextResponse.json(updated);
 }
 
 export async function DELETE(req: NextRequest) {

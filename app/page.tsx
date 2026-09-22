@@ -1,14 +1,14 @@
 import Link from "next/link";
-import { Plus, TriangleAlert, CheckCircle2, ChevronRight } from "lucide-react";
+import { Plus, TriangleAlert, ChevronRight, UserPlus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { countRequests } from "@/lib/account-admin";
+import { isAdmin } from "@/lib/accounts";
 import { getOpenPositionsFor } from "@/lib/get-positions";
-import { NativeMoney, Percent, formatAmount } from "@/components/SignedNumber";
-import { currencySymbol, convertCurrency, fetchFxRates } from "@/lib/fx";
+import { NativeMoney, Percent, PlainMoney, formatAmount } from "@/components/SignedNumber";
+import { currencySymbol, currencyForRegion, convertCurrency, fetchFxRates } from "@/lib/fx";
 import { formatShortDate } from "@/lib/dates";
 import { dayKey, getSnapshots, recordTodaySnapshot } from "@/lib/snapshots";
 import { depositSchedule } from "@/lib/schedule";
-import { getTickerMetaMaps } from "@/lib/ticker-meta";
-import { priceKey } from "@/lib/prices";
 import { readVisit } from "@/lib/session";
 import PortfolioPerformance from "@/components/PortfolioPerformance";
 import TopPositions from "@/components/TopPositions";
@@ -17,13 +17,67 @@ export const dynamic = "force-dynamic";
 
 const sgd = currencySymbol.SGD;
 const CURRENCY_TO_REGION: Record<string, string> = { SGD: "SG", USD: "US", HKD: "HK" };
-const DAY_MS = 86_400_000;
 
 interface AttentionItem {
   tone: "warn" | "info";
   text: string;
   href: string;
   linkLabel: string;
+}
+
+/** One row of the movers tile: the instrument, what it costs, and how far it
+ *  moved today. */
+interface MoverRow {
+  region: string;
+  ticker: string;
+  valueSgd: number;
+  /** Latest session's change as a fraction, e.g. 0.031 for +3.1%. */
+  dayChangePct: number;
+  /** Latest price in the holding's own currency. */
+  price: number;
+}
+
+/**
+ * One side of the movers tile.
+ *
+ * Each row is a link into that region's table with the ticker preselected, so
+ * "what moved" is a door to "what is my position in it" rather than a dead
+ * readout — the same pattern the largest-positions strip uses. An empty column
+ * says so with a dash instead of collapsing, so the tile keeps its shape.
+ */
+function MoverColumn({ label, rows }: { label: string; rows: MoverRow[] }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="text-[10px] uppercase tracking-wide text-ink-500">{label}</p>
+      {rows.length === 0 ? (
+        <p className="text-xs text-ink-500">—</p>
+      ) : (
+        rows.map((row) => (
+          <Link
+            key={`${row.region}-${row.ticker}`}
+            href={`/positions/${row.region.toLowerCase()}?ticker=${encodeURIComponent(
+              row.ticker
+            )}`}
+            title={`S$${formatAmount(row.valueSgd)} held · ${row.ticker} at ${currencySymbol[currencyForRegion(row.region)]}${formatAmount(row.price)}`}
+            className="flex items-baseline gap-2 text-xs transition hover:text-accent motion-reduce:transition-none"
+          >
+            <span className="num truncate text-ink-100">{row.ticker}</span>
+            {/* The price, so a mover is a price you can act on rather than a
+                percentage with nothing to attach it to. Neutral ink: a price
+                is a value, and colour here means up or down. The change keeps
+                a fixed width so the percentages line up down the column. */}
+            <span className="num ml-auto shrink-0 text-ink-300">
+              {currencySymbol[currencyForRegion(row.region)]}
+              {formatAmount(row.price)}
+            </span>
+            <span className="num w-[3.75rem] shrink-0 text-right">
+              <Percent value={row.dayChangePct} />
+            </span>
+          </Link>
+        ))
+      )}
+    </div>
+  );
 }
 
 /**
@@ -70,17 +124,31 @@ export default async function TodayPage() {
   // looked at.
   await recordTodaySnapshot();
 
+  // Admin work surfaces here, because this is the page the owner opens first:
+  // an "Add account" button, and a line when somebody is waiting to be let in.
+  //
+  // The role comes from the visit ALREADY resolved above rather than from a
+  // second `accountAdminContext()` call, which would be another round trip to a
+  // remote pooler for a fact the page is holding. One consequence, deliberately
+  // accepted: the bootstrap state (no accounts at all, so the shared password
+  // may create the first one) is not detected here, because detecting it needs
+  // the account count. That state is reachable from the nav's accounts link,
+  // which the layout resolves, and it only exists once in the app's life.
+  const canManageAccounts = isAdmin(visit.account?.role);
+
   // Every read is a round trip to a remote pooler, so they go out together and
   // the ledger is read ONCE and shared: getOpenPositionsFor() replays the same
-  // rows this page already fetched.
-  const [allTransactions, contributions, cashRows, rates, snapshots, meta] = await Promise.all([
-    prisma.transaction.findMany({ orderBy: [{ date: "asc" }, { id: "asc" }] }),
-    prisma.contribution.findMany({ orderBy: { date: "asc" } }),
-    prisma.cashBalance.findMany(),
-    fetchFxRates(),
-    getSnapshots(),
-    getTickerMetaMaps(),
-  ]);
+  // rows this page already fetched. The request count rides along only for an
+  // admin — everyone else sees no trace of the queue and pays nothing for it.
+  const [allTransactions, contributions, cashRows, rates, snapshots, waitingRequests] =
+    await Promise.all([
+      prisma.transaction.findMany({ orderBy: [{ date: "asc" }, { id: "asc" }] }),
+      prisma.contribution.findMany({ orderBy: { date: "asc" } }),
+      prisma.cashBalance.findMany(),
+      fetchFxRates(),
+      getSnapshots(),
+      canManageAccounts ? countRequests() : Promise.resolve(0),
+    ]);
 
   const positions = await getOpenPositionsFor(["US", "SG", "HK"], "SGD", rates, allTransactions);
 
@@ -149,59 +217,81 @@ export default async function TodayPage() {
     : null;
   const nextOverdue = nextMonth ? Date.now() > nextMonth.dueBy : false;
 
-  // --- What needs a decision -------------------------------------------
-  const attention: AttentionItem[] = [];
+  // --- Today's movers ---------------------------------------------------
+  //
+  // The tile used to be "Needs attention", which was the wrong half of the
+  // day: on a portfolio built by monthly deposits there is usually nothing to
+  // decide, so the panel spent most of its life saying "Nothing needs you".
+  // What changes every day is what moved — and that data is already in hand,
+  // because the same chart call that prices each position reports the latest
+  // session's change (see QuoteMeta.dayChangePct). No new request, no new
+  // store.
+  //
+  // Ranked by PERCENT, not by dollars: the question "what is happening" is
+  // answered by the biggest move, and ranking by value would just print the
+  // largest holdings back every day. Positions with no reported change are
+  // left out rather than shown as flat — a missing quote is not a flat day.
+  const moved: MoverRow[] = positions.flatMap((p) =>
+    p.dayChangePct === null
+      ? []
+      : [
+          {
+            region: p.region,
+            ticker: p.ticker,
+            valueSgd: p.totalHoldingsConverted,
+            dayChangePct: p.dayChangePct,
+            price: p.currentPrice,
+          },
+        ]
+  );
+  const byChange = [...moved].sort((a, b) => b.dayChangePct - a.dayChangePct);
+  const gainers = byChange.filter((p) => p.dayChangePct > 0).slice(0, 3);
+  const losers = byChange
+    .filter((p) => p.dayChangePct < 0)
+    .slice(-3)
+    .reverse();
+
+  // --- And the things that genuinely need you ---------------------------
+  //
+  // Kept to signals that mean a number on screen is wrong or a month has
+  // closed unrecorded. Two nudges were deliberately dropped from here because
+  // they are housekeeping rather than decisions, and each already has a page
+  // that owns it: untagged sectors (it is the whole point of
+  // /positions/exposure) and cash sitting idle (the owner's model parks money
+  // in the account on purpose, since nothing here earns interest, so ageing
+  // cash is not a problem to report).
+  const urgent: AttentionItem[] = [];
+
+  // A person waiting to get in outranks a number being wrong, so it goes first.
+  // Only an admin ever accumulates one of these, so for everyone else the list
+  // is exactly what it was.
+  if (waitingRequests > 0) {
+    urgent.push({
+      tone: "info",
+      text: `${waitingRequests} account ${waitingRequests === 1 ? "request is" : "requests are"} waiting for approval.`,
+      href: "/accounts",
+      linkLabel: "Review it",
+    });
+  }
 
   if (nextMonth && nextOverdue) {
-    attention.push({
+    urgent.push({
       tone: "warn",
       text: `No deposit recorded for ${formatMonthKey(nextMonth.label)} — the month has closed.`,
       href: "/money",
       linkLabel: "Record it",
     });
   }
-  // Late months are deliberately NOT an attention item. The owner has been
-  // explicit about this twice: money sitting in the account earns nothing here,
-  // so a deposit that landed after its month closed is a note, not a decision —
-  // and a "Needs attention" list that opens with five late months stops being a
-  // list of things that need you. /money still marks each late month with its
-  // clock badge and shows the schedule in full; the dashboard just does not
-  // shout about it.
-  const untagged = positions.filter((p) => !meta.sectors[priceKey(p.region, p.ticker)]);
-  if (untagged.length > 0) {
-    const untaggedValue = untagged.reduce((sum, p) => sum + p.totalHoldingsConverted, 0);
-    attention.push({
-      tone: "info",
-      text: `${untagged.length} position${untagged.length === 1 ? "" : "s"} (${(
-        (untaggedValue / Math.max(holdingsValueSgd, 1)) *
-        100
-      ).toFixed(0)}% of holdings) still have no sector tag.`,
-      href: "/positions/exposure",
-      linkLabel: "Tag them",
-    });
-  }
   const unpriced = positions.filter((p) => p.priceUnavailable);
   if (unpriced.length > 0) {
-    attention.push({
-      tone: "info",
-      text: `${unpriced.length} position${unpriced.length === 1 ? "" : "s"} have no live quote and are counted at cost (${unpriced
+    urgent.push({
+      tone: "warn",
+      text: `${unpriced.length} position${unpriced.length === 1 ? "" : "s"} have no live quote and are valued at cost (${unpriced
         .map((p) => p.ticker)
         .slice(0, 3)
         .join(", ")}${unpriced.length > 3 ? "…" : ""}).`,
       href: `/positions/${unpriced[0].region.toLowerCase()}`,
       linkLabel: "See them",
-    });
-  }
-  const lastTrade = allTransactions[allTransactions.length - 1] ?? null;
-  const daysSinceTrade = lastTrade
-    ? Math.floor((Date.now() - lastTrade.date.getTime()) / DAY_MS)
-    : null;
-  if (cashTotalSgd > 0 && daysSinceTrade !== null && daysSinceTrade >= 45) {
-    attention.push({
-      tone: "info",
-      text: `S$${formatAmount(cashTotalSgd)} has sat in cash for ${daysSinceTrade} days since the last trade.`,
-      href: "/money/cash",
-      linkLabel: "Look at cash",
     });
   }
 
@@ -246,6 +336,12 @@ export default async function TodayPage() {
             <Plus size={14} strokeWidth={2.5} />
             Record a deposit
           </Link>
+          {canManageAccounts && (
+            <Link href="/accounts" className="btn-ghost flex items-center gap-1.5">
+              <UserPlus size={14} strokeWidth={2.5} />
+              Add account
+            </Link>
+          )}
         </div>
       </div>
 
@@ -255,8 +351,12 @@ export default async function TodayPage() {
         <div className="panel flex flex-col gap-4 p-5 lg:col-span-2">
           <div>
             <p className="text-xs text-ink-300">Total portfolio value (S$, holdings + cash)</p>
+            {/* A total is not a gain, so it carries no green: colour in this
+                app means "up or down", and a figure that is simply the sum of
+                what you own would be green whatever happened to it. See the
+                colour rule in docs/PLAN.md. */}
             <p className="num mt-1 text-4xl font-medium text-ink-100">
-              <NativeMoney value={totalPortfolioValue} symbol={sgd} />
+              <PlainMoney value={totalPortfolioValue} symbol={sgd} />
             </p>
           </div>
 
@@ -304,26 +404,42 @@ export default async function TodayPage() {
           </div>
         </div>
 
-        {/* Things that need a decision, drawn from the app's own data. An empty
-            list is a real state and gets said plainly rather than left blank. */}
+        {/* The day's movers, then anything that genuinely needs a decision.
+            Gainers and losers sit in two columns so six rows cost three rows
+            of height — this page's rule is that it fits one screen. */}
         <div className="panel flex flex-col gap-3 p-5">
-          <p className="text-xs font-medium uppercase tracking-wide text-ink-300">Needs attention</p>
-          {attention.length === 0 ? (
-            <p className="flex items-center gap-2 text-sm text-ink-300">
-              <CheckCircle2 size={15} strokeWidth={1.75} className="text-gain" />
-              Nothing needs you today.
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-ink-300">
+              Today&apos;s movers
             </p>
+            <p className="text-[10px] text-ink-500" title="Change since the previous close, per the quote source.">
+              latest session
+            </p>
+          </div>
+
+          {gainers.length === 0 && losers.length === 0 ? (
+            <p className="text-sm text-ink-300">No live quotes to compare yet.</p>
           ) : (
-            <ul className="flex flex-col gap-3">
-              {attention.map((item) => (
+            <div className="grid grid-cols-2 gap-x-4">
+              <MoverColumn label="Gainers" rows={gainers} />
+              <MoverColumn label="Losers" rows={losers} />
+            </div>
+          )}
+
+          {urgent.length > 0 && (
+            <ul className="mt-1 flex flex-col gap-2 border-t border-ink-700 pt-3">
+              {urgent.map((item) => (
                 <li key={item.text} className="flex items-start gap-2">
+                  {/* The tone picks the mark: a warning is something wrong with
+                      a number, an info line is something to deal with. Red
+                      triangles on both would make a queue look like a fault. */}
                   {item.tone === "warn" ? (
-                    <TriangleAlert size={14} strokeWidth={2} className="mt-0.5 shrink-0 text-loss" />
+                    <TriangleAlert size={13} strokeWidth={2} className="mt-0.5 shrink-0 text-loss" />
                   ) : (
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-ink-500" />
+                    <UserPlus size={13} strokeWidth={2} className="mt-0.5 shrink-0 text-accent" />
                   )}
                   <span className="flex flex-col gap-0.5">
-                    <span className="text-sm text-ink-100">{item.text}</span>
+                    <span className="text-xs text-ink-100">{item.text}</span>
                     <Link
                       href={item.href}
                       className="text-xs text-ink-500 transition hover:text-accent motion-reduce:transition-none"
@@ -338,9 +454,11 @@ export default async function TodayPage() {
         </div>
       </div>
 
-      {/* The schedule, in one line: what arrived, what is due, how often it was
-          late. The late flag is quiet on purpose — money sitting in the account
-          earns nothing here, so a late month is a note, not an alarm. */}
+      {/* The schedule, in one line: what is in, and what is next due. Whether a
+          month's money landed inside its own month is deliberately not said
+          here — deposits are bulk and sometimes late on purpose, and since
+          nothing in the account earns interest there is no cost to correcting
+          that, so it is a note the schedule page keeps, not a headline. */}
       {latestMonth && nextMonth && (
         <Link
           href="/money"
@@ -348,12 +466,7 @@ export default async function TodayPage() {
         >
           <span className="font-medium uppercase tracking-wide text-ink-300">Deposits</span>
           <span className="text-ink-100">
-            {latestMonth.label} arrived{" "}
-            {latestMonth.paidOn === null
-              ? "on an unrecorded date"
-              : latestMonth.daysLate > 0
-                ? `${latestMonth.daysLate} days after the month closed`
-                : "on time"}
+            {latestMonth.label} recorded · {schedule.measuredMonths} months in
           </span>
           <span className="text-ink-500">·</span>
           <span className={nextOverdue ? "text-loss" : "text-ink-300"}>

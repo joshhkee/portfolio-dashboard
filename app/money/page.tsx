@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { NativeMoney } from "@/components/SignedNumber";
+import { PlainMoney } from "@/components/SignedNumber";
 import AddContributionForm from "@/components/AddContributionForm";
 import AllocationCards from "@/components/AllocationCards";
 import ContributionsPivotTable from "@/components/ContributionsPivotTable";
@@ -69,20 +69,17 @@ export default async function ContributionsPage() {
 
   // Deposit timing, keyed by the same label the pivot groups on. A month's
   // money arrives as one lump split across stakeholders, so the month counts
-  // as arrived when its last row did — see lib/schedule.ts.
+  // as arrived when its last row did — see lib/schedule.ts. The arrival date
+  // is still recorded and still editable per month; what the page no longer
+  // does is SUM UP how many months landed late. The owner's model puts idle
+  // cash to work rather than holding it, deposits are occasionally late by
+  // plan, and nothing in the account earns interest — so a lateness score was
+  // reporting a cost that does not exist. The quiet clock badge on the month
+  // itself is all that remains.
   const schedule = depositSchedule(
     contributions.map((c) => ({ label: c.label, date: c.date, paidOn: c.paidOn }))
   );
   const timingByLabel = new Map(schedule.rows.map((r) => [r.label, r]));
-
-  // One dim line, not a dashboard of alerts: enough to say whether the
-  // schedule is being kept, with each late month marked in the table itself.
-  const scheduleNote =
-    schedule.measuredMonths === 0
-      ? null
-      : schedule.lateMonths === 0
-        ? `All ${schedule.measuredMonths} scheduled months arrived within the month.`
-        : `${schedule.lateMonths} of ${schedule.measuredMonths} scheduled months arrived after the month closed — worst ${schedule.worstLate?.label}, ${schedule.worstLate?.daysLate} days late.`;
 
   // Default label/date for the "add default month" quick action — one
   // calendar month after the most recent contribution on record.
@@ -151,15 +148,15 @@ export default async function ContributionsPage() {
     .sort((a, b) => b.dateMs - a.dateMs);
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex items-start justify-between">
+    <div className="flex flex-col gap-8">      <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-ink-300">Total outlay</p>
           {/* Every contribution in this ledger is SGD, so the symbol is S$ —
               `Money` would print a bare "$" here and read as USD beside the
-              S$-labelled cards directly below. */}
+              S$-labelled cards directly below. Neutral, because money paid in
+              is not a gain. */}
           <p className="mt-1 text-4xl font-medium">
-            <NativeMoney value={grandTotal} symbol="S$" />
+            <PlainMoney value={grandTotal} symbol="S$" />
           </p>
         </div>
         {/* API download — rule only wants page navigations in <Link>. */}
@@ -187,10 +184,7 @@ export default async function ContributionsPage() {
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-sm font-medium text-ink-300">Outlay history</h2>
-            {scheduleNote && <p className="text-xs text-ink-500">{scheduleNote}</p>}
-          </div>
+          <h2 className="text-sm font-medium text-ink-300">Outlay history</h2>
           <AddContributionForm
             knownContributors={knownContributors}
             nextMonthLabel={nextMonthLabel}

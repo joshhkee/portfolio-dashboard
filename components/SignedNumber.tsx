@@ -1,3 +1,7 @@
+// The two pure formatters live in `lib/format.ts` (a lib module needs them);
+// re-exported here so every `@/components/SignedNumber` import keeps working.
+export { formatAmount, formatQty } from "@/lib/format";
+
 function formatMoney(n: number) {
   const abs = Math.abs(n);
   const formatted = abs.toLocaleString("en-US", {
@@ -76,17 +80,3 @@ export function NativeMoney({
   );
 }
 
-/** Caps qty display at 4 decimal places without padding whole numbers
- * with trailing zeros (10 -> "10", 10.5 -> "10.5", not "10.0000"). */
-export function formatQty(n: number) {
-  return n.toLocaleString("en-US", { maximumFractionDigits: 4 });
-}
-
-/** Comma-formatted amount with exactly 2 decimals, no symbol or sign —
- * for composing with a currency symbol that's already handled
- * separately, e.g. `{symbol}{formatAmount(price)}`. Same underlying
- * formatting Money/NativeMoney use, for always-positive figures like
- * a price or avg cost that don't need their sign/color logic. */
-export function formatAmount(n: number) {
-  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}

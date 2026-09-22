@@ -22,10 +22,25 @@
     @apply w-full min-w-[720px] border-separate border-spacing-0 text-left text-sm;
   }
   .ledger-table th {
-    @apply sticky top-0 z-30 whitespace-nowrap border-b border-ink-700 bg-ink-850 px-3 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-300;
+    @apply sticky top-0 z-30 whitespace-nowrap border-b border-ink-700 bg-ink-850 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-300;
   }
+  /* `whitespace-nowrap` is load-bearing rather than cosmetic. Cells in these
+     tables are short values — a date, a ticker, a figure — and with the table
+     sized by content, a squeezed column used to break them mid-value: "16 Sep
+     26" rendered as three stacked lines in a 67px column, which tripled the
+     row height and made the ledger look like it was missing rows. A cell that
+     genuinely needs to wrap (a note, an instrument name) opts back in with its
+     own `truncate`/width, which is where the ellipsis belongs anyway.
+
+     Padding is px-2 rather than the px-3 these tables used to carry: across
+     ten or eleven columns that extra 8px a cell was ~90px of width spent on
+     nothing, and it is what pushed the widest ledger past its container on a
+     laptop. */
   .ledger-table td {
-    @apply border-b border-ink-700/60 px-3 py-2.5 align-middle;
+    @apply whitespace-nowrap border-b border-ink-700/60 px-2 py-2.5 align-middle;
+  }
+  .ledger-table th {
+    @apply px-2;
   }
   /* The pinned first column of a wide table.
 

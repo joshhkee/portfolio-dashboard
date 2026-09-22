@@ -1,8 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
+  accountCreationDecision,
   guardDeleteAccount,
   guardManageAccounts,
+  guardReviewRequest,
   guardSetPassword,
+  guardViewAccounts,
+  isAdmin,
   parseNewAccount,
   USERNAME_RULE,
   type Guard,
@@ -16,63 +20,180 @@ function refusal(guard: Guard): string {
   return guard.ok ? "" : guard.error;
 }
 
-describe("guardManageAccounts", () => {
-  it("lets an account holder manage accounts", () => {
-    expect(guardManageAccounts(true, 1).ok).toBe(true);
-    expect(guardManageAccounts(true, 9).ok).toBe(true);
+describe("isAdmin", () => {
+  it("reads exactly one string as admin, and nothing else", () => {
+    expect(isAdmin("admin")).toBe(true);
+    for (const value of ["member", "Admin", " ADMIN ", "", null, undefined]) {
+      expect(isAdmin(value)).toBe(false);
+    }
+  });
+});
+
+describe("guardViewAccounts", () => {
+  it("lets any signed-in account see the page, whatever their role", () => {
+    expect(guardViewAccounts({ hasAccount: true, accountCount: 5 }).ok).toBe(true);
   });
 
-  it("allows the bootstrap: no accounts at all, so the first one can be created", () => {
-    // Without this the page would be unreachable until somebody ran the CLI.
-    expect(guardManageAccounts(false, 0).ok).toBe(true);
+  it("allows the bootstrap, so the first account does not need a shell", () => {
+    expect(guardViewAccounts({ hasAccount: false, accountCount: 0 }).ok).toBe(true);
   });
 
   it("refuses the shared password once any account exists", () => {
-    const guard = guardManageAccounts(false, 1);
+    const guard = guardViewAccounts({ hasAccount: false, accountCount: 1 });
     expect(guard).toMatchObject({ ok: false, status: 403 });
     expect(refusal(guard)).toContain("username");
   });
 });
 
+describe("guardManageAccounts", () => {
+  it("lets an admin manage accounts", () => {
+    expect(guardManageAccounts({ role: "admin", accountCount: 9 }).ok).toBe(true);
+  });
+
+  it("allows the bootstrap: no accounts at all, so the first one can be created", () => {
+    // Without this the page would be unreachable until somebody ran the CLI.
+    expect(guardManageAccounts({ role: null, accountCount: 0 }).ok).toBe(true);
+  });
+
+  it("refuses a member — being signed in is no longer enough", () => {
+    const guard = guardManageAccounts({ role: "member", accountCount: 2 });
+    expect(guard).toMatchObject({ ok: false, status: 403 });
+    expect(refusal(guard)).toBe("Only an admin can manage accounts.");
+  });
+
+  it("refuses the shared password once any account exists", () => {
+    const guard = guardManageAccounts({ role: null, accountCount: 1 });
+    expect(guard).toMatchObject({ ok: false, status: 403 });
+    expect(refusal(guard)).toContain("username");
+  });
+});
+
+describe("accountCreationDecision", () => {
+  it("makes an admin's create live, as a member", () => {
+    // Membership, not admin: an admin adding somebody does not hand out admin
+    // with it, or one careless create would be a second approver.
+    expect(accountCreationDecision({ actorRole: "admin", accountCount: 3 })).toEqual({
+      status: "approved",
+      role: "member",
+      because: "admin",
+    });
+  });
+
+  it("makes the very first account an approved admin", () => {
+    // The dead end this avoids: a queue whose only member cannot approve.
+    expect(accountCreationDecision({ actorRole: null, accountCount: 0 })).toEqual({
+      status: "approved",
+      role: "admin",
+      because: "bootstrap",
+    });
+  });
+
+  it("turns a member's create into a request", () => {
+    expect(accountCreationDecision({ actorRole: "member", accountCount: 3 })).toEqual({
+      status: "pending",
+      role: "member",
+      because: "request",
+    });
+  });
+
+  it("still turns a request into a request when the database is not empty but nobody is signed in", () => {
+    expect(accountCreationDecision({ actorRole: null, accountCount: 1 })).toMatchObject({
+      status: "pending",
+    });
+  });
+});
+
+describe("guardReviewRequest", () => {
+  it("lets an admin approve something still pending", () => {
+    expect(guardReviewRequest({ role: "admin", alreadyApproved: false }).ok).toBe(true);
+  });
+
+  it("refuses a member, which is the whole point of a queue", () => {
+    const guard = guardReviewRequest({ role: "member", alreadyApproved: false });
+    expect(guard).toMatchObject({ ok: false, status: 403 });
+    expect(refusal(guard)).toContain("Only an admin");
+  });
+
+  it("refuses to re-stamp something already approved", () => {
+    const guard = guardReviewRequest({ role: "admin", alreadyApproved: true });
+    expect(guard).toMatchObject({ ok: false, status: 400 });
+    expect(refusal(guard)).toContain("already");
+  });
+
+  it("checks the role before the state, so a member learns nothing about a row", () => {
+    expect(guardReviewRequest({ role: "member", alreadyApproved: true })).toMatchObject({
+      status: 403,
+    });
+  });
+});
+
 describe("guardDeleteAccount", () => {
+  const one = { actorId: 7, targetId: 8, accountCount: 2, removingAdmin: false, adminCount: 1 };
+
   it("refuses deleting the account you are signed in as", () => {
-    const guard = guardDeleteAccount(7, 7, 3);
+    const guard = guardDeleteAccount({ ...one, targetId: 7, accountCount: 3 });
     expect(guard).toMatchObject({ ok: false, status: 400 });
     expect(refusal(guard)).toContain("signed in as");
   });
 
   it("refuses deleting the last account, which would reopen the bootstrap", () => {
-    const guard = guardDeleteAccount(null, 4, 1);
+    const guard = guardDeleteAccount({ ...one, targetId: 4, accountCount: 1, actorId: null });
     expect(guard).toMatchObject({ ok: false, status: 400 });
     expect(refusal(guard)).toContain("only account");
-
-    // ...and it stays refused even for the person holding it, for the same reason.
-    expect(guardDeleteAccount(4, 4, 1).ok).toBe(false);
   });
 
-  it("allows deleting somebody else when other accounts remain", () => {
-    expect(guardDeleteAccount(7, 8, 2).ok).toBe(true);
-    expect(guardDeleteAccount(null, 8, 2).ok).toBe(true);
+  it("refuses deleting the last admin, which would fill the queue forever", () => {
+    const guard = guardDeleteAccount({ ...one, removingAdmin: true, adminCount: 1 });
+    expect(guard).toMatchObject({ ok: false, status: 400 });
+    expect(refusal(guard)).toContain("only admin");
+  });
+
+  it("allows removing an admin while another admin remains", () => {
+    expect(
+      guardDeleteAccount({ ...one, removingAdmin: true, adminCount: 2 }).ok
+    ).toBe(true);
+  });
+
+  it("allows removing somebody else when other accounts remain", () => {
+    expect(guardDeleteAccount(one).ok).toBe(true);
+  });
+
+  it("does not need an admin count to remove a member", () => {
+    // The two rules are separate: a member going never threatens the queue.
+    expect(guardDeleteAccount({ ...one, adminCount: 0 }).ok).toBe(true);
   });
 });
 
 describe("guardSetPassword", () => {
+  const base = { isSelf: false, isAdmin: false, currentSupplied: false, currentMatches: false };
+
   it("requires the current password on your own account", () => {
-    expect(guardSetPassword({ isSelf: true, currentSupplied: false, currentMatches: false })).toMatchObject(
-      { ok: false, status: 400 }
-    );
+    expect(guardSetPassword({ ...base, isSelf: true })).toMatchObject({ ok: false, status: 400 });
+    expect(guardSetPassword({ ...base, isSelf: true, currentSupplied: true })).toMatchObject({
+      ok: false,
+      status: 401,
+    });
     expect(
-      guardSetPassword({ isSelf: true, currentSupplied: true, currentMatches: false })
-    ).toMatchObject({ ok: false, status: 401 });
-    expect(guardSetPassword({ isSelf: true, currentSupplied: true, currentMatches: true }).ok).toBe(
-      true
-    );
+      guardSetPassword({ ...base, isSelf: true, currentSupplied: true, currentMatches: true }).ok
+    ).toBe(true);
   });
 
   it("does not require one to reset somebody else's — that is the recovery path", () => {
+    expect(guardSetPassword({ ...base, isAdmin: true }).ok).toBe(true);
+  });
+
+  it("refuses a member resetting someone else's, which would bypass the queue", () => {
+    // The hole this closes: take over the admin's account, then approve yourself.
+    const guard = guardSetPassword({ ...base, isAdmin: false });
+    expect(guard).toMatchObject({ ok: false, status: 403 });
+    expect(refusal(guard)).toContain("Only an admin");
+  });
+
+  it("never asks an admin for a current password on their own account's behalf", () => {
+    // Self still wins: an admin changing their OWN password must prove it.
     expect(
-      guardSetPassword({ isSelf: false, currentSupplied: false, currentMatches: false }).ok
-    ).toBe(true);
+      guardSetPassword({ ...base, isSelf: true, isAdmin: true, currentSupplied: false })
+    ).toMatchObject({ ok: false, status: 400 });
   });
 });
 

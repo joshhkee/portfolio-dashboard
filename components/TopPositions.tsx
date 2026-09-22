@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { NativeMoney, Percent } from "@/components/SignedNumber";
+import { Percent, PlainMoney } from "@/components/SignedNumber";
 import Sparkline from "@/components/Sparkline";
 import { priceKey } from "@/lib/prices";
 
@@ -126,8 +126,11 @@ export default function TopPositions({
                     )}
                   </span>
 
+                  {/* Neutral, like every other holding value in the app: green
+                      means "up", and what you hold is not a direction. The
+                      percentage beside it keeps its colour. */}
                   <span className="num w-24 shrink-0 text-right text-sm text-ink-100">
-                    <NativeMoney value={row.valueSgd} symbol="S$" />
+                    <PlainMoney value={row.valueSgd} symbol="S$" />
                   </span>
                   <span className="w-16 shrink-0 text-right text-sm">
                     <Percent value={row.plPct} />

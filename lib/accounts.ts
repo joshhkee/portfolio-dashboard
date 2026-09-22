@@ -9,13 +9,18 @@
 // password verify) and hand them here; nothing in this file touches Prisma,
 // cookies or the request.
 //
-// The model is deliberately flat: every account sees the same portfolio, so an
-// account is an IDENTITY — whose "since you last looked" is this, whose last
-// visit is that — and NOT a permission level. Nothing here grants access to
-// data; the shared gate and any account reach the same dashboard. What these
-// rules protect is the identity layer itself: that managing accounts can never
-// lock everybody out, and that a password change cannot be made on someone's
-// behalf without their current password when it is their own.
+// Every account still sees the same portfolio — an account is an IDENTITY
+// (whose "since you last looked" is this, whose last visit is that) and not a
+// lens on the data. What the roles added on 2026-09-23 change is who may
+// create identities: an admin can, and everyone else has to ask.
+//
+// That makes one thing consequential that used to be harmless. Before roles,
+// letting any account reset any other account's password cost nothing, because
+// every account had the same reach. Now it would be a way around the queue
+// entirely — reset the admin's password, sign in as them, approve yourself — so
+// resetting someone ELSE's password is admin-only, and changing your own still
+// needs your current password. The two rules are the same rule: the password is
+// only ever changed by the person it belongs to, or by an admin on their behalf.
 
 import { normalizeUsername } from "@/lib/auth";
 import { validatePassword } from "@/lib/password";
@@ -23,6 +28,14 @@ import { validatePassword } from "@/lib/password";
 /** Either the action may proceed, or it may not and the caller should answer
  * with this status and message. */
 export type Guard = { ok: true } | { ok: false; status: number; error: string };
+
+/** The two roles, as the one comparison that reads them. "admin" is a string in
+ *  the database rather than an enum, so this is where the string is interpreted. */
+export type Role = "admin" | "member";
+
+export function isAdmin(role: string | null | undefined): boolean {
+  return role === "admin";
+}
 
 /**
  * May this visitor open the accounts surface at all?
@@ -39,14 +52,106 @@ export type Guard = { ok: true } | { ok: false; status: number; error: string };
  * deleted, so the count can never fall back to zero and quietly reopen a page
  * that lets anyone with the shared password mint an identity.
  */
-export function guardManageAccounts(hasAccount: boolean, accountCount: number): Guard {
+export function guardViewAccounts({
+  hasAccount,
+  accountCount,
+}: {
+  hasAccount: boolean;
+  accountCount: number;
+}): Guard {
   if (hasAccount) return { ok: true };
   if (accountCount === 0) return { ok: true };
   return {
     ok: false,
     status: 403,
-    error: "Sign in with a username to manage accounts — the shared password doesn't say who you are.",
+    error: "Sign in with a username to see accounts — the shared password doesn't say who you are.",
   };
+}
+
+/**
+ * May this visitor ACT on accounts — create one outright, approve or refuse a
+ * request, reset a password, remove one?
+ *
+ * Admins only, plus the bootstrap. The bootstrap creates its first account as an
+ * **admin** rather than a member, because an approval queue whose only member
+ * cannot approve anything is a dead end; see `accountCreationDecision`.
+ *
+ * Being signed in is no longer enough, and that is the change: before roles, any
+ * account holder could add and remove accounts.
+ */
+export function guardManageAccounts({
+  role,
+  accountCount,
+}: {
+  role: Role | null;
+  accountCount: number;
+}): Guard {
+  if (isAdmin(role)) return { ok: true };
+  if (role === null && accountCount === 0) return { ok: true };
+  if (role === null) {
+    return {
+      ok: false,
+      status: 403,
+      error: "Sign in with a username to manage accounts — the shared password doesn't say who you are.",
+    };
+  }
+  // Deliberately about the OBJECT rather than one verb: this same refusal
+  // answers a member trying to create, approve, reset or remove, and a message
+  // naming only one of those reads as a non-sequitur for the other three.
+  return {
+    ok: false,
+    status: 403,
+    error: "Only an admin can manage accounts.",
+  };
+}
+
+/**
+ * What a new account is, given who is asking.
+ *
+ *   admin      an admin added someone directly, so it is live immediately.
+ *   bootstrap  nobody has an account yet, so the first one is created as an
+ *              admin AND approved — otherwise there would be nobody who could
+ *              ever approve anything.
+ *   request    everybody else: created, but a request. It cannot sign in until
+ *              an admin approves it.
+ */
+export type CreationDecision =
+  | { status: "approved"; role: Role; because: "admin" | "bootstrap" }
+  | { status: "pending"; role: Role; because: "request" };
+
+export function accountCreationDecision({
+  actorRole,
+  accountCount,
+}: {
+  actorRole: Role | null;
+  accountCount: number;
+}): CreationDecision {
+  if (isAdmin(actorRole)) return { status: "approved", role: "member", because: "admin" };
+  if (accountCount === 0) return { status: "approved", role: "admin", because: "bootstrap" };
+  return { status: "pending", role: "member", because: "request" };
+}
+
+/**
+ * Approving a request.
+ *
+ * Admin only — this is the whole point of the queue — and only for something
+ * that is actually still pending, so an approval cannot silently overwrite a
+ * decision someone already made.
+ */
+export function guardReviewRequest({
+  role,
+  alreadyApproved,
+}: {
+  role: Role | null;
+  alreadyApproved: boolean;
+}): Guard {
+  if (!isAdmin(role)) {
+    return { ok: false, status: 403, error: "Only an admin can approve account requests." };
+  }
+  if (alreadyApproved) {
+    return { ok: false, status: 400, error: "That account has already been approved." };
+  }
+  return { ok: true };
 }
 
 /**
@@ -58,11 +163,21 @@ export function guardManageAccounts(hasAccount: boolean, accountCount: number): 
  * dashboard would lose the identities it records visits against, and the
  * bootstrap allowance would reopen.
  */
-export function guardDeleteAccount(
-  actorId: number | null,
-  targetId: number,
-  accountCount: number
-): Guard {
+export function guardDeleteAccount({
+  actorId,
+  targetId,
+  accountCount,
+  removingAdmin,
+  adminCount,
+}: {
+  actorId: number | null;
+  targetId: number;
+  accountCount: number;
+  /** True when the account being removed is an admin. */
+  removingAdmin: boolean;
+  /** How many admins exist right now, including that one. */
+  adminCount: number;
+}): Guard {
   if (actorId !== null && actorId === targetId) {
     return {
       ok: false,
@@ -75,6 +190,15 @@ export function guardDeleteAccount(
       ok: false,
       status: 400,
       error: "That's the only account. Add another before removing this one.",
+    };
+  }
+  // The same dead end the bootstrap allowance exists to avoid: no admin means
+  // nobody can approve a request ever again, and the queue fills up uselessly.
+  if (removingAdmin && adminCount <= 1) {
+    return {
+      ok: false,
+      status: 400,
+      error: "That's the only admin. Make another account an admin before removing this one.",
     };
   }
   return { ok: true };
@@ -92,14 +216,28 @@ export function guardDeleteAccount(
  */
 export function guardSetPassword({
   isSelf,
+  isAdmin: actorIsAdmin,
   currentSupplied,
   currentMatches,
 }: {
   isSelf: boolean;
+  /** Whether the person asking is an admin — only consulted on someone else's
+   *  account, because resetting one is how you would bypass the approval queue
+   *  without ever asking for it. */
+  isAdmin: boolean;
   currentSupplied: boolean;
   currentMatches: boolean;
 }): Guard {
-  if (!isSelf) return { ok: true };
+  if (!isSelf) {
+    if (!actorIsAdmin) {
+      return {
+        ok: false,
+        status: 403,
+        error: "Only an admin can reset someone else's password.",
+      };
+    }
+    return { ok: true };
+  }
   if (!currentSupplied) {
     return { ok: false, status: 400, error: "Enter your current password to change it." };
   }

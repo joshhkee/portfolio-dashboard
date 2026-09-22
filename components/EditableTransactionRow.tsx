@@ -7,6 +7,8 @@ import { currencySymbol, currencyForRegion } from "@/lib/fx";
 import { formatQty, formatAmount } from "@/components/SignedNumber";
 import { formatShortDate } from "@/lib/dates";
 import TickerName from "@/components/TickerName";
+import { classifyNote, ledgerSummary } from "@/lib/notes";
+import LedgerLine from "@/components/LedgerLine";
 
 export default function EditableTransactionRow({
   t,
@@ -22,6 +24,14 @@ export default function EditableTransactionRow({
   const [error, setError] = useState<string | null>(null);
 
   const dateStr = new Date(t.date).toISOString().slice(0, 10);
+  // What this row did to the position — derived from the ledger on every
+  // render, never stored. It is what the note column shows when there is no
+  // note, so a factual note never has to be typed.
+  const derived = ledgerSummary(t, currencySymbol[currencyForRegion(t.region)]);
+  // Reference-data notes (the instrument's name, hand-typed) are not shown: the
+  // name is already rendered under the ticker. Hiding is display only — the
+  // stored text comes back untouched in the edit row below.
+  const note = classifyNote(t.notes, { ticker: t.ticker, name });
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -121,8 +131,18 @@ export default function EditableTransactionRow({
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-ink-300">Notes</label>
-              <input name="notes" defaultValue={t.notes ?? ""} className="field w-56" />
+              <label className="text-xs text-ink-300">Note</label>
+              <input
+                name="notes"
+                defaultValue={t.notes ?? ""}
+                className="field w-56"
+                placeholder="Optional"
+              />
+              <p className="max-w-xs text-xs text-ink-500">
+                {note.kind === "reference"
+                  ? "Just the instrument's name — the ledger shows that from the ticker lookup, so this can be cleared."
+                  : `Kept as typed. The ledger line is derived from the transaction: ${derived}`}
+              </p>
             </div>
             <div className="flex gap-2">
               <button type="submit" className="btn-primary" disabled={submitting}>
@@ -179,8 +199,19 @@ export default function EditableTransactionRow({
         {symbol}
         {formatAmount(t.transactionValue)}
       </td>
-      <td className="max-w-xs truncate text-left text-ink-300" title={t.notes ?? undefined}>
-        {t.notes}
+      {/* One line, and its preferred content is the owner's own words. With no
+          note the column shows the derived ledger line instead (muted, since it
+          is generated rather than written). The 11rem cap is the width this
+          table was tuned to in Part 23 — widening it to fit the derived line
+          pushed a 1280px desktop into a horizontal scroll, so the line
+          truncates and the whole of it stays one hover away. */}
+      <td
+        className={`max-w-[11rem] truncate text-left ${
+          note.note ? "text-ink-300" : "text-ink-500"
+        }`}
+        title={note.note ? `${note.note} — ${derived}` : derived}
+      >
+        {note.note ?? <LedgerLine row={t} symbol={symbol} />}
       </td>
       <td>
         <div className="flex gap-3">

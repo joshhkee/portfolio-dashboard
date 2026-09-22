@@ -11,6 +11,7 @@
     "prisma:migrate": "prisma migrate dev",
     "seed": "tsx prisma/seed.ts",
     "user:add": "tsx scripts/create-user.ts",
+    "notes:cleanup": "tsx scripts/notes-cleanup.ts",
     "backfill": "tsx prisma/backfill-snapshots.ts",
     "test": "vitest run",
     "test:watch": "vitest"

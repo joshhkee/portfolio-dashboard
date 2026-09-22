@@ -31,13 +31,16 @@ export const metadata: Metadata = {
  * page that wants it.
  */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const { me, guard } = await accountAdminContext();
+  // `view`, not `manage`: the accounts page is where a member REQUESTS an
+  // account, so the link has to be reachable by someone who cannot manage one —
+  // the page itself says which of the two they are.
+  const { me, view } = await accountAdminContext();
 
   return (
     <html lang="en" className={`${serif.variable} ${mono.variable}`}>
       <body>
         <div className="flex min-h-screen flex-col">
-          <Nav account={{ username: me?.username ?? null, canManage: guard.ok }} />
+          <Nav account={{ username: me?.username ?? null, canManage: view.ok }} />
           <main className="min-w-0 flex-1 px-8 py-8">{children}</main>
           {/* Mounted once for the whole app so Cmd/Ctrl+K works from any
               page; it renders nothing until opened. */}

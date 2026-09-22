@@ -71,7 +71,8 @@ export default function TransactionsTable({
               className="hidden lg:table-cell"
             />
             <SortableTh
-              label="Running avg cost"
+              label="Running avg"
+              title="Running average cost basis per share after this transaction."
               active={sortKey === "runningAvgCost"}
               direction={sortDir}
               onClick={() => toggleSort("runningAvgCost")}
@@ -85,7 +86,16 @@ export default function TransactionsTable({
               align="right"
               className="hidden lg:table-cell"
             />
-            <th className="text-left">Notes</th>
+            {/* Shows the row's note, or the ledger line derived from the
+                transaction when there is none. Header tooltip carries that,
+                because a column whose content changes source needs explaining
+                once rather than per row. */}
+            <th
+              className="text-left"
+              title="Your note for this row, or the ledger line derived from the transaction when you did not write one."
+            >
+              Note
+            </th>
             <th></th>
           </tr>
         </thead>

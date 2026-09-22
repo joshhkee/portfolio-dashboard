@@ -11,12 +11,16 @@ export interface TagSelectProps {
   onCommit: (next: string) => void;
   /** Escape. Reverts rather than clears — see the row in SectorTagEditor. */
   onEscape?: () => void;
+  /** Focus loss. The row uses this to settle itself: a tag box that is meant
+   *  to be set once should not be left sitting open with an unsaved draft. */
+  onBlur?: () => void;
+  /** Focus the input on mount — for a row that opened its editor on click. */
+  autoFocus?: boolean;
   placeholder?: string;
   ariaLabel: string;
   /** Disabled while a save is in flight. */
   busy?: boolean;
-  /** Narrower control for the batch bar. */
-  dense?: boolean;
+
   /** Longest option list rendered in the popup before it scrolls. */
   maxVisible?: number;
 }
@@ -43,10 +47,11 @@ export default function TagSelect({
   onChange,
   onCommit,
   onEscape,
+  onBlur,
+  autoFocus = false,
   placeholder,
   ariaLabel,
   busy = false,
-  dense = false,
   maxVisible = 8,
 }: TagSelectProps) {
   const [open, setOpen] = useState(false);
@@ -123,18 +128,24 @@ export default function TagSelect({
             }
           }}
           disabled={busy}
+          autoFocus={autoFocus}
+          onBlur={onBlur}
           placeholder={placeholder}
           aria-label={ariaLabel}
           aria-expanded={open}
           aria-controls={open ? listId : undefined}
           aria-autocomplete="list"
           role="combobox"
-          className={`field min-w-0 px-2 ${dense ? "py-1 text-xs" : "py-1.5 text-xs"}`}
+          className="field min-w-0 px-2 py-1.5 text-xs"
         />
         <button
           type="button"
           tabIndex={-1}
           aria-label={`Show all tags for ${ariaLabel}`}
+          // Never takes focus: the input has to keep it, or clicking this to
+          // open the list would blur the field and settle the row before the
+          // list was ever usable.
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => setOpen((prev) => !prev)}
           className="shrink-0 rounded border border-ink-700 px-1.5 py-1 text-[10px] text-ink-500 transition hover:border-ink-500 hover:text-ink-100 motion-reduce:transition-none"
         >

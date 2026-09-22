@@ -45,8 +45,10 @@ every checkpoint keeps it green:
 - Branch: `freebuff/analyse-my-current-portfolio-dashboard-project-and-29b0adb2-a864-46b1-9352-6fb3fcb2b204`
   (`origin` -> `github.com/joshhkee/portfolio-dashboard`).
 - A batch of work rides ONE long-lived pull request (same branch -> `main`).
-  #3–#10 are all merged. **The open PR is #11**
-  (https://github.com/joshhkee/portfolio-dashboard/pull/11), carrying Part 20.
+  #3–#11 are all merged. **The open PR is #12**
+  (https://github.com/joshhkee/portfolio-dashboard/pull/12), carrying Parts
+  22–26 (movers + colour rule, palette prominence + table sizing, set-once tag
+  chips + text pass, the derived ledger line + notes cleanup, and the watchlist).
   Nothing should open a second PR while one is already open for this branch —
   but DO open a new one when the previous batch was merged, because a merged PR
   cannot be reopened to carry later work. This happens every time: the owner
@@ -80,7 +82,7 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 5 | Benchmark comparison + alpha/beta (+ Part 3b palette) | **DONE** |
 | 6 | Per-stakeholder performance view | **DONE** |
 | 7 | Sparklines + command palette | **DONE** |
-| 8 | Notes redesign (auto factual half + structured context) | TODO — owner picks an option first |
+| 8 | Notes redesign (derived ledger line + one-time cleanup of stored notes) | **DONE** — 51 notes cleared, 8 rewritten, 5 kept; `notes-backup-*.json` reverts it |
 | 9 | Concentration & risk analytics (HHI, Sharpe, correlation, rolling 1Y) | **DONE** |
 | 10 | Exposure analytics (sector tags, currency + FX attribution) | **DONE** |
 | 11 | Contribution attribution (per position, per period) | **DONE** |
@@ -94,11 +96,103 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 18 | Activity: the four ledgers merged into one filterable timeline | TODO — proposed, not built |
 | 19 | Accounts UI: add / reset / remove accounts at `/accounts` | **DONE** — the owner created their own account (`josh`); the bootstrap is closed |
 | 20 | Today fits one desktop screen: chart beside the largest positions | **DONE** — measured 0px of scroll at 1440×900, 1440×780 and 1024×800 |
-| 21 | Exposure page pass + tagging as a system (vocabulary, dropdown, suggestions, batch) | **DONE** — the sector donut stays Unclassified until the owner tags ("Accept the 18 suggestions" is one click) |
+| 21 | Exposure page pass + tagging as a system (vocabulary, dropdown, suggestions, batch) | **DONE** — all 18 holdings are tagged |
+| 22 | Today's movers tile (day change from quote meta) + the colour rule enforced + attention list trimmed | **DONE** |
+| 23 | Command palette prominence; table sizing pass (one-line dates, no horizontal scroll on desktop) | **DONE** |
+| 24 | Exposure tags as a set-once chip; site-wide text pass; late-deposit notices removed | **DONE** |
+| 25 | Notes: the ledger derives its own line, and the 64 stored notes cleaned up against the owner's verdicts | **DONE** |
+| 26 | Watchlist: names and today's move from the full quote pipeline, a 30-day trend, and the notes column repurposed to "why I'm watching this" | **DONE** |
+| 27 | Watchlist entry signals (1y range position, % off high, RSI, 50/200-day trend) + the trade-history modal redesigned onto one scroll container | **DONE** |
+| 28 | Watchlist entry-level chart (price + 1y low/high + 50-day average), a gauge-style range bar, and "How to read these" | **DONE** |
+| 29 | Today's movers show the current price beside the day's change | **DONE** |
+| 30 | Accounts: roles, a request-and-approve queue with josh as admin, and "Add account" on Today | **DONE** |
 
 ---
 
-## Resume checkpoint — 2026-09-22 (after Part 21)
+## Resume checkpoint — 2026-09-23 (after Part 30)
+
+**State:** parts 1–7, 9–17 and 19–21 were already done, plus **Part 22** (Today's
+movers, the colour rule, a shorter attention list), **Part 23** (a prominent
+command palette, and every wide table fits a desktop window with one-line dates),
+**Part 24** (set-once tag chips, and a site-wide text pass that removed the
+late-deposit notices) and **Part 25** (the ledger derives its own line, so a row
+no longer needs a typed note to explain itself — and the stored notes were then
+cleaned up against the owner's verdicts: **51 cleared, 8 rewritten, 5 kept**,
+with a backup file that reverts the whole thing in one command). The `notes`
+column now holds 13 real notes instead of 64 rows of duplicated names.
+
+**Part 26** then finished the watchlist — the last surface still hand-typing an
+instrument's name. It now resolves names and the day's move from the same quote
+pipeline every other page uses (which also put XLV and CRWD into the command
+palette), shows a 30-day sparkline from the batched `/api/sparklines` endpoint,
+and its `notes` column means "why I am watching this" rather than doubling as a
+name. See the Part 26 section for the two wrong attempts at getting a free
+month of prices out of the quote payload.
+
+**Part 27** then made the watchlist answer the question it exists for — *when is
+this a good buy* — with four signals from a year of daily closes (range
+position, % off the 1y high, Wilder RSI(14), price vs the 50/200-day average),
+shown one click below the row rather than as four more columns. It also
+redesigned the trade-history modal onto a **single** scroll container, with a
+position summary strip and one card per trade cycle. **Part 28** turned the
+range bar into a gauge (the first version read as a draggable slider), added the
+"How to read these" explainer and a year-long **EntryLevelChart**, and **Part 29**
+put the current price on every row of Today's movers.
+
+**Part 30** gave accounts roles, which is the first change here that is not
+about reading data: `role` + `approvedAt` on `User`, an approval queue for
+requests, `josh` as the admin, and an **Add account** button on Today. A member
+can ask for an account (it cannot sign in until an admin approves it) and can no
+longer reset or remove anyone — including the admin, which would otherwise have
+been a way straight around the queue. See the Part 30 section.
+
+**The colour rule, now written down because it was violated in four places:**
+colour means *up or down*. Gains, losses, returns, and percentages carry
+green/red; a plain VALUE never does, however positive it is. That means the
+portfolio total, a holding value, the total outlay, and the contributed /
+current-value columns are neutral ink — `PlainMoney` / `formatAmount`, not
+`NativeMoney` / `Money`. The attribution grid and its "biggest contributors"
+panel are gains, so they stay coloured. `Money`, `Percent` and `NativeMoney`
+colour by sign; reach for `PlainMoney` or `formatAmount` for anything that is
+not a gain or a loss.
+
+**The table rules, so the next pass does not undo them:**
+
+- `.ledger-table td` is `whitespace-nowrap`. A cell that must wrap or truncate
+  opts in with its own width (`TickerName`'s `max-w-[13rem]`, the notes cells'
+  `max-w-[11rem]`). Without this, "16 Sep 26" broke across three lines in a 67px
+  column and tripled the row height.
+- Ledger padding is `px-2` (was `px-3`) — 8px a cell times ten columns was ~90px
+  spent on nothing, and it was what pushed the trades ledger (1531px) past its
+  1218px container.
+- `.table-compact` is for a table whose **column count is unbounded** (the
+  attribution matrix grows a column per month), not a style preference.
+- Column headers may be abbreviated to keep a table inside its container
+  (`P/L (%)`, `Running avg`); the full wording goes in `SortableTh`'s `title`.
+
+**Kept on purpose through the text pass** (each one changes how a figure above
+it should be read, so none of them is decoration): the value chart's "value
+change, not return" caption with the deposits-vs-market split; the attribution
+cross-check line that names the residual between the two pricing methods; the
+positions-table caveats that rows without a live quote are held at cost and the
+totals understate; the `at cost` markers; and the "Unclassified is not an Other
+sector" note on the donut. Everything else was cut or shortened.
+
+**Also worth knowing:** `npm run build` runs `prisma generate` first, which fails
+with `EPERM` while the dev server is running (the server holds
+`query_engine-windows.dll.node`). Run `npx next build` directly in that case, or
+stop the dev server first — the failure is the file lock, not the code.
+
+**Next action (owner's call):** still open — **Part 18** the merged `/activity`
+ledger, modelling the **stop-loss / take-profit levels** the notes still carry as
+text (the owner's chosen follow-up to Part 8), and the **monolith split**
+(`app/page.tsx`, `lib/portfolio-engine.ts`). Part 26 closed the last hand-typed
+name in the app: the watchlist now resolves its own names, and its notes column
+is a reason rather than a duplicate of the ticker.
+
+---
+
+## Resume checkpoint — 2026-09-22 (after Part 21) — kept for reference
 
 **State:** parts 1–7 and 9–17 finished and verified, plus **Part 19** — the
 accounts UI (`/accounts`: create, reset, remove), with the bootstrap rule that
@@ -115,18 +209,16 @@ gone), consistent `S$` labelling, the **five-object IA** with the old URLs
 redirected, **accounts**, and the **dashboard rebuilt as Today** — 12 panels to
 4, 4 charts to 1, 448 rendered figures to 31.
 
-**Next action:** the owner asked for the exposure page first and the rest of the
-tabs after ("and later all the tabs, check them in the preview for unnecessary
-space or other out of place features"), so the next UI pass is **`/money`,
-`/performance`, `/positions/us|sg|hk`, `/positions/trades` and `/watchlist`** in
-that order — the exposure page found four real defects (a 933px-wide input, a
-centre figure sitting on its own ring, a tooltip painted under that figure, and
-a duplicated coverage caption), so assume the same class of thing elsewhere.
-After that, whichever the owner picks — **Part 18 the `/activity` ledger**,
-**14b's two remaining panels** (realized FX on the 25 conversions; unrealized FX
-on the foreign cash), the **monolith split** (`app/page.tsx` and
-`lib/portfolio-engine.ts` are both large enough that a maintainer would flag
-them), or **Part 8** (notes redesign, still blocked on an owner decision).
+**Next action (as of that checkpoint):** the owner asked for the exposure page
+first and the rest of the tabs after ("and later all the tabs, check them in the
+preview for unnecessary space or other out of place features"), so the next UI
+pass was **`/money`, `/performance`, `/positions/us|sg|hk`, `/positions/trades`
+and `/watchlist`** — which Parts 22–24 then did. After that, whichever the owner
+picks — **Part 18 the `/activity` ledger**, **14b's two remaining panels**
+(realized FX on the 25 conversions; unrealized FX on the foreign cash), the
+**monolith split** (`app/page.tsx` and `lib/portfolio-engine.ts` are both large
+enough that a maintainer would flag them), or **Part 8** (notes redesign — that
+decision was made and the work shipped in Part 25).
 
 **The accounts state to be aware of before touching auth again:** the owner's
 account **`josh` exists** (created on `/accounts` on 2026-09-22), so the
@@ -647,10 +739,64 @@ than drawn flat (3 of 4 requested keys returned).
 
 ---
 
-## Part 8 — Notes redesign
+## Part 8 — Notes redesign — DONE
 
-**Owner decision required before coding.** The `notes` column currently does
-two unrelated jobs, and the fix is to separate them, not to restyle the field.
+**Status (2026-09-23): built, approved row by row, and applied.** The column did
+two unrelated jobs, and the fix was to separate them rather than restyle the
+field.
+
+The owner approved this reading of the request on 2026-09-23:
+
+> Keep `notes` as the human half, render the factual half instead of storing it,
+> hide the notes that are only the instrument's name, and show me a printed dry
+> run before rewriting any stored note.
+
+What shipped (Part 25 has the implementation detail): `lib/notes.ts`
+(`ledgerSummary` derives the line from the row; `classifyNote` decides
+reference-vs-context), the ledger's Note column renders the owner's note when
+there is one and the derived line when there is not, and `lib/notes-cleanup.ts`
++ `scripts/notes-cleanup.ts` (`npm run notes:cleanup`) hold the owner's verdicts
+and apply them.
+
+**The verdicts, as given on 2026-09-23** (each one is implemented in
+`lib/notes-cleanup.ts` and pinned in `tests/notes-cleanup.test.ts` against all 64
+stored notes):
+
+- The instrument's name is not a note — including the four the runtime
+  classifier will not hide on its own (`PG - Proctor & Gamble`,
+  `OV8: Sheng Shiong`, `ES3 - STI ETF`, `ST Engineering`), which the owner
+  reviewed one at a time. "Clear them, fix the name in the lookup instead", then
+  "no name changes at all": the notes go and the ticker keeps the lookup's
+  official name.
+- An ordinal or a restated action is not a note: the derived line says what the
+  row did **and states the new average cost**, which is what a `Second Buy` note
+  was being read for. `Odd Lot` is the exception and survives, because which
+  board a Singapore trade used is recorded nowhere else.
+- A partial sell's fraction is derived (`Sold 8 of 15`), so a note that only
+  restates it goes — the same reasoning retires `Sell Part (60%)`,
+  `Partial Exit (60%)` and `Remaining 40%`.
+- `Avg down to x10@$263.25` is the average actually **achieved**, not a target
+  (the owner's answer to the one question the text itself could not settle), so
+  it is derived too and those three notes go.
+- DCA notes collapse to one consistent form naming the **allocation month**, read
+  from the row's own date, because the month is the part the app cannot derive:
+  `DCA · May 2026` … `DCA · Sep 2026`. "Brought forward" is dropped and the two
+  old styles (`(MAY DCA: $865)`, `Sept DCA`) become the same thing.
+- Stop-loss / take-profit notes stay verbatim, and a later pass should model the
+  levels properly.
+
+Applied result: **51 cleared, 8 rewritten, 5 kept** — 13 notes in the column
+instead of 64 rows of duplicated names. Reverting is one command
+(`npm run notes:cleanup -- --revert notes-backup-<stamp>.json`), against a backup
+written before the first row was touched.
+
+---
+
+The original analysis, kept because its measurements are still the reason for
+the design:
+
+The `notes` column does two unrelated jobs, and the fix is to separate them,
+not to restyle the field.
 
 Measured on the live database (2026-09-22): 64 transactions and **all 64 carry
 a note**; 56 of the 64 match the `"<TICKER> - <name>"` reference-data pattern;
@@ -691,6 +837,37 @@ Options, ranked by value per unit of effort:
 **Acceptance (once the owner picks):** the chosen option is implemented without
 storing derived values; the ledger renders it; and notes that carry human
 context remain byte-identical unless option (b) was explicitly approved.
+
+**How (a) and (b) were resolved:** (a) is done as `ledgerSummary` in
+`lib/notes.ts` — derived on every render, never written, formatted with
+`formatAmount`/`formatQty` from `lib/format.ts` (moved out of
+`components/SignedNumber.tsx` so a lib module does not import a component; the
+component re-exports them, so call sites are unchanged). (b) is reduced to its
+safe half: the reference notes are **hidden**, not deleted, and the rewrite is
+gated on the dry run. The classifier is deliberately asymmetric — a note is
+hidden only when every meaningful word in it already appears in the cached name
+(`isNameOnly`), so an unverifiable note stays visible:
+
+| note | cached name | shown? | why |
+|---|---|---|---|
+| `VOO - Vanguard S&P 500 ETF` | Vanguard S&P 500 ETF | hidden | the name, nothing else |
+| `PLTR: Palantir` | Palantir Technologies Inc. | hidden | every word is in the name |
+| `VUG - Vanguard Growth ETF` | Vanguard Morningstar Growth ETF | hidden | still contained |
+| `PG - Proctor & Gamble` | The Procter & Gamble Company | **shown** | `Proctor` is a typo — the class automation would erase |
+| `OV8: Sheng Shiong` | Sheng Siong Group Ltd | **shown** | misspelled |
+| `ES3 - STI ETF` | State Street SPDR Straits Times Index ETF | **shown** | an alias the lookup does not state |
+| `ST Engineering` | Singapore Technologies Engineering Ltd | **shown** | unverifiable abbreviation |
+| `VT - … ETF (MAY DCA: $865)` | Vanguard Total World Stock ETF | **shown** | says something extra |
+
+Measured on all 64 stored rows (2026-09-23): **25 hidden, 39 kept**, asserted in
+`tests/notes.test.ts` against the real texts so a rule change that starts eating
+notes fails the suite. The dry run splits the 39 further — **14** only restate
+the action (`Sell All`, `Second Buy`, `Odd Lot`), which the derived line now says
+better, and **25** carry a level, an amount or a share count that nothing else
+stores (`DRAM - 100% Stoploss Exit (62.4 SL, 78 TP)`).
+
+**Not done, deliberately:** the two options below that nobody asked for — typed
+notes (c) and a position-level journal (d) — and any rewrite of the stored text.
 
 ---
 
@@ -1839,3 +2016,662 @@ dev resources*, so loading the app on `127.0.0.1:port` while it was started on
 `localhost` silently breaks hydration — the page renders, the charts never
 measure, and nothing is logged beyond HMR websocket failures. Use the host the
 server printed, not an equivalent one.
+
+---
+
+## Part 22 — Today's movers, and the colour rule (DONE)
+
+The owner's list, and what each item turned out to be:
+
+1. **"Needs attention" was the wrong tile.** On a portfolio built by monthly
+deposits there is usually nothing to decide, so the panel spent its life saying
+"Nothing needs you today". It is now **Today's movers** — top three gainers and
+top three losers by the latest session's percentage move, each a link into that
+position.
+
+**Where the data comes from, and why it is free:** `QuoteMeta` gained
+`dayChangePct`, read from the same `v8/finance/chart` response that already
+prices every position. It is parsed from `regularMarketChangePercent`, which
+Yahoo reports in **percent units** — divided by 100 once, at the parse, so every
+rate in the app stays a fraction. Deliberately NOT derived from
+`chartPreviousClose`: that field is the close *before the requested window*, so
+at the default range "today's move" would have been a month's move. Three tests
+pin the conversion and the null cases.
+
+Ranked by percent, not dollars: ranking by value would just print the largest
+holdings back every day. Positions with no reported change are excluded rather
+than shown flat — a missing quote is not a flat day.
+
+2. **The attention list, trimmed to what is actually urgent.** Kept: a closed
+month with no deposit recorded, and positions with no live quote (a number on
+screen is wrong). Dropped from the dashboard: untagged sectors (that is the
+whole point of `/positions/exposure`) and idle cash (the owner parks money in the
+account on purpose — nothing here earns interest). Both had `tone: "info"`, so
+the panel no longer renders a category of nudge it would rather not make.
+
+3. **The colour rule, enforced in five places.** Colour means up or down; a value
+that is simply a value is neutral. Fixed: the Today hero total, the
+largest-positions values, `/money`'s total outlay, the stakeholder table's
+Contributed and Current-value columns (and its totals row), and the
+`/performance` "Holdings value" stat. Left coloured, because they are gains:
+P&L, returns, XIRR, the attribution cells, and the attribution's biggest-
+contributors amounts — confirmed with the owner rather than assumed, since that
+panel is a ranking but the figures in it are position gains.
+
+**Verified in the running app:** the tile rendered
+`GAINERS ONON +9.48% · S63 +2.89% · DRAM +2.37%` / `LOSERS XLF −1.85% · 01810
+−1.38% · NOW −1.25%`, and the hero total and every position value on the
+page now render in `ink-100` with only the percentages coloured.
+
+---
+
+## Part 23 — palette prominence, and tables that fit (DONE)
+
+**The palette.** Wider (`max-w-2xl`), a taller input at `text-base`, a 2px gold
+top edge, a heavier shadow, and a blurred backdrop, so it reads as the primary
+control it is. Results are now **grouped** under `ACTIONS` / `GO TO` / `LENS` /
+`HOLDINGS` headings instead of repeating the group on every row, and the active
+row is marked by a gold left rail as well as a background — a 2px rail plus a
+10% tint is findable at a glance, where a shift from `ink-850` to `ink-800` was
+not.
+
+Grouped rendering had one trap, handled: the keyboard walks the FLAT filtered
+list, so each grouped row keeps its flat index (`data-index`) and the
+scroll-into-view looks the row up by that attribute rather than by child
+position — otherwise the arrows would have reset to the top of the group.
+Verified: typing `pos` then ArrowDown selected index 1 (`Positions · HK`),
+`aria-activedescendant` followed, and the groups announced as `Go to`, `Lens`,
+`Actions`.
+
+**The tables.** Measured before touching anything, at a 1440 viewport where the
+scroll container is 1218px:
+
+| table | was | now |
+|---|---|---|
+| `/positions/trades` (11 cols) | 1531px → 313px of scroll | **1218px, fits** |
+| `/positions/us` (11 cols) | 1406px → 188px | **1218px, fits** |
+| `/performance/realized` (10 cols) | 1432px → 214px | **1218px, fits** |
+| `/performance/attribution` (21 cols) | 1815px | 1626px — still scrolls, by nature |
+
+The date column was 67px wide, so `16 Sep 26` broke across three lines and the
+row stood 81px tall. Now `.ledger-table td` is `whitespace-nowrap` and the date
+cell is one line. The three fixes that bought the width back: the instrument-name
+subtitle is capped at 13rem (it alone was setting a 330px column), note cells cap
+at 11rem, and ledger padding went `px-3` → `px-2`. Two headers were abbreviated
+where the long form was the widest thing in the column (`Unrealized P/L (%)` →
+`P/L (%)`, `Running avg cost` → `Running avg`), with the full wording moved into
+`SortableTh`'s new `title`.
+
+The attribution matrix is the honest exception: 19 months is 21 columns and
+cannot fit at a readable size, so it keeps its horizontal scroll and its pinned
+first column — but it now uses `table-compact`, which is defined as "this
+table's column count is unbounded" rather than as a style choice, and that fits a
+few more months on screen.
+
+**Two bugs found by measuring rather than reading:** `SortableTh` gained `title`
+as a type but not as a destructured prop, so every sortable table threw
+`ReferenceError: title is not defined` (caught only because the dev server's
+stderr log was read — the browser console shows an empty line for an Error
+object), and `Select the 0 untagged` was a button whose entire effect was to
+select nothing, now hidden when there is nothing untagged.
+
+---
+
+## Part 24 — set-once tags, and the text pass (DONE)
+
+**The tag control is a chip now.** Requested: *"the tag box should present itself
+as a one time set and forget instead of a dark box which implies often changes"*.
+So a tagged row rests as a label — a bordered chip showing the tag, with a pencil
+that appears on hover — and clicking it opens the editor inline. An untagged row
+shows a dotted-underline `+ Add a tag` and, while it has no tag, the classifier's
+draft as `+ Financials`. Three states, and none of them is a permanently empty
+input box.
+
+Saving follows the same idea: Enter or picking an option commits, Escape reverts,
+and **clicking away settles** — a changed draft is saved, an unchanged one just
+closes. A row can never be left showing a value it has not stored. `TagSelect`
+gained `autoFocus` and `onBlur` for this, and its `▾` toggle now
+`preventMouseDown`s so opening the list cannot blur the field and settle the row
+before the list is usable.
+
+**The "auto" chip is gone**, as asked. Provenance is still written
+(`sectorSource`) because it is worth keeping, but nothing renders it — a badge
+narrating which button produced a tag made a settled label look unresolved.
+
+**The text pass.** Removed, by request: `/money`'s
+`7 of 18 scheduled months arrived after the month closed — worst MAR (2026),
+44 days late`, the Today deposit line's `arrived on time` / `N days after the
+month closed` commentary, and the `N days after the month closed` clause in the
+clock badge's hover note (which now says exactly what it was asked to say: *Late
+deposit — MAR (2026) allocation deposited on 14 May 26*). The quiet clock badge
+itself stays, one per late month, as a passive mark.
+
+Shortened elsewhere, keeping the meaning: the exposure page's currency caption,
+its "holdings only" line and both unclassified notes, the attribution's
+summary/footer/cross-check prose, the stakeholder table's pro-rata note, the
+positions table's mixed-currency and no-quote caveats, and the four risk captions
+(HHI bands, the rolling-year explanation, the correlation legend, and the
+time-weighted note).
+
+**Flagged, not deleted** — these are notices that change how a figure above them
+should be read, and each was kept (shortened) rather than removed: the value
+chart's "value change, not return" split, the attribution cross-check, the
+no-live-quote caveat that says the totals understate, the `at cost` markers, and
+`Unclassified is not an "Other" sector`.
+
+**Verified in the running app, with the real data:** all 18 rows render chips,
+there are **0** `auto` labels and **0** text inputs resting in the table; clicking
+the D05 chip opened a focused editor with its dropdown, and Enter committed the
+same value and returned the chip (no row was left dirty, no data changed).
+`/money` no longer contains the late-deposit sentence (`grep` of the rendered
+body: 0 matches) and still renders its seven clock badges.
+
+**Owner follow-up (2026-09-23): "remove the checkboxes from positions >
+exposure, they dont fit the site".** The selection column is gone, along with the
+machinery it fed: `selected`/`batchTag` state, `toggle`, `applyToSelected`,
+Select all / Select the N untagged / Clear selection, the batch tag picker,
+Apply-to-N and Untag selected. `TagSelect` keeps no `dense` variant, since the
+only caller of it was that toolbar. What remains of the bar is one line —
+`0 of 18 untagged` — plus the one batch action that was never about selection
+(Accept the N suggestions). Grouping is now done by TAG rather than by
+tick-boxes, which is the same outcome: two instruments in one trade get the same
+tag, one row after the other.
+
+The column template was re-balanced in the same pass, because removing the
+leading 1.5rem column left the instrument column at `1fr` in a 1230px panel —
+~690px wide, so a row read `name ……… S$19,061.00` across a hand-span of empty
+space. The name is now capped at 20rem and the tag column takes the slack, which
+puts the figures beside their instrument and moves the leftover room to the one
+cell whose contents vary in width. Header and body measured identical
+(`x = 53, 385, 485, 545, 621, 1166` for both), 6 cells per row, no document or
+row overflow, and no chip is clipped.
+
+---
+
+## Part 25 — The ledger derives its own line; notes stop repeating the name (DONE)
+
+The owner's request: *"how can i re-imagine or semi-automate the notes? currently
+my notes are a mess, including the stock name and some unhelpful information like
+'second buy'."* Part 8 held the options; this is the approved one, built.
+
+**`lib/notes.ts` (new, pure):**
+
+- `ledgerSummary(row, symbol)` turns a ledger row into what it did to the
+  position — `Opened · 5 @ US$546.00`, `Added 5 @ US$520.00 · avg US$546.00 →
+  US$537.33`, `Closed · sold 20 @ US$207.12 · -US$857.60` — from `qtyBefore` /
+  `avgCostBefore` (added to `LedgerRow` in `lib/portfolio-engine.ts`, both taken
+  from the position state carried INTO the row) plus the `runningQty` /
+  `runningAvgCost` / `transactionValue` the engine already produced. Derived on
+  every render, never stored (invariant 1).
+- `classifyNote(raw, { ticker, name })` → `empty` | `reference` | `context`. A
+  note is `reference` only when `isNameOnly` proves every meaningful word of it
+  appears in the cached name, after dropping a `TICKER - ` / `TICKER: ` prefix
+  verbatim. `nameTokens` drops boilerplate (`etf`, `fund`, `trust`, `index`,
+  `holdings`, `ltd`…) and light-pluralises, so `… ETF Shares` and `… ETF`
+  compare equal. One-character leftovers are tolerated (`XIAOMI-W` against
+  `Xiaomi Corporation` is a name), a text made only of such leftovers is not.
+
+**Where it shows:** `EditableTransactionRow` renders the owner's note when there
+is one and the derived line when there is not (muted `text-ink-500`, because it
+is generated rather than written), with the other one in the cell's `title`; the
+header moved to `Note` with a tooltip explaining the two sources.
+`TransactionHistoryModal` does the same per trade cycle, matching the same
+`companyName` the route already returns. The edit row still shows the stored text
+in its input, and says which case it is in plain words — either "Just the
+instrument's name — the ledger shows that from the ticker lookup, so this can be
+cleared." or the derived line it will render instead.
+
+**The derived line, measured rather than guessed.** It is rendered 12px in a
+`max-w-[11rem]` cell — about **165px, roughly 24 characters** — and the first
+version ran 26–38 characters, so **26 of 64 rows truncated**. Worse, the amount
+was at the end of the line, which is exactly what truncation eats. Hence the
+three rules now on `ledgerSummaryParts`: one currency figure per line, a fraction
+instead of a remainder, and the figure placed as early as the grammar allows.
+The line is also a component (`components/LedgerLine.tsx`) rather than a string,
+so the realized amount keeps the colour rule — a gain or a loss is coloured, an
+average cost is not — while the caption as a whole stays muted and smaller than
+the row, marking it as generated rather than written. After the change **no
+derived line truncates**, and the four that still do are the owner's own long
+notes, each with its full text one hover away.
+
+**`scripts/notes-cleanup.ts` (`npm run notes:cleanup`, dry run by default):**
+prints every row that would move, with its reason, then applies it only with
+`--apply`, writing `notes-backup-<stamp>.json` first. Buckets on the live ledger,
+as reviewed:
+
+```
+rows              64
+reference         25   the instrument's name
+reviewed-name      4   the four the owner cleared by hand
+restates-action   19   an ordinal, an action, or a fraction already derived
+achieved-average   3   `Avg down to x10@$263.25`
+odd-lot            3   kept, with the ordinal removed
+keep               5   the SL/TP notes, the FLKR alias, `1st TP`
+```
+
+The digit check runs on the text OUTSIDE any parentheses, which is what keeps
+`100% Stoploss Exit (62.4 SL, 78 TP)` and `1st TP` — an amount outside
+parentheses is a plan, and a plan is never cleared. A second run prints
+`0 / 0 / 64`, so the operation is visibly idempotent.
+
+**One refactor the module forced:** `formatQty` / `formatAmount` moved to
+`lib/format.ts` (re-exported by `components/SignedNumber.tsx`, so no call site
+changed). `lib/notes.ts` needs them, and a `lib/*` module importing from
+`components/*` points the dependency arrow the wrong way; the alternative was a
+second copy of `toLocaleString`.
+
+**The width trade, measured:** widening the Note column to fit the derived line
+(`max-w-[14rem]`) pushed the trades ledger to 1262px — 82px of horizontal scroll
+at a 1280 window. The cap stayed at the Part 23 value of **11rem**, so the table
+is back to **1214px** (unchanged from before this part) and the derived line
+truncates with the full text on hover.
+
+**Verified in the running app (real data, 1470×900):** 64 rows, **25 render the
+derived line and 39 render a note** — the same split the tests and the dry run
+assert; the DXJ/ONON/IREN rows that used to show `WisdomTree Japan Hedged Equity
+ETF` now show `Opened · 6 @ US$177.00`; the NOW row keeps `NOW - 1st TP` with
+`Sold 10 @ US$144.00 · +US$420.00 · 5 left` in its title; the history modal shows
+`Opened · 15 @ US$102.00` where it used to show `NOW: ServiceNow`; the edit row
+restores the stored note untouched and labels it as just the name; document
+overflow 0, no console errors.
+
+**Verification:** `npm test` **18 files / 292 tests** (20 new in
+`tests/notes.test.ts`, pinned against all 64 real notes), `npx tsc --noEmit`
+clean, `npx eslint app components lib tests scripts` clean.
+
+**Applied, not just planned (2026-09-23):** `npm run notes:cleanup -- --apply`
+wrote **59 rows** (51 cleared, 8 rewritten) from backup
+`notes-backup-2026-09-22T18-13-27-560Z.json`; the 5 kept notes are byte-identical
+to what they were. Verified against the database afterwards: **13 rows carry a
+note, 51 do not**, and the ledger renders the same split.
+
+**Still open here:** modelling the SL/TP levels as structured data. (The
+watchlist, the other thing this left open, was finished in Part 26.)
+
+---
+
+## Part 26 — the watchlist stops being a price list (DONE)
+
+The owner's request, in three words: *"upgrade the watchlist section"*. The
+rewritten version it was approved as, and the evidence behind it:
+
+**What was actually wrong.** The watchlist held **2 rows** and neither ticker had
+a `TickerMeta` row at all, because the page called `fetchQuotesForPositions` —
+the prices-only wrapper — while every other surface used `fetchPositionQuotes`,
+whose single upstream call already returns the name and the day change. Two
+consequences were visible without looking for them: the page showed a bare price
+with **no day change** (the number a watchlist exists for, thrown away in the
+payload it had already downloaded), and `app/api/palette/route.ts` reads names
+from that same cache, so **XLV and CRWD appeared nameless in the command
+palette**. `Watchlist.notes` was also still hand-typing the instrument's name
+(`State Street Healthcare ETF`, `Crowdstrike`) — the habit Part 25 had just
+deleted from 64 ledger rows, in a second model Part 25's classifier never
+reached.
+
+**`lib/watchlist.ts` (new, pure)** — `WatchlistRow` plus `watchlistRows()`. One
+builder shared by the page and the refresh route, so a 60-second poll can never
+disagree with the first render, and the row is `{ id, region, ticker, notes }`
+from the database plus `name` / `price` / `dayChangePct` resolved from the quote
+call. A cached name wins over the fetched one (it may be hand-edited), matching
+the precedence the holdings path uses.
+
+**`app/watchlist/page.tsx` + `app/api/watchlist/route.ts`** now make the full
+`fetchPositionQuotes` call and `ensureTickerMeta(...)` the result, which is what
+puts a watchlist ticker into the cache the palette reads. `GET /api/watchlist`
+returns the same shaped rows. `fetchQuotesForPositions` was deleted with its last
+caller.
+
+**The panel**: ticker with the resolved name and an editable override
+(`TickerName`) instead of a typed name in a note, `Price`, `Today` (day change —
+the only figure on the row that carries colour, per the colour rule), a **30d**
+sparkline, and `Why` as the one editable text field. The add form asks for a
+*reason*, not a name.
+
+**The trend, and a wrong turn worth recording.** The obvious source looked free:
+the quote payload the page already downloads carries bars, so the first version
+parsed them out of it. Measured against the live response, those bars are the
+**current session's 1-minute bars** — `range: "1d"`, `dataGranularity: "1m"`,
+**299** of them, every one stamped with today's date — so the column was labelled
+`30d` over **thirty minutes** of data. Reading them is now explicitly not done
+(`lib/prices.ts` says so where the parser would have gone), and the trend comes
+from `app/api/sparklines?keys=…` instead: one batched, 15-minute-cached request
+per page, keyed by `priceKey()`, exactly as `PositionsTable` and `TopPositions`
+already do. Two attempts at "free" data were wrong; the third reused what works.
+
+**Column widths, because a five-column table sized by content is mostly
+whitespace.** Unpinned, the instrument column took **559px** and the reason
+column **264px**. Every column but `Why` is now pinned (`w-[24rem]` /
+`w-[7rem]` / `w-[6rem]` / `w-[6rem]` / `w-8`), so the slack lands on the one
+column whose contents actually vary. Measured at 1470×900: header and rows
+identical at `x = 33 / 417 / 529 / 625 / 721 / 1405`, document overflow 0. And
+`TickerName` gained an optional `maxWidthClass` (default unchanged at
+`max-w-[13rem]`): the ledger's cap exists because a content-sized table lets the
+longest name set a 330px column, but this table has slack — so it passes
+`max-w-[10rem] sm:max-w-[22rem]`, which shows
+`State Street Health Care Select Sector SPDR ETF` in full on a desktop and
+still fits a phone (measured at 430px: **0px** of sideways scroll, `30d` and
+`Why` hidden).
+
+**Verified in the running app, with the real 2 rows:** names resolve
+(`CrowdStrike Holdings, Inc.`, `State Street Health Care Select Sector SPDR ETF`),
+day change shows (+0.72% / +0.38%), both sparklines render 21 closing days, and
+`GET /api/palette` now returns `{"name":"CrowdStrike Holdings, Inc."}` for CRWD
+and the full name for XLV. The reason field was exercised end to end — typed
+`Waiting for a pullback`, survived a reload, then cleared back to blank and
+survived that too — so the watchlist was left exactly as it was found. The
+hand-typed names were the only rows the owner had, and they are gone from the
+stored `notes`.
+
+**Verification:** `npm test` **20 files / 307 tests** (`tests/watchlist.test.ts`
+is new; the price tests lost the series-parsing cases when that parser was
+reverted), `npx tsc --noEmit` clean, `npx eslint .` clean, `npx next build`
+clean, no console errors, one sparklines request per page load.
+
+---
+
+## Part 27 — the watchlist answers "when should I buy", and the trade-history
+modal comes onto the current design (DONE)
+
+Two requests, and the owner picked the scope of both before any code was
+written: **Standard** signals (not Light, not Full) and a **redesign plus a
+structural fix** of the trade-history modal (not a visual-only pass, and not
+new data).
+
+### The signals, and why they are one click down
+
+`lib/entry-signals.ts` (new) turns a year of daily closes into four facts:
+
+- **`sma(values, n)`** — the simple average of the **last** n, or null when
+there are fewer. A 200-day average from 30 sessions is not a 200-day average,
+and a shorter one would quietly mislabel the trend.
+- **`rsiWilder(closes, period)`** — Wilder's smoothing, seeded from the first
+  `period` changes and then `(prev * (period - 1) + new) / period`. Pinned by a
+  hand-computed case: `[10, 11, 10, 11, 10]` over period 3 gives **44.444**,
+  where a plain mean of gains and losses gives exactly 50 — so the test fails if
+  anyone "simplifies" it. Reads 100 with no down change, 0 with no up change,
+  and 50 on a flat series rather than dividing by zero.
+- **`rsiZone`** — the conventional 30/70 bands in words. Deliberately only two
+  bands: a third ("strong", "extended") would be a judgement dressed as a
+  measurement.
+- **`entrySignals(closes)`** — range low/high, position in that range, % below
+the high, RSI, both averages, price against each, and a `trend` of
+  `up` / `down` / `mixed`. **Mixed is a real answer**, not a failure to decide:
+  price below its 50-day while the 50-day is above the 200-day is neither an
+  uptrend nor a downtrend.
+
+Two rules shape the whole module: **no composite score** (a number with no units
+nobody can check) and **absent beats invented** — under `MIN_SESSIONS` (200, the
+longest single window any signal needs) the function returns the session count
+and nulls everything else, one guard for the whole set instead of each field
+answering for itself.
+
+`app/api/watchlist/signals/route.ts` is the batched caller: one request for
+every row, four fetches in flight at a time through `mapWithConcurrency`, an
+hour of TTL cache (daily bars change once a day, and `fetchHistoricalCloses`
+already sits behind Next's hour of fetch cache), and a 60-symbol cap. That is
+the same shape as `app/api/sparklines/route.ts`, for the same reason — a request
+per row is a waterfall — and **no new data source**: it is a second caller of
+the history fetch the benchmarks already use.
+
+**Where it shows, and why not as columns.** The row gained a chevron and a
+narrow **1y range** column (a gold track with a marker — gold because the
+position in a range is not a gain or a loss, and the colour rule says colour
+means up or down). The four signals themselves live in an expanded strip under
+the row, because this table has six columns already and the owner has twice
+asked for no horizontal scrolling: the row stays the snapshot, the deliberation
+lives a click below it. Measured at 1470×900: header and rows identical at
+`x = 33 / 417 / 529 / 625 / 721 / 1405`, document overflow 0, no inner scrollers.
+
+**One rounding fix worth recording:** at 0.9954 of the range a rounded
+"100%" sat next to "0.3% below its high" and contradicted it. `RangeBar` now
+exports `rangePositionLabel`, to one decimal, and both the row's tooltip and the
+detail use it — so the bar's accessible name and the words beside it cannot
+disagree.
+
+### The modal: one scroll container, a summary, and one card per cycle
+
+`components/TransactionHistoryModal.tsx` was rebuilt around three changes:
+
+1. **The nested scroll is gone.** Each cycle's table was a `.table-scroll` —
+   `max-h-[70vh] overflow-auto` — inside a modal body that also scrolled, which
+   is where a wheel gesture goes to the wrong element. The cycle table is now
+   `overflow-x-auto` only (horizontal is unavoidable for six columns on a
+   phone) and **nothing inside the modal has a `max-h`**; the modal body is the
+   one vertical scroller. Verified live: zero inner scroll containers, and the
+   cycle tables' header and row cells are pixel-identical (`96 / 80 / 72 / 112 /
+   104 / 373`), with the slack on the Note column.
+2. **A summary strip above the cycles.** Current price, avg cost of the open
+   cycle, unrealised and realised P/L. Every figure was already computed for one
+   cycle or another — the strip is a reorganisation, not an input the app did
+   not have. The combined realised percentage now needs a real weight, so
+   `computeCycleStats` returns **`costBasisSold`** and the strip sums by it,
+   rather than recovering the basis by dividing P/L by its own percentage (which
+   silently loses a cycle with no gain).
+3. **Each trade is a bordered card** with the headline P/L in its header — open
+   ones show unrealised, closed ones realised — because that number is the
+   reason the modal was opened and it used to sit below a six-row table.
+
+Also: `role="dialog"`, `aria-modal`, an `aria-label` naming the instrument, and
+focus moved to the dialog on open so Escape and the scroll keys work without a
+click first. The backdrop now matches the command palette (`bg-black/70` +
+`backdrop-blur-[2px]`) instead of being the one overlay that did not.
+
+**A signed-amount fix:** the SGD line under a negative return was shown as a
+magnitude (`S$161.19` beneath `-3.70%`), which reads as a gain. It carries its
+sign now, while the colour stays on the percentage alone.
+
+### Verification
+
+- `npm test` **21 files / 324 tests** — 17 new in `tests/entry-signals.test.ts`:
+  the hand-computed Wilder case, the degenerate RSI readings, the
+  last-n semantics of `sma`, the `MIN_SESSIONS` boundary, `mixed` trend, NaN
+  handling, and `parseSignalKeys` for both separators and the cap.
+- `npx tsc --noEmit`, `npx eslint app components lib tests`, `npx next build`
+  clean; the build registers `/api/watchlist/signals`.
+- **In the running app, with the real data.** XLV reads *86.7% of the 1-year
+  range · 3.1% below its high · RSI 55.2 (neutral) · Uptrend, +1.8% vs 50-day,
+  +9.0% vs 200-day* from 252 daily closes; CRWD reads *99.5% of the range · 0.3%
+  off its high · RSI 64.2 · Uptrend, +18.6% and +67.8%*. The endpoint answers in
+  one request for both keys.
+- **The trade-history modal** opened by clicking a position row: `role=dialog`,
+  `aria-modal=true`, labelled **"Transaction history for Barrick Mining
+  Corporation"**, focused, **zero inner scrollers**, cards reading *Trade 3 open
+  · Held 9mo · Unrealised −3.70%*, *Trade 2 closed · Realised +37.31%*, *Trade 1
+  closed · Held 2mo · Realised +15.13%*, summary *+25.62% realised / −S$161.19
+  unrealised*.
+- **The degenerate paths, exercised rather than assumed**, using a throwaway
+  ticker added through the UI form and removed again (which also closes Part
+  26's unverified add/remove gap): a ticker with no history renders *"Not enough
+  history to read yet — 0 trading sessions, and these signals need 200"* and
+  every cell shows `—` with an explanatory tooltip. The watchlist was back to its
+  real **2 rows** afterwards.
+
+---
+
+## Part 28 — the entry-level chart, a range bar that stops looking draggable, and
+the explanation the tiles were missing (DONE)
+
+**The bar was read as a control.** A filled track with a round knob on it is
+what a slider looks like, and the first version was reported as "looks like it
+can be moved". The knob is now a 2px vertical **needle**, the track carries
+**graduations at both ends**, and there is no hover state anywhere on it: a
+control has handles, a gauge has a scale.
+
+**`SignalsExplainer` (new)** — the four tiles stated facts and stopped, which
+was a deliberate first choice and turned out to be one step too austere: "RSI
+27" is only useful to someone who already knows what it implies for a purchase.
+A collapsible panel now gives each measure what it is, how it is normally read,
+and the caveat that makes it honest — range position is a level, not a
+justification; under ~5% off the high there is no cushion so a stop has to sit
+close; RSI can stay extreme for weeks so it is "stretched right now", never a
+date; an uptrend with a dip in it (what `mixed` usually describes) is the
+"buy the pullback" setup, while a downtrend is where cheap keeps getting
+cheaper. It closes by saying plainly what the four cannot tell you — whether the
+company is worth owning, and how large the position should be. Collapsible for
+the same reason `BenchmarkExplainer` is: several paragraphs do not belong open on
+a one-glance page, and a tooltip is unreachable on touch.
+
+**`EntryLevelChart` (new)** — a year of daily closes, with the two levels an
+entry decision actually refers to: the window's low and high drawn as dashed
+ink lines, and the **50-day average** as a second series. Volume was offered and
+declined (it answers "was there conviction", not "where would I buy"). Colours
+follow the app's multi-series rule: price is the primary series and keeps the
+brand gold, the average is a reference in the muted data steel, the levels are
+chrome in the ink greys. The chart and the tiles cannot disagree, because
+`getEntryAnalysis` returns the closes AND the measures from ONE fetch, and the
+chart's average line is `rollingSma` — whose last element a test pins to
+`sma()`, the number the Trend tile prints.
+
+**A real bug, found by measuring the DOM instead of trusting the picture.** The
+chart's SVG had grown to **2577px inside a 1360px panel** — absorbed as
+horizontal scroll, so it looked like a chart that simply ended in March. The
+cause is structural: a `ResponsiveContainer` measures its own container, and
+inside an **auto-layout table cell** that is a feedback loop — the chart writes a
+pixel width into the cell, the cell's min-content then includes that width, the
+table widens, and the observer measures a wider box again. The table is
+`table-fixed` now, so its columns come from the widths declared on the header row
+and no cell's content can move them. Re-measured: SVG **1245px** in a 1261px
+cell, panel scroll **0**.
+
+**Verification:** XLV's chart draws 252 daily closes with the dashed high at
+US$175.68 and low at US$134.13 matching the tiles exactly; the explainer opens
+with four terms and four paragraphs (360–460 characters each); the panel scrolls
+neither axis (`scrollWidth === clientWidth`), document overflow 0.
+
+---
+
+## Part 29 — Today's movers show the price (DONE)
+
+The tile said `ONON +8.40%`, which is a percentage with nothing to attach it to:
+you cannot place an order against a change. Each movers row now reads
+`ONON · US$29.62 · +8.40%` — price in the holding's own currency (US$, S$, HK$),
+neutral ink because a price is a value and colour here means up or down, with the
+change in a fixed-width cell so the percentages form a column. The link's
+tooltip still carries what is held (`S$1,888.55 held · ONON at US$29.62`), since
+the position value is the one thing the row deliberately leaves out to stay
+readable at a third of the window's width. Measured: 6 movers, panel 415px, no
+overflow inside the panel or the document.
+
+---
+
+## Part 30 — Accounts get roles: a request queue, josh as admin, and "Add
+account" on Today (DONE)
+
+Until now an account was all-or-nothing. Any holder could create another, reset
+any other account's password, or delete it — harmless while every account saw
+the same dashboard, and exactly the wrong shape for the first thing the owner
+asked for here: adding an account should not be something anyone can do, and
+should be something an admin can *review*.
+
+**Schema.** `User.role` (`"admin" | "member"`, default `member`) and
+`User.approvedAt` (NULL = a request that cannot sign in yet). Migration
+`20260923100000_add_user_roles_and_approval` backfills `approvedAt` from
+`createdAt` for every existing row, which is not a formality: those accounts were
+made on purpose, by hand or by the CLI, and leaving them NULL would have locked
+out everyone who currently has one. It then makes **`josh` the admin**, guarded
+so it is a no-op where that username does not exist.
+
+**`lib/accounts.ts` — the rules, pure and pinned by tests.** `isAdmin` (the one
+place the string is interpreted), `guardViewAccounts`, `guardManageAccounts`,
+`accountCreationDecision`, `guardReviewRequest`, `guardDeleteAccount`,
+`guardSetPassword`. Three of them encode a dead end worth naming:
+
+- **The bootstrap creates an approved admin, not a member.** An approval queue
+  whose only member cannot approve anything is a dead end, so the very first
+  account is an admin. Once one exists the allowance closes for good — the last
+  account cannot be deleted, so the count can never fall back to zero.
+- **The last admin cannot be deleted** for the same reason, and the refusal says
+  which rule it hit (`guardDeleteAccount` checks self, then the last account,
+  then the last admin).
+- **Resetting someone else's password is admin-only.** Not because a member
+  gaining an identity gains any data — every account sees the same portfolio —
+  but because resetting the admin's password, signing in as them and approving
+yourself would walk straight around the queue.
+
+The refusal is deliberately about the **object** rather than one verb: the same
+rule answers a member trying to create, approve, reset or remove, and a message
+naming only one of those reads as a non-sequitur for the other three. So it is
+`Only an admin can manage accounts.` — while `guardReviewRequest` keeps its own
+"Only an admin can approve account requests", which names the one action it
+guards.
+
+**Login refuses a pending account with its own sentence** — *"That account is
+waiting to be approved by an admin."* — rather than the generic wrong-password
+answer, because the person is not guessing: they are waiting, and the difference
+is the whole feature. The rate limiter is untouched (a pending refusal is not a
+failed attempt).
+
+**`/accounts`** now leads with the queue when there is one: an accent-ringed
+panel, `Approve` and `Refuse` per row (refusing deletes the request — there is no
+email here, and the confirm says so). Below it, the list gains an **ADMIN** badge
+and shows only the controls the rules would allow: `Change password` on your own
+row, `Reset password` and `Remove` for an admin on someone else's. A member gets
+`Request an account` instead of `Add account`, and no queue controls at all. The
+server decides every one of these; hiding them is honesty, not enforcement.
+
+**Today** gained what the owner asked for: an **Add account** button in the
+header, and — when somebody is waiting — a line in the attention list reading
+*"1 account request is waiting for approval."* Two things about how it is built:
+
+- The admin check comes from `readVisit()`, which the page already resolves, not
+  from a second `accountAdminContext()` call, and the request count is added to
+  the **existing** `Promise.all` **only when the caller is an admin** — so the
+  pooler pays one small count for the person who can act on it and nothing for
+  everyone else. The bootstrap state is honestly not detected here (it needs the
+  account count); that state is reachable from the nav's accounts chip, which
+  the layout resolves, and it exists once in the app's life.
+- `AttentionItem.tone` finally does something. It was declared and ignored, so
+every notice drew the same red triangle — which would make a queue of people
+look like a fault. `warn` renders the triangle, `info` an accent mark.
+
+**Two layer-order traps hit again, both real:**
+
+- `border-accent/40` on a `.panel` is **inert** — `.panel` is a component-layer
+  rule carrying `border border-ink-700`, and the components layer beats
+  utilities whatever the class order. The queue panel uses `ring-1
+  ring-accent/30` instead, because `.panel` sets no box-shadow. (Measured:
+  `borderColor` stayed `rgb(46,46,46)` — ink-700 — before the fix.)
+- The create form's fields were sized on the **control** (`field w-40`), where
+  `.field`'s `@apply w-full` discards it. Widths moved to the wrappers, the same
+  fix Part 26 made to the watchlist form. Measured after: 160 / 176 / 176px.
+
+### Verification — against the running app, with the real session
+
+- DB read back: **one** row, `josh`, `role: admin`, `approvedAt` set. Migration
+  reports *"Database schema is up to date"*.
+- A seeded pending account, through the real login route:
+  `403 {"error":"That account is waiting to be approved by an admin."}`.
+- `/accounts` showed the queue with `Approve` / `Refuse` and the headline
+  **"1 identity · 1 request waiting"**; Today showed the **Add account** button
+  **and** *"1 account request is waiting for approval."* — with 0px of document
+  overflow.
+- **Approve clicked in the browser** (the real route, the real cookie): the
+  headline became **"2 identities"**, the notice read *"Approved
+  "zz-preview-check". They sign in with the password they chose."*, the queue
+  disappeared and the row moved into the list.
+- The **same credentials then logged in → 200 + session cookie**, which is the
+  other half of the claim the queue makes.
+- The **member view**, by signing in as that account for real: *Request an
+  account* present; *Add account* absent; *Approve* / *Refuse* absent; *Change
+  password* present; *Reset password* absent; *Remove* absent.
+- A member's create → `201 "pending"`, and that account **could not sign in**
+  (403). A member's DELETE, of an admin's account and of their own, → `403 Only
+  an admin can manage accounts.`
+- Every temporary row was deleted afterwards; the database is back to **one**
+  account, and the throwaway scripts were removed from the tree.
+
+**Checks:** `npx tsc --noEmit` clean, `npx eslint` clean, `npm test` **21 files
+/ 345 tests** (`tests/accounts.test.ts` rewritten for the new signatures — 31
+cases, including the bootstrap-admin rule, the last-admin rule and the
+queue-bypass rule).
+
+**Files:** `prisma/schema.prisma` + the migration, `lib/accounts.ts`,
+`lib/account-admin.ts`, `lib/session.ts`, `app/api/users/route.ts`,
+`app/api/users/[id]/route.ts`, `app/api/users/[id]/approve/route.ts`,
+`app/api/login/route.ts`, `app/accounts/page.tsx`, `components/AccountManager.tsx`,
+`components/Nav.tsx`, `app/layout.tsx`, `app/page.tsx`, `tests/accounts.test.ts`.
+
+**Known gap:** the queue has no notification — an admin finds a request by
+opening Today or the accounts page. That is deliberate for now (this is a
+three-person portfolio, not a service), and it is the first thing to add if a
+request ever sits unapproved for long enough to matter.

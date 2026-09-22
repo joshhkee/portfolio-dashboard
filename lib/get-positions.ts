@@ -68,7 +68,7 @@ export async function getOpenPositionsFor(
     if (r.name) cachedNames[priceKey(r.region, r.ticker)] = r.name;
   }
 
-  const withPrices = withLivePrices(filtered, quoteData.prices).map((p) => ({
+  const withPrices = withLivePrices(filtered, quoteData.prices, quoteData.dayChanges).map((p) => ({
     ...p,
     // Cached name if we have one, else whatever this fetch reported — the
     // cache write above and this read can race within the same render, so
