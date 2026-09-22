@@ -89,7 +89,7 @@ export default async function ExposurePage() {
       folded: bySector.folded,
       totalSgd: sectorRaw.totalValueSgd,
       note: sectorRaw.unclassified
-        ? `${UNCLASSIFIED_LABEL} is money in instruments nobody has tagged yet — it is not an "Other" sector. Tag them below and this slice becomes real exposure.`
+        ? `${UNCLASSIFIED_LABEL} is not an "Other" sector — it is holdings with no tag yet. Tag them below.`
         : undefined,
     },
     {
@@ -100,7 +100,7 @@ export default async function ExposurePage() {
       folded: byType.folded,
       totalSgd: typeRaw.totalValueSgd,
       note: typeRaw.unclassified
-        ? `${UNCLASSIFIED_LABEL} here means the lookup has not reported an instrument type — these are the positions with no live quote above, not funds. They are counted, just not named.`
+        ? `${UNCLASSIFIED_LABEL} here means the lookup reported no instrument type — counted, not named.`
         : undefined,
     },
   ];
@@ -121,8 +121,7 @@ export default async function ExposurePage() {
         <div>
           <p className="text-xs text-ink-500">
             Holdings only — {lines.length} position{lines.length === 1 ? "" : "s"}, S$
-            {formatAmount(sectorRaw.totalValueSgd)}. Cash is excluded: it has no sector, and
-            counting it would flatter every share below.
+            {formatAmount(sectorRaw.totalValueSgd)}. Cash is excluded: it has no sector.
           </p>
         </div>
       </div>
@@ -133,7 +132,7 @@ export default async function ExposurePage() {
         <section className="panel flex flex-col gap-4 p-5">
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <p className="text-sm text-ink-300">By currency</p>
-            <p className="text-xs text-ink-500">The currency each holding trades in</p>
+            <p className="text-xs text-ink-500">What each holding trades in</p>
           </div>
           <ExposureDonut
             slices={byCurrency.buckets}
@@ -142,10 +141,9 @@ export default async function ExposurePage() {
           />
           <p className="text-xs text-ink-500">
             Only {((byCurrency.buckets.find((b) => b.label === "SGD")?.weight ?? 0) * 100).toFixed(1)}
-            % of the holdings is denominated in the reporting currency. The rest carries a currency
-            risk on top of its market risk: its SGD value moves with the exchange rate, and the
-            rate that matters is the one the funding cash was CONVERTED at — which your deposit
-            ledger records, not the day the shares were bought.
+            % is denominated in SGD, so the rest carries currency risk on top of market risk. The
+            rate that matters is the one the funding cash was converted at — the deposit ledger
+            records that, not the day the shares were bought.
           </p>
         </section>
       </div>
@@ -153,17 +151,15 @@ export default async function ExposurePage() {
       {unpriced.length > 0 && (
         <p className="text-xs text-ink-500">
           {unpriced.length} position{unpriced.length === 1 ? "" : "s"} worth S$
-          {formatAmount(unpricedValueSgd)} have no live quote ({" "}
-          {unpriced.map((p) => p.ticker).join(", ")}), so they are counted here at cost basis.
+          {formatAmount(unpricedValueSgd)} have no live quote (
+          {unpriced.map((p) => p.ticker).join(", ")}) and are counted at cost.
         </p>
       )}
 
       <section className="panel flex flex-col gap-4 p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <p className="text-sm text-ink-300">Tag the holdings</p>
-          <p className="text-xs text-ink-500">
-            Biggest holding first · Enter saves, Escape reverts · the dropdown reuses a tag
-          </p>
+          <p className="text-xs text-ink-500">Biggest holding first</p>
         </div>
         <SectorTagEditor
           totalSgd={sectorRaw.totalValueSgd}

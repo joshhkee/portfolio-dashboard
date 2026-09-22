@@ -127,7 +127,10 @@ function LabelCell({ row }: { row: LabelRow }) {
       </button>
       {/* A late deposit is a note, not a problem (money sitting in the account
           earns nothing), so this is a quiet icon rather than a label: the
-          detail is there on hover for anyone who wants it. */}
+          arrival date is there on hover for anyone who wants it, and how MANY
+          days late is deliberately not stated — the page no longer scores the
+          schedule, because the owner has said the lateness carries no cost
+          here. */}
       {row.daysLate > 0 && row.paidOn && (
         <span
           className="shrink-0 text-ink-500"
@@ -137,7 +140,7 @@ function LabelCell({ row }: { row: LabelRow }) {
           )}`}
           title={`Late deposit\n${row.label} allocation deposited on ${formatShortDate(
             new Date(`${row.paidOn}T00:00:00.000Z`)
-          )} — ${row.daysLate} days after the month closed.`}
+          )}`}
         >
           <Clock size={12} strokeWidth={2} />
         </span>

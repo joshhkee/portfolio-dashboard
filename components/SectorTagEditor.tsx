@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Pencil } from "lucide-react";
 import { formatAmount } from "@/components/SignedNumber";
 import TagSelect from "@/components/TagSelect";
 import { sectorTagList } from "@/lib/sectors";
@@ -13,7 +14,13 @@ export interface TaggablePosition {
   /** Holding value in SGD, so the list can be ordered by what matters. */
   valueSgd: number;
   sector: string | null;
-  /** "auto" when this tag came from lib/sectors.ts rather than a choice. */
+  /**
+   * Where the tag came from ("auto" when the classifier drafted it, "manual"
+   * when it was picked or typed). Still written and stored — it is provenance
+   * worth keeping — but deliberately NOT shown: what the owner asked for is a
+   * tag they set once, and a badge that narrates which button produced it made
+   * a settled label look like an unresolved state.
+   */
   sectorSource?: string | null;
   /** First-draft tag for this instrument, or null when nothing is known. */
   suggested?: string | null;
@@ -31,10 +38,10 @@ export interface TaggablePosition {
  * inside a grid, which is what lets one element list carry both layouts.
  */
 const ROW =
-  "flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-ink-700 py-2.5 md:grid md:grid-cols-[1.5rem_minmax(0,1fr)_6.5rem_3.25rem_4.25rem_15rem_4.5rem]";
+  "flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-ink-700 py-2.5 md:grid md:grid-cols-[1.5rem_minmax(0,1fr)_6.5rem_3.25rem_4.25rem_13rem_3.5rem]";
 
 const HEAD =
-  "hidden md:grid md:grid-cols-[1.5rem_minmax(0,1fr)_6.5rem_3.25rem_4.25rem_15rem_4.5rem] md:gap-x-3 md:border-b md:border-ink-700 md:pb-1.5";
+  "hidden md:grid md:grid-cols-[1.5rem_minmax(0,1fr)_6.5rem_3.25rem_4.25rem_13rem_3.5rem] md:gap-x-3 md:border-b md:border-ink-700 md:pb-1.5";
 
 /** "EQUITY" is not a word anyone says out loud; an unreported type stays a
  *  dash rather than being called a stock by default. */
@@ -73,6 +80,10 @@ function drafts(positions: TaggablePosition[]) {
  *
  * Deliberately not a fixed single-select: an untagged instrument stays visibly
  * untagged rather than defaulting into a bucket nobody chose.
+ *
+ * The control is a chip, not a field. A tag is set once and then read for
+ * years, so the row rests as a label you can click — a permanently visible
+ * input would say "this needs maintaining" about something that does not.
  */
 export default function SectorTagEditor({
   positions,
@@ -85,9 +96,9 @@ export default function SectorTagEditor({
   const router = useRouter();
   const [value, setValue] = useState<Record<string, string>>(() => drafts(positions));
   const [saved, setSaved] = useState<Record<string, string>>(() => drafts(positions));
-  const [source, setSource] = useState<Record<string, string | null>>(() =>
-    Object.fromEntries(positions.map((p) => [key(p), p.sectorSource ?? null]))
-  );
+  // Which row has its editor open, if any. One at a time: these are labels you
+  // set once, so the resting state of the column is a tag, not a form.
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [batchTag, setBatchTag] = useState("");
@@ -129,7 +140,6 @@ export default function SectorTagEditor({
       const clean: string = typeof body.sector === "string" ? body.sector : "";
       setSaved((prev) => ({ ...prev, [id]: clean }));
       setValue((prev) => ({ ...prev, [id]: clean }));
-      setSource((prev) => ({ ...prev, [id]: clean ? src : null }));
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -171,6 +181,20 @@ export default function SectorTagEditor({
       setBatchTag("");
       router.refresh();
     }
+  }
+
+  /**
+   * Settle a row whose editor just lost focus.
+   *
+   * Clicking away is a decision: a changed draft is saved, an unchanged one is
+   * simply closed. Anything else leaves a row showing a value it has not
+   * stored, which is exactly the kind of half-state a set-once control should
+   * not have.
+   */
+  function settle(row: TaggablePosition, id: string) {
+    const draft = (value[id] ?? "").trim();
+    setEditingId(null);
+    if (draft !== (saved[id] ?? "").trim()) commit(row, draft);
   }
 
   /** Accept the classifier's draft for every row that has one and no tag. */
@@ -217,13 +241,17 @@ export default function SectorTagEditor({
         >
           Select all {positions.length}
         </button>
-        <button
-          type="button"
-          onClick={() => setSelected(new Set(untagged.map(key)))}
-          className="text-xs text-ink-500 transition hover:text-accent motion-reduce:transition-none"
-        >
-          Select the {untagged.length} untagged
-        </button>
+        {/* Only offered when there is something to select — "Select the 0
+            untagged" was a button whose whole effect was to select nothing. */}
+        {untagged.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setSelected(new Set(untagged.map(key)))}
+            className="text-xs text-ink-500 transition hover:text-accent motion-reduce:transition-none"
+          >
+            Select the {untagged.length} untagged
+          </button>
+        )}
         {selected.size > 0 && (
           <button
             type="button"
@@ -271,7 +299,7 @@ export default function SectorTagEditor({
             type="button"
             onClick={() => acceptSuggestions(suggestedRows)}
             className="ml-auto text-xs text-ink-500 transition hover:text-accent motion-reduce:transition-none"
-            title="Apply the classifier's first-draft tag to each untagged holding — marked as suggested, not as your choice"
+            title="Use the suggested tag for each untagged holding. Every one stays editable."
           >
             Accept the {suggestedRows.length} suggestion
             {suggestedRows.length === 1 ? "" : "s"}
@@ -285,7 +313,7 @@ export default function SectorTagEditor({
         <span className="text-right text-[10px] uppercase tracking-wide text-ink-500">Value</span>
         <span className="text-right text-[10px] uppercase tracking-wide text-ink-500">Wt</span>
         <span className="text-[10px] uppercase tracking-wide text-ink-500">Type</span>
-        <span className="text-[10px] uppercase tracking-wide text-ink-500">Exposure tag</span>
+        <span className="text-[10px] uppercase tracking-wide text-ink-500">Exposure</span>
         <span />
       </div>
 
@@ -295,7 +323,6 @@ export default function SectorTagEditor({
           const draft = value[id] ?? "";
           const isSaved = (saved[id] ?? "").trim();
           const dirty = draft.trim() !== isSaved;
-          const isAuto = source[id] === "auto" && !!isSaved;
           const weight = totalSgd > 0 ? position.valueSgd / totalSgd : 0;
           return (
             <form
@@ -346,51 +373,81 @@ export default function SectorTagEditor({
                 {typeLabel(position.instrumentType)}
               </span>
 
-              <span className="flex basis-full flex-col gap-0.5 md:basis-auto">
-                <span className="flex items-center gap-2">
+              {/* Three resting states, and the point of all three is that a
+                  tag reads as a LABEL until you click it: a tag you set (a
+                  chip), a tag that is missing (a quiet invitation), or the
+                  editor you opened deliberately. There is no permanently
+                  visible dark input box, because a box implies something you
+                  are expected to keep changing. */}
+              <span className="flex min-w-0 basis-full flex-col gap-1 md:basis-auto">
+                {editingId === id ? (
                   <TagSelect
+                    autoFocus
                     value={draft}
                     options={options}
                     onChange={(next) => setValue((prev) => ({ ...prev, [id]: next }))}
-                    onCommit={(next) => commit(position, next)}
-                    onEscape={() => setValue((prev) => ({ ...prev, [id]: saved[id] ?? "" }))}
+                    onCommit={(next) => {
+                      setEditingId(null);
+                      commit(position, next);
+                    }}
+                    onEscape={() => {
+                      setValue((prev) => ({ ...prev, [id]: saved[id] ?? "" }));
+                      setEditingId(null);
+                    }}
+                    onBlur={() => settle(position, id)}
                     busy={busy === id}
                     ariaLabel={`Exposure tag for ${position.ticker}`}
-                    placeholder="untagged"
+                    placeholder="Pick or type a tag…"
                   />
-                  {isAuto && (
-                    <span
-                      className="shrink-0 text-[10px] text-ink-500"
-                      title="Suggested by the classifier. Edit it, or empty the field and save, to make it yours or drop it."
-                    >
-                      auto
-                    </span>
-                  )}
-                </span>
-                {/* The suggestion is offered with the same click that would
+                ) : isSaved ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditingId(id)}
+                    className="group/chip flex w-fit max-w-full items-center gap-1.5 rounded-md border border-ink-700 bg-ink-850 px-2 py-1 text-xs text-ink-100 transition hover:border-ink-500 motion-reduce:transition-none"
+                    title={`${isSaved} — click to change`}
+                  >
+                    <span className="truncate">{isSaved}</span>
+                    <Pencil
+                      size={10}
+                      strokeWidth={2}
+                      className="shrink-0 text-ink-500 opacity-0 transition group-hover/chip:opacity-100 motion-reduce:transition-none"
+                    />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setEditingId(id)}
+                    className="w-fit text-xs text-ink-500 underline decoration-dotted underline-offset-4 transition hover:text-accent motion-reduce:transition-none"
+                  >
+                    + Add a tag
+                  </button>
+                )}
+                {/* The draft is offered with the same click that would
                     otherwise have to be typed, and only while there is no tag:
                     once a row is classified, re-offering a draft would be a
                     guess arguing with a decision. */}
-                {!isSaved && position.suggested && (
+                {!isSaved && editingId !== id && position.suggested && (
                   <button
                     type="button"
                     onClick={() => commit(position, position.suggested!, "auto")}
-                    className="self-start text-left text-[10px] text-ink-500 transition hover:text-accent motion-reduce:transition-none"
-                    title="Accept the classifier's suggestion for this instrument"
+                    className="w-fit text-[10px] text-ink-500 transition hover:text-accent motion-reduce:transition-none"
+                    title="Use the suggested tag for this instrument"
                   >
-                    suggested: {position.suggested} →
+                    + {position.suggested}
                   </button>
                 )}
               </span>
 
-              <span className="w-16 shrink-0 text-right">
-                <button
-                  type="submit"
-                  disabled={!dirty || busy === id}
-                  className="text-xs text-accent transition hover:text-accentHover disabled:text-ink-500 disabled:hover:text-ink-500 motion-reduce:transition-none"
-                >
-                  {busy === id ? "…" : dirty ? "Save" : isSaved ? "Saved" : "—"}
-                </button>
+              <span className="w-16 shrink-0 text-right md:w-auto">
+                {dirty && editingId !== id && (
+                  <button
+                    type="submit"
+                    disabled={busy === id}
+                    className="text-xs text-accent transition hover:text-accentHover disabled:text-ink-500 motion-reduce:transition-none"
+                  >
+                    {busy === id ? "…" : "Save"}
+                  </button>
+                )}
               </span>
             </form>
           );
@@ -400,10 +457,9 @@ export default function SectorTagEditor({
       <p className="text-xs text-ink-500">
         {untagged.length === 0
           ? "Every open position is tagged."
-          : `${untagged.length} of ${positions.length} untagged. An untagged holding counts as unclassified — it is never guessed into a sector.`}{" "}
-        Picking from the dropdown reuses one tag across instruments, which is the point: two
-        instruments in the same trade should show as one exposure, not two. Empty the field and save
-        to untag.
+          : `${untagged.length} of ${positions.length} untagged — an untagged holding counts as unclassified, never as a guess.`}{" "}
+        Two instruments in the same trade should share one tag, so the dropdown reuses a tag across
+        holdings. Empty the field and save to untag.
       </p>
       {error && <p className="text-xs text-loss">{error}</p>}
     </div>

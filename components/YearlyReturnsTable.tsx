@@ -61,8 +61,7 @@ export default function YearlyReturnsTable({ years }: { years: YearReturn[] }) {
         </table>
       </div>
       <p className="mt-2 text-xs text-ink-300">
-        Return is time-weighted, so money added during the year doesn&apos;t count as growth —
-        unlike a plain end-value vs start-value comparison.
+        Time-weighted: money added during the year does not count as growth.
       </p>
     </section>
   );

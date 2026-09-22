@@ -144,8 +144,8 @@ export default function CorrelationHeatmap() {
       </div>
 
       <p className="text-xs text-ink-500">
-        Gold = the two move together, terracotta = they move opposite. Computed on{" "}
-        {data.observations} days of daily returns, one pair at a time.
+        Gold = they move together, terracotta = opposite. {data.observations} days of daily
+        returns, one pair at a time.
       </p>
     </div>
   );

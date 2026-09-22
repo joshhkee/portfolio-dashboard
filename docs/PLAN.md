@@ -94,11 +94,68 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 18 | Activity: the four ledgers merged into one filterable timeline | TODO — proposed, not built |
 | 19 | Accounts UI: add / reset / remove accounts at `/accounts` | **DONE** — the owner created their own account (`josh`); the bootstrap is closed |
 | 20 | Today fits one desktop screen: chart beside the largest positions | **DONE** — measured 0px of scroll at 1440×900, 1440×780 and 1024×800 |
-| 21 | Exposure page pass + tagging as a system (vocabulary, dropdown, suggestions, batch) | **DONE** — the sector donut stays Unclassified until the owner tags ("Accept the 18 suggestions" is one click) |
+| 21 | Exposure page pass + tagging as a system (vocabulary, dropdown, suggestions, batch) | **DONE** — all 18 holdings are tagged |
+| 22 | Today's movers tile (day change from quote meta) + the colour rule enforced + attention list trimmed | **DONE** |
+| 23 | Command palette prominence; table sizing pass (one-line dates, no horizontal scroll on desktop) | **DONE** |
+| 24 | Exposure tags as a set-once chip; site-wide text pass; late-deposit notices removed | **DONE** |
 
 ---
 
-## Resume checkpoint — 2026-09-22 (after Part 21)
+## Resume checkpoint — 2026-09-23 (after Part 24)
+
+**State:** parts 1–7, 9–17 and 19–21 were already done, plus **Part 22** (Today's
+movers, the colour rule, a shorter attention list), **Part 23** (a prominent
+command palette, and every wide table fits a desktop window with one-line dates)
+and **Part 24** (set-once tag chips, and a site-wide text pass that removed the
+late-deposit notices).
+
+**The colour rule, now written down because it was violated in four places:**
+colour means *up or down*. Gains, losses, returns, and percentages carry
+green/red; a plain VALUE never does, however positive it is. That means the
+portfolio total, a holding value, the total outlay, and the contributed /
+current-value columns are neutral ink — `PlainMoney` / `formatAmount`, not
+`NativeMoney` / `Money`. The attribution grid and its "biggest contributors"
+panel are gains, so they stay coloured. `Money`, `Percent` and `NativeMoney`
+colour by sign; reach for `PlainMoney` or `formatAmount` for anything that is
+not a gain or a loss.
+
+**The table rules, so the next pass does not undo them:**
+
+- `.ledger-table td` is `whitespace-nowrap`. A cell that must wrap or truncate
+  opts in with its own width (`TickerName`'s `max-w-[13rem]`, the notes cells'
+  `max-w-[11rem]`). Without this, "16 Sep 26" broke across three lines in a 67px
+  column and tripled the row height.
+- Ledger padding is `px-2` (was `px-3`) — 8px a cell times ten columns was ~90px
+  spent on nothing, and it was what pushed the trades ledger (1531px) past its
+  1218px container.
+- `.table-compact` is for a table whose **column count is unbounded** (the
+  attribution matrix grows a column per month), not a style preference.
+- Column headers may be abbreviated to keep a table inside its container
+  (`P/L (%)`, `Running avg`); the full wording goes in `SortableTh`'s `title`.
+
+**Kept on purpose through the text pass** (each one changes how a figure above
+it should be read, so none of them is decoration): the value chart's "value
+change, not return" caption with the deposits-vs-market split; the attribution
+cross-check line that names the residual between the two pricing methods; the
+positions-table caveats that rows without a live quote are held at cost and the
+totals understate; the `at cost` markers; and the "Unclassified is not an Other
+sector" note on the donut. Everything else was cut or shortened.
+
+**Also worth knowing:** `npm run build` runs `prisma generate` first, which fails
+with `EPERM` while the dev server is running (the server holds
+`query_engine-windows.dll.node`). Run `npx next build` directly in that case, or
+stop the dev server first — the failure is the file lock, not the code.
+
+**Next action (owner's call):** still open — **Part 18** the merged `/activity`
+ledger, **Part 8** the notes redesign (blocked on an owner decision), the
+**monolith split** (`app/page.tsx`, `lib/portfolio-engine.ts`), and one thing
+this pass noticed but did not touch: the **watchlist still uses its notes column
+as the instrument name** (`State Street Healthcare ETF`, `Crowdstrike`), the same
+hand-typed-name habit Part 2 removed from the positions and ledger tables.
+
+---
+
+## Resume checkpoint — 2026-09-22 (after Part 21) — kept for reference
 
 **State:** parts 1–7 and 9–17 finished and verified, plus **Part 19** — the
 accounts UI (`/accounts`: create, reset, remove), with the bootstrap rule that
@@ -115,18 +172,16 @@ gone), consistent `S$` labelling, the **five-object IA** with the old URLs
 redirected, **accounts**, and the **dashboard rebuilt as Today** — 12 panels to
 4, 4 charts to 1, 448 rendered figures to 31.
 
-**Next action:** the owner asked for the exposure page first and the rest of the
-tabs after ("and later all the tabs, check them in the preview for unnecessary
-space or other out of place features"), so the next UI pass is **`/money`,
-`/performance`, `/positions/us|sg|hk`, `/positions/trades` and `/watchlist`** in
-that order — the exposure page found four real defects (a 933px-wide input, a
-centre figure sitting on its own ring, a tooltip painted under that figure, and
-a duplicated coverage caption), so assume the same class of thing elsewhere.
-After that, whichever the owner picks — **Part 18 the `/activity` ledger**,
-**14b's two remaining panels** (realized FX on the 25 conversions; unrealized FX
-on the foreign cash), the **monolith split** (`app/page.tsx` and
-`lib/portfolio-engine.ts` are both large enough that a maintainer would flag
-them), or **Part 8** (notes redesign, still blocked on an owner decision).
+**Next action (as of that checkpoint):** the owner asked for the exposure page
+first and the rest of the tabs after ("and later all the tabs, check them in the
+preview for unnecessary space or other out of place features"), so the next UI
+pass was **`/money`, `/performance`, `/positions/us|sg|hk`, `/positions/trades`
+and `/watchlist`** — which Parts 22–24 then did. After that, whichever the owner
+picks — **Part 18 the `/activity` ledger**, **14b's two remaining panels**
+(realized FX on the 25 conversions; unrealized FX on the foreign cash), the
+**monolith split** (`app/page.tsx` and `lib/portfolio-engine.ts` are both large
+enough that a maintainer would flag them), or **Part 8** (notes redesign, still
+blocked on an owner decision).
 
 **The accounts state to be aware of before touching auth again:** the owner's
 account **`josh` exists** (created on `/accounts` on 2026-09-22), so the
@@ -1839,3 +1894,152 @@ dev resources*, so loading the app on `127.0.0.1:port` while it was started on
 `localhost` silently breaks hydration — the page renders, the charts never
 measure, and nothing is logged beyond HMR websocket failures. Use the host the
 server printed, not an equivalent one.
+
+---
+
+## Part 22 — Today's movers, and the colour rule (DONE)
+
+The owner's list, and what each item turned out to be:
+
+1. **"Needs attention" was the wrong tile.** On a portfolio built by monthly
+deposits there is usually nothing to decide, so the panel spent its life saying
+"Nothing needs you today". It is now **Today's movers** — top three gainers and
+top three losers by the latest session's percentage move, each a link into that
+position.
+
+**Where the data comes from, and why it is free:** `QuoteMeta` gained
+`dayChangePct`, read from the same `v8/finance/chart` response that already
+prices every position. It is parsed from `regularMarketChangePercent`, which
+Yahoo reports in **percent units** — divided by 100 once, at the parse, so every
+rate in the app stays a fraction. Deliberately NOT derived from
+`chartPreviousClose`: that field is the close *before the requested window*, so
+at the default range "today's move" would have been a month's move. Three tests
+pin the conversion and the null cases.
+
+Ranked by percent, not dollars: ranking by value would just print the largest
+holdings back every day. Positions with no reported change are excluded rather
+than shown flat — a missing quote is not a flat day.
+
+2. **The attention list, trimmed to what is actually urgent.** Kept: a closed
+month with no deposit recorded, and positions with no live quote (a number on
+screen is wrong). Dropped from the dashboard: untagged sectors (that is the
+whole point of `/positions/exposure`) and idle cash (the owner parks money in the
+account on purpose — nothing here earns interest). Both had `tone: "info"`, so
+the panel no longer renders a category of nudge it would rather not make.
+
+3. **The colour rule, enforced in five places.** Colour means up or down; a value
+that is simply a value is neutral. Fixed: the Today hero total, the
+largest-positions values, `/money`'s total outlay, the stakeholder table's
+Contributed and Current-value columns (and its totals row), and the
+`/performance` "Holdings value" stat. Left coloured, because they are gains:
+P&L, returns, XIRR, the attribution cells, and the attribution's biggest-
+contributors amounts — confirmed with the owner rather than assumed, since that
+panel is a ranking but the figures in it are position gains.
+
+**Verified in the running app:** the tile rendered
+`GAINERS ONON +9.48% · S63 +2.89% · DRAM +2.37%` / `LOSERS XLF −1.85% · 01810
+−1.38% · NOW −1.25%`, and the hero total and every position value on the
+page now render in `ink-100` with only the percentages coloured.
+
+---
+
+## Part 23 — palette prominence, and tables that fit (DONE)
+
+**The palette.** Wider (`max-w-2xl`), a taller input at `text-base`, a 2px gold
+top edge, a heavier shadow, and a blurred backdrop, so it reads as the primary
+control it is. Results are now **grouped** under `ACTIONS` / `GO TO` / `LENS` /
+`HOLDINGS` headings instead of repeating the group on every row, and the active
+row is marked by a gold left rail as well as a background — a 2px rail plus a
+10% tint is findable at a glance, where a shift from `ink-850` to `ink-800` was
+not.
+
+Grouped rendering had one trap, handled: the keyboard walks the FLAT filtered
+list, so each grouped row keeps its flat index (`data-index`) and the
+scroll-into-view looks the row up by that attribute rather than by child
+position — otherwise the arrows would have reset to the top of the group.
+Verified: typing `pos` then ArrowDown selected index 1 (`Positions · HK`),
+`aria-activedescendant` followed, and the groups announced as `Go to`, `Lens`,
+`Actions`.
+
+**The tables.** Measured before touching anything, at a 1440 viewport where the
+scroll container is 1218px:
+
+| table | was | now |
+|---|---|---|
+| `/positions/trades` (11 cols) | 1531px → 313px of scroll | **1218px, fits** |
+| `/positions/us` (11 cols) | 1406px → 188px | **1218px, fits** |
+| `/performance/realized` (10 cols) | 1432px → 214px | **1218px, fits** |
+| `/performance/attribution` (21 cols) | 1815px | 1626px — still scrolls, by nature |
+
+The date column was 67px wide, so `16 Sep 26` broke across three lines and the
+row stood 81px tall. Now `.ledger-table td` is `whitespace-nowrap` and the date
+cell is one line. The three fixes that bought the width back: the instrument-name
+subtitle is capped at 13rem (it alone was setting a 330px column), note cells cap
+at 11rem, and ledger padding went `px-3` → `px-2`. Two headers were abbreviated
+where the long form was the widest thing in the column (`Unrealized P/L (%)` →
+`P/L (%)`, `Running avg cost` → `Running avg`), with the full wording moved into
+`SortableTh`'s new `title`.
+
+The attribution matrix is the honest exception: 19 months is 21 columns and
+cannot fit at a readable size, so it keeps its horizontal scroll and its pinned
+first column — but it now uses `table-compact`, which is defined as "this
+table's column count is unbounded" rather than as a style choice, and that fits a
+few more months on screen.
+
+**Two bugs found by measuring rather than reading:** `SortableTh` gained `title`
+as a type but not as a destructured prop, so every sortable table threw
+`ReferenceError: title is not defined` (caught only because the dev server's
+stderr log was read — the browser console shows an empty line for an Error
+object), and `Select the 0 untagged` was a button whose entire effect was to
+select nothing, now hidden when there is nothing untagged.
+
+---
+
+## Part 24 — set-once tags, and the text pass (DONE)
+
+**The tag control is a chip now.** Requested: *"the tag box should present itself
+as a one time set and forget instead of a dark box which implies often changes"*.
+So a tagged row rests as a label — a bordered chip showing the tag, with a pencil
+that appears on hover — and clicking it opens the editor inline. An untagged row
+shows a dotted-underline `+ Add a tag` and, while it has no tag, the classifier's
+draft as `+ Financials`. Three states, and none of them is a permanently empty
+input box.
+
+Saving follows the same idea: Enter or picking an option commits, Escape reverts,
+and **clicking away settles** — a changed draft is saved, an unchanged one just
+closes. A row can never be left showing a value it has not stored. `TagSelect`
+gained `autoFocus` and `onBlur` for this, and its `▾` toggle now
+`preventMouseDown`s so opening the list cannot blur the field and settle the row
+before the list is usable.
+
+**The "auto" chip is gone**, as asked. Provenance is still written
+(`sectorSource`) because it is worth keeping, but nothing renders it — a badge
+narrating which button produced a tag made a settled label look unresolved.
+
+**The text pass.** Removed, by request: `/money`'s
+`7 of 18 scheduled months arrived after the month closed — worst MAR (2026),
+44 days late`, the Today deposit line's `arrived on time` / `N days after the
+month closed` commentary, and the `N days after the month closed` clause in the
+clock badge's hover note (which now says exactly what it was asked to say: *Late
+deposit — MAR (2026) allocation deposited on 14 May 26*). The quiet clock badge
+itself stays, one per late month, as a passive mark.
+
+Shortened elsewhere, keeping the meaning: the exposure page's currency caption,
+its "holdings only" line and both unclassified notes, the attribution's
+summary/footer/cross-check prose, the stakeholder table's pro-rata note, the
+positions table's mixed-currency and no-quote caveats, and the four risk captions
+(HHI bands, the rolling-year explanation, the correlation legend, and the
+time-weighted note).
+
+**Flagged, not deleted** — these are notices that change how a figure above them
+should be read, and each was kept (shortened) rather than removed: the value
+chart's "value change, not return" split, the attribution cross-check, the
+no-live-quote caveat that says the totals understate, the `at cost` markers, and
+`Unclassified is not an "Other" sector`.
+
+**Verified in the running app, with the real data:** all 18 rows render chips,
+there are **0** `auto` labels and **0** text inputs resting in the table; clicking
+the D05 chip opened a focused editor with its dropdown, and Enter committed the
+same value and returned the chip (no row was left dirty, no data changed).
+`/money` no longer contains the late-deposit sentence (`grep` of the rendered
+body: 0 matches) and still renders its seven clock badges.
