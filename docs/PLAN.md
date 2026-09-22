@@ -90,20 +90,23 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 16 | Accounts: username + password, per-account `lastSeenAt` | **DONE** — no account created yet; make the first one at `/accounts` (Part 19) or `npm run user:add` (the shared-password gate still works) |
 | 17 | Today: hero + since-last-visit, needs-attention, schedule line, one chart, largest positions | **DONE** |
 | 18 | Activity: the four ledgers merged into one filterable timeline | TODO — proposed, not built |
-| 19 | Accounts UI: add / reset / remove accounts at `/accounts` | **DONE** — the app is back to **0 accounts**, so the first real account is the owner's to create on `/accounts` |
+| 19 | Accounts UI: add / reset / remove accounts at `/accounts` | **DONE** — the owner created their own account (`josh`); the bootstrap is closed |
+| 20 | Today fits one desktop screen: chart beside the largest positions | **DONE** — measured 0px of scroll at 1440×900, 1440×780 and 1024×800 |
 
 ---
 
-## Resume checkpoint — 2026-09-22 (after Part 19)
+## Resume checkpoint — 2026-09-22 (after Part 20)
 
 **State:** parts 1–7 and 9–17 finished and verified, plus **Part 19** — the
 accounts UI (`/accounts`: create, reset, remove), with the bootstrap rule that
 lets the shared-password visitor create the very first account in the browser
-instead of a shell. Earlier this round: the **14b removal** (the `/exposure`
-purchase-date FX split and its machinery are gone), consistent `S$` labelling,
-the **five-object IA** with the old URLs redirected, **accounts**, and the
-**dashboard rebuilt as Today** — 12 panels to 4, 4 charts to 1, 448 rendered
-figures to 31.
+instead of a shell — and **Part 20** — Today now fits one desktop screen (the
+chart and the largest positions share a row, the chart takes the leftover
+height, and the late-month count is gone from the page). Earlier this round: the
+**14b removal** (the `/exposure` purchase-date FX split and its machinery are
+gone), consistent `S$` labelling, the **five-object IA** with the old URLs
+redirected, **accounts**, and the **dashboard rebuilt as Today** — 12 panels to
+4, 4 charts to 1, 448 rendered figures to 31.
 
 **Next action:** whichever the owner picks —
 **Part 18 the `/activity` ledger**, **14b's two remaining panels** (realized FX
@@ -112,12 +115,11 @@ on the 25 conversions; unrealized FX on the foreign cash), the **monolith split*
 maintainer would flag them), or **Part 8** (notes redesign, still blocked on an
 owner decision).
 
-**The accounts state to be aware of before touching auth again:** the `User`
-table is **empty** — every verification account was deleted after it was used,
-and the count was checked back to 0. That is deliberate: the bootstrap rule only
-exists while the count is 0, so the owner's own account should be the first one
-created, from `/accounts`. Once they create it, only an account can add more,
-and the shared password can still sign in but can no longer manage accounts.
+**The accounts state to be aware of before touching auth again:** the owner's
+account **`josh` exists** (created on `/accounts` on 2026-09-22), so the
+bootstrap is closed: the shared password still signs in but can no longer manage
+accounts, and only an account can add more. Every temporary verification account
+was deleted after use; the `User` table is otherwise empty.
 
 **Environment notes that are easy to lose:**
 - The database is SHARED with the main checkout, so a migration or an account
@@ -158,16 +160,17 @@ while CI runs.
 **Verification on the current tree (all green at the end of this session):**
 
 ```
-npm test                                     -> 16 files, 242 tests passed
+npm test                                     -> 16 files, 248 tests passed
 npx tsc --noEmit                             -> clean
 npx eslint app components lib tests scripts  -> clean
 npm run build                                -> succeeded (see the build note below)
 ```
 
 (The count went 230 -> 216 when the 14 FX-split tests left with their code, then
-216 -> 229 with Part 16's 13 auth tests, then 242 with Part 19's 13 account-rule
-tests. Note `scripts/` is in the eslint target — the create-user script is app
-code and should be linted like the rest.)
+216 -> 229 with Part 16's 13 auth tests, 242 with Part 19's 13 account-rule
+tests, and 248 with Part 20's 6 sparkline-key parser tests. Note `scripts/` is in
+the eslint target — the create-user script is app code and should be linted like
+the rest.)
 
 **Live preview:** a dev server runs from this worktree, but **Next picks the
 port** — 3000 when it is free, otherwise a random high one (it landed on 59495
@@ -1608,3 +1611,86 @@ app's, behaviour.
 **Not built, deliberately:** per-account roles or permissions (accounts are
 identities, not access levels — the owner chose this in Part 16 and nothing here
 changes it), email/password reset links, and any account-to-`Contributor` link.
+
+---
+
+## Part 20 — Today in one screen (DONE)
+
+**The owner's rule, stated as a rule this time:** the home screen must be
+readable in one look on a desktop, and that must stay true as it grows —
+"as much as possible, this should always be the philosophy of the home screen, a
+one snapshot view".
+
+**Measured before changing anything** (1440×821, real DOM):
+
+| block | height |
+|---|---|
+| header | 38 |
+| hero (value + needs attention) | 227 |
+| deposits line | 42 |
+| chart (incl. range control) | 376 |
+| largest positions | 373 |
+| **document** | **1272 — 451px of scrolling** |
+
+**What changed.** Those last two blocks now share a row (`lg:grid-cols-5`, the
+chart 3 wide and the positions 2), which removes 373px of stacking and leaves the
+row as tall as its taller half. The page root gets a definite height on `lg`
+(`calc(100dvh - 121px)` — 57px bar + main's 32px padding twice, measured), and the
+chart is the column that flexes: `fill` hands it the leftover height instead of
+its fixed 256px plot, with a 180px floor below which a line chart stops being
+readable. A taller window therefore spends the space on the chart, a shorter one
+shrinks it, and the non-shrinkable blocks (hero, deposit line, position rows)
+were trimmed to make sure the row always has room: hero padding and gaps, the
+position rows' vertical padding, and the page's own gaps.
+
+**`fill` is a contract, not a preference.** It is threaded through
+`PortfolioPerformance` and `PortfolioValueChart`, and both document why it must
+not be used where an ancestor has no definite height: `height="100%"` inside an
+auto-height parent resolves to nothing. It is passed by the dashboard only, so
+`/performance` keeps three fixed, comparable charts.
+
+**Late months are no longer on this page at all.** The owner asked for the
+"7 of 18 months late" count to go, and the same fact was also a "Needs
+attention" item — which made it the second thing a reader saw, on a page whose
+whole job is to say what needs a decision. Both are gone: `/money` still marks
+each late month with its clock badge and shows the schedule in full, and the
+deposit line here states only what arrived and what is due next. (Rationale, from
+the owner's own model: money in the account earns nothing, so a late deposit is a
+note, not an alarm.)
+
+**Verified in the running app**, at four viewports, by measuring the DOM rather
+than looking at it:
+
+| viewport | vertical scroll | chart plot | layout |
+|---|---|---|---|
+| 1440×900 | **0px** | grows to fill | chart \| positions side by side |
+| 1440×780 | **0px** | 192px | side by side |
+| 1024×800 | **0px** | 180px (floor) | side by side, no horizontal overflow |
+| 420×860 | page scrolls (expected) | — | stacked, full width, no overflow |
+
+**The sparkline bug this page had been hiding.** Every row in "Largest
+positions" showed a dash instead of a trend, and it turned out not to be a
+loading state: `TopPositions` sends keys built with `priceKey()` —
+`"REGION::TICKER"` — while `app/api/sparklines/route.ts` split them on a SINGLE
+colon. `"US::VOO"` therefore parsed as region `"US"` and ticker `""`, the whole
+list was discarded, and the endpoint answered `{series:{}}` in 6ms with nothing
+logged. The positions table worked only because it happened to build its keys
+with one colon — which is exactly the kind of accidental agreement that hides a
+bug for months.
+
+Fixed at the root: `parseSparklineKeys()` in `lib/sparklines.ts` accepts both
+separators (the response is keyed by `priceKey`, so handing a key back is the
+obvious thing for a caller to do), drops anything without both halves, and keeps
+the cap. `PositionsTable` now uses `priceKey()` too, so the app has one format
+instead of two. Six tests cover it, including the literal regression
+(`"US::VOO"`) and a mixed list. Confirmed live: five polylines render in the
+dashboard rows, and the endpoint returns 22/21/21/21/21 closes for the five
+holdings.
+
+**A note on this session's environment, for whoever debugs here next:** while
+this part was being built the same dev server served `/` in **28–53 seconds**
+under load (the log records it), because `lib/prisma.ts` pins
+`connection_limit=1` and every queued page waits on that single pooled
+connection. It recovers to 2.7–6.3s once the concurrent requests stop. Nothing
+here changed that; it is recorded because "the site is slow" is a recurring
+complaint and this is the mechanism.

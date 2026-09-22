@@ -38,6 +38,37 @@ export interface SparklineKey {
 }
 
 /**
+ * Parse the `keys` query parameter into the pairs to fetch.
+ *
+ * Accepts BOTH separators, and that is not politeness — it is the bug. The
+ * response is keyed by `priceKey()`, i.e. "REGION::TICKER", so handing a key
+ * straight back is the obvious thing for a caller to do. This used to split on
+ * a SINGLE colon, which parsed "US::VOO" into region "US" and ticker "" —
+ * every key discarded, `{series:{}}` returned in 6ms, and nothing logged. That
+ * is exactly how the dashboard's largest-positions strip shipped with a dash
+ * where each sparkline should be, while the positions table next to it (which
+ * happened to build its keys with one colon) worked.
+ *
+ * So: split on the canonical double colon when there is one, fall back to a
+ * single colon, and drop anything that does not yield both halves. The cap
+ * bounds how much work one query can ask for.
+ */
+export function parseSparklineKeys(
+  raw: string,
+  limit: number = MAX_SPARKLINE_KEYS
+): SparklineKey[] {
+  const keys: SparklineKey[] = [];
+  for (const part of raw.split(",")) {
+    const [region, ticker] = part.includes("::") ? part.split("::") : part.split(":");
+    if (region?.trim() && ticker?.trim()) {
+      keys.push({ region: region.trim(), ticker: ticker.trim() });
+    }
+    if (keys.length >= limit) break;
+  }
+  return keys;
+}
+
+/**
  * Ascending close values per compound "REGION::TICKER" key.
  *
  * Tickers with no usable history are simply absent from the result rather

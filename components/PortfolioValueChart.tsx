@@ -73,7 +73,23 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: Tooltip
  * receding 2.81:1 against the page, and the dashed pattern plus the
  * 2px/1px stroke-weight difference keep the two series separable even
  * for viewers who can't rely on hue. */
-export default function PortfolioValueChart({ data }: { data: SnapshotPoint[] }) {
+/**
+ * `fill` lets the plot area take the height its parent has left (`min-h-[180px]`
+ * is the floor below which a line chart stops being readable) instead of the
+ * fixed 224px it gets elsewhere.
+ *
+ * Only the dashboard passes it, and only because it gives the chart's ancestors
+ * a definite height: `height="100%"` inside an auto-height parent resolves to
+ * nothing, so `fill` is a contract with the caller, not a preference. The
+ * default stays fixed-and-predictable for the performance page.
+ */
+export default function PortfolioValueChart({
+  data,
+  fill = false,
+}: {
+  data: SnapshotPoint[];
+  fill?: boolean;
+}) {
   if (data.length < 2) {
     return (
       <div className="panel flex h-56 items-center justify-center p-6 text-sm text-ink-300">
@@ -102,7 +118,7 @@ export default function PortfolioValueChart({ data }: { data: SnapshotPoint[] })
   const windowMarket = change - windowDeposits;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className={`flex flex-col gap-3${fill ? " min-h-0 flex-1" : ""}`}>
       <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
         <p className="text-sm text-ink-300">Portfolio value over time</p>
         <div className="flex flex-col gap-0.5">
@@ -133,7 +149,7 @@ export default function PortfolioValueChart({ data }: { data: SnapshotPoint[] })
           )}
         </div>
       </div>
-      <div className="h-64 w-full">
+      <div className={fill ? "min-h-[180px] w-full flex-1" : "h-64 w-full"}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
             <defs>

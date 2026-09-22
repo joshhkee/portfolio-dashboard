@@ -30,14 +30,23 @@ export interface TopPositionRow {
  * paint so a slow quote source can never hold up the dashboard. A ticker with
  * no usable history renders a dash rather than an invented flat line.
  */
+/**
+ * `fill` makes the panel take its parent's height and lets the LIST, not the
+ * page, absorb any shortfall — on the dashboard the panel shares a row with the
+ * chart, and a window too short for five rows should scroll this list rather
+ * than push the chart off the screen. Left off anywhere the panel is stacked in
+ * a normal flow, where it should simply be as tall as its rows.
+ */
 export default function TopPositions({
   rows,
   totalCount,
   hiddenCount,
+  fill = false,
 }: {
   rows: TopPositionRow[];
   totalCount: number;
   hiddenCount: number;
+  fill?: boolean;
 }) {
   const [spark, setSpark] = useState<Record<string, number[]>>({});
 
@@ -60,7 +69,7 @@ export default function TopPositions({
   }, [keys]);
 
   return (
-    <section className="panel flex flex-col gap-3 p-5">
+    <section className={`panel flex flex-col gap-3 p-4${fill ? " h-full min-h-0" : ""}`}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="text-xs font-medium uppercase tracking-wide text-ink-300">
           Largest positions
@@ -77,7 +86,7 @@ export default function TopPositions({
       {rows.length === 0 ? (
         <p className="text-sm text-ink-300">Nothing held yet.</p>
       ) : (
-        <ul className="flex flex-col divide-y divide-ink-700/60">
+        <ul className={`flex flex-col divide-y divide-ink-700/60${fill ? " min-h-0 overflow-y-auto" : ""}`}>
           {rows.map((row) => {
             const key = priceKey(row.region, row.ticker);
             const series = spark[key];
@@ -87,7 +96,7 @@ export default function TopPositions({
                   href={`/positions/${row.region.toLowerCase()}?ticker=${encodeURIComponent(
                     row.ticker
                   )}`}
-                  className="flex items-center gap-3 py-2.5 transition hover:text-accent motion-reduce:transition-none"
+                  className="flex items-center gap-3 py-2 transition hover:text-accent motion-reduce:transition-none"
                 >
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline gap-2">

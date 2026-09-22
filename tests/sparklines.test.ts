@@ -1,6 +1,56 @@
 import { describe, it, expect } from "vitest";
 import { mapWithConcurrency } from "@/lib/concurrency";
-import { toSparklinePoints, trendOf } from "@/lib/sparklines";
+import {
+  MAX_SPARKLINE_KEYS,
+  parseSparklineKeys,
+  toSparklinePoints,
+  trendOf,
+} from "@/lib/sparklines";
+import { priceKey } from "@/lib/prices";
+
+describe("parseSparklineKeys", () => {
+  it("parses the canonical priceKey form the API itself returns", () => {
+    // The regression: this used to split on a single colon, so "US::VOO" became
+    // region "US" and ticker "", the pair was dropped, and the endpoint
+    // answered {series:{}} — which is why the dashboard's position rows showed
+    // a dash instead of a trend while the positions table worked.
+    expect(parseSparklineKeys("US::VOO")).toEqual([{ region: "US", ticker: "VOO" }]);
+    expect(parseSparklineKeys(priceKey("SG", "D05"))).toEqual([{ region: "SG", ticker: "D05" }]);
+  });
+
+  it("still parses the older single-colon form", () => {
+    expect(parseSparklineKeys("US:VOO,SG:D05")).toEqual([
+      { region: "US", ticker: "VOO" },
+      { region: "SG", ticker: "D05" },
+    ]);
+  });
+
+  it("parses a mixed list, so one caller cannot break another's keys", () => {
+    expect(parseSparklineKeys("US::VOO,SG:D05,HK::0700")).toEqual([
+      { region: "US", ticker: "VOO" },
+      { region: "SG", ticker: "D05" },
+      { region: "HK", ticker: "0700" },
+    ]);
+  });
+
+  it("drops anything without both halves rather than fetching a blank symbol", () => {
+    expect(parseSparklineKeys("")).toEqual([]);
+    expect(parseSparklineKeys("US::")).toEqual([]);
+    expect(parseSparklineKeys(":VOO")).toEqual([]);
+    expect(parseSparklineKeys("US::VOO,,SG::D05")).toHaveLength(2);
+    expect(parseSparklineKeys("nonsense")).toEqual([]);
+  });
+
+  it("trims stray whitespace", () => {
+    expect(parseSparklineKeys(" US :: VOO ")).toEqual([{ region: "US", ticker: "VOO" }]);
+  });
+
+  it("caps the list so one query cannot ask for thousands", () => {
+    const raw = Array.from({ length: MAX_SPARKLINE_KEYS + 25 }, (_, i) => `US::T${i}`).join(",");
+    expect(parseSparklineKeys(raw)).toHaveLength(MAX_SPARKLINE_KEYS);
+    expect(parseSparklineKeys("US::VOO,SG::D05", 1)).toEqual([{ region: "US", ticker: "VOO" }]);
+  });
+});
 
 describe("trendOf", () => {
   it("reports an upward move", () => {

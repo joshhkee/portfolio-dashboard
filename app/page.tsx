@@ -42,6 +42,16 @@ interface AttentionItem {
  *   a list of things that need a decision, drawn from data the app already has
  *   one chart, the deposit schedule as a single line, the largest positions
  *
+ * The owner's rule for this page is that it must be readable in ONE look on a
+ * desktop — no scrolling to reach the bottom of it. So on `lg` the last two
+ * blocks sit SIDE BY SIDE (the chart beside the largest positions) rather than
+ * stacked, and the chart takes whatever height the window has left instead of a
+ * fixed 256px plot. A tall monitor gets a taller chart rather than 400px of
+ * empty page; a short one still shows everything, down to the chart's minimum.
+ * Anything that cannot shrink — the hero, the deposit line, the position rows —
+ * is kept small enough that the row always fits, which is why those blocks are
+ * measured rather than guessed at.
+ *
  * Everything that used to be here still exists — it moved to the page that owns
  * it: the statistics and risk panel to /performance, attribution to
  * /performance/attribution, the stakeholder split and deposit schedule to
@@ -150,16 +160,13 @@ export default async function TodayPage() {
       linkLabel: "Record it",
     });
   }
-  if (schedule.lateMonths > 0) {
-    attention.push({
-      tone: "info",
-      text: `${schedule.lateMonths} of ${schedule.measuredMonths} scheduled months arrived after the month closed${
-        schedule.worstLate ? ` — worst ${schedule.worstLate.label} at ${schedule.worstLate.daysLate} days` : ""
-      }.`,
-      href: "/money",
-      linkLabel: "See the schedule",
-    });
-  }
+  // Late months are deliberately NOT an attention item. The owner has been
+  // explicit about this twice: money sitting in the account earns nothing here,
+  // so a deposit that landed after its month closed is a note, not a decision —
+  // and a "Needs attention" list that opens with five late months stops being a
+  // list of things that need you. /money still marks each late month with its
+  // clock badge and shows the schedule in full; the dashboard just does not
+  // shout about it.
   const untagged = positions.filter((p) => !meta.sectors[priceKey(p.region, p.ticker)]);
   if (untagged.length > 0) {
     const untaggedValue = untagged.reduce((sum, p) => sum + p.totalHoldingsConverted, 0);
@@ -211,7 +218,16 @@ export default async function TodayPage() {
     }));
 
   return (
-    <div className="flex flex-col gap-6">
+    // The height is DEFINITE on `lg`, and that is what makes the chart's `fill`
+    // work: the chart's height is "whatever is left", which is only a question
+    // with an answer if the page has a height to divide up. 121px is the chrome
+    // above it — the 57px bar plus main's 32px padding top and bottom — measured,
+    // not guessed. If a window is genuinely too short for the fixed blocks, the
+    // row overflows and the page scrolls, which is the honest degrade.
+    //
+    // The gaps are tight on purpose: every 4px here comes out of the chart's
+    // height budget.
+    <div className="flex flex-col gap-4 lg:h-[calc(100dvh_-_121px)]">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-sm text-ink-300">Today</h1>
@@ -236,7 +252,7 @@ export default async function TodayPage() {
       {/* The value, and the change since this person was last here — the two
           things someone opening the dashboard actually came for. */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="panel flex flex-col gap-4 p-6 lg:col-span-2">
+        <div className="panel flex flex-col gap-4 p-5 lg:col-span-2">
           <div>
             <p className="text-xs text-ink-300">Total portfolio value (S$, holdings + cash)</p>
             <p className="num mt-1 text-4xl font-medium text-ink-100">
@@ -290,7 +306,7 @@ export default async function TodayPage() {
 
         {/* Things that need a decision, drawn from the app's own data. An empty
             list is a real state and gets said plainly rather than left blank. */}
-        <div className="panel flex flex-col gap-3 p-6">
+        <div className="panel flex flex-col gap-3 p-5">
           <p className="text-xs font-medium uppercase tracking-wide text-ink-300">Needs attention</p>
           {attention.length === 0 ? (
             <p className="flex items-center gap-2 text-sm text-ink-300">
@@ -344,34 +360,41 @@ export default async function TodayPage() {
             {formatMonthKey(nextMonth.label)} {nextOverdue ? "is overdue" : "due by"}{" "}
             {formatShortDate(new Date(nextMonth.dueBy))}
           </span>
-          {schedule.lateMonths > 0 && (
-            <>
-              <span className="text-ink-500">·</span>
-              <span className="text-ink-500">
-                {schedule.lateMonths} of {schedule.measuredMonths} months late
-              </span>
-            </>
-          )}
           <ChevronRight size={13} strokeWidth={2} className="ml-auto text-ink-500" />
         </Link>
       )}
 
-      {/* ONE chart on the dashboard, not three: the value line with the
-          contributed reference under it. The drawdown and the index comparison
-          are the performance page's subject, not this page's. */}
-      <div className="flex flex-col gap-2">
-        <PortfolioPerformance data={snapshots} charts="value" />
-        <p className="text-right text-xs">
-          <Link
-            href="/performance"
-            className="text-ink-500 transition hover:text-accent motion-reduce:transition-none"
-          >
-            Returns, risk and the benchmark comparison →
-          </Link>
-        </p>
-      </div>
+      {/* The bottom of the page, SIDE BY SIDE on `lg`: the one chart the
+          dashboard owns, and the largest positions.
 
-      <TopPositions rows={top} totalCount={positions.length} hiddenCount={top.length} />
+          Stacked, these two measured 376 + 373 = 749px of the page's height,
+          which is what pushed the bottom of it off a laptop screen. Beside each
+          other the row is as tall as its taller half, and the chart is the
+          column that flexes: `fill` hands it the leftover height instead of the
+          fixed 256px plot, so a taller window spends the space on the chart
+          rather than on whitespace. */}
+      <div className="grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-5">
+        <div className="flex min-h-0 flex-col gap-2 lg:col-span-3">
+          <PortfolioPerformance data={snapshots} charts="value" fill />
+          <p className="text-right text-xs">
+            <Link
+              href="/performance"
+              className="text-ink-500 transition hover:text-accent motion-reduce:transition-none"
+            >
+              Returns, risk and the benchmark comparison →
+            </Link>
+          </p>
+        </div>
+
+        <div className="flex min-h-0 flex-col lg:col-span-2">
+          <TopPositions
+            rows={top}
+            totalCount={positions.length}
+            hiddenCount={top.length}
+            fill
+          />
+        </div>
+      </div>
     </div>
   );
 }

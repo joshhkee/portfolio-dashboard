@@ -21,6 +21,7 @@ export default function PortfolioPerformance({
   benchmarks = [],
   benchmarkSeries = {},
   charts = "all",
+  fill = false,
 }: {
   data: PerfPoint[];
   /** Indices available to compare against, already fetched server-side. */
@@ -39,6 +40,16 @@ export default function PortfolioPerformance({
    * about what a window means.
    */
   charts?: "all" | "value";
+  /**
+   * Take the height the parent has left instead of each chart's own fixed one.
+   *
+   * Set by the dashboard, where the chart shares a row with the largest
+   * positions and the whole page is meant to be read without scrolling: there
+   * the chart is the block that can afford to grow and shrink, so a tall window
+   * gets a taller chart. Left off on the performance page, where three charts
+   * stack and a fixed, predictable height each is what makes them comparable.
+   */
+  fill?: boolean;
 }) {
   const [range, setRange] = useState<RangeKey>("ALL");
   const filtered = filterByRange(data, range);
@@ -53,7 +64,7 @@ export default function PortfolioPerformance({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className={`flex flex-col gap-4${fill ? " min-h-0 flex-1" : ""}`}>
       <div className="flex justify-end">
         <SegmentedControl
           ariaLabel="Chart time range"
@@ -69,8 +80,8 @@ export default function PortfolioPerformance({
           which is what Recharts does when the data changes under a mounted
           chart. (An earlier pass wrapped this in a crossfade as well, which
           only gave the eye two things to watch.) */}
-      <div className="flex flex-col gap-4">
-        <PortfolioValueChart data={filtered} />
+      <div className={`flex flex-col gap-4${fill ? " min-h-0 flex-1" : ""}`}>
+        <PortfolioValueChart data={filtered} fill={fill} />
         {charts === "all" && (
           <>
             <DrawdownChart data={filtered} />
