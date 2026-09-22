@@ -141,19 +141,20 @@ export default function PositionsTable({
           </p>
         </div>
       </div>
+      {/* Both of these stay, because each one changes how a figure above should
+          be read rather than explaining a term: the first says the rows are in
+          mixed currencies, the second that some rows are valued at cost and so
+          the totals understate. Trimmed, not deleted. */}
       {mixedCurrencies && (
         <p className="-mt-4 text-xs text-ink-300">
-          Per-row figures below are in each market&apos;s native currency; totals above and
-          Portfolio % are converted to {displayCurrency} at the current rate so regions can be
-          compared.
+          Row figures are in each market&apos;s native currency; totals and Portfolio % are
+          converted to {displayCurrency} at the current rate.
         </p>
       )}
       {anyPriceUnavailable && (
         <p className="-mt-4 text-xs text-ink-300">
-          One or more tickers below have no live quote available right now (common for HK
-          listings) — those rows show total holdings at cost basis and their unrealized P/L as
-          N/A rather than a possibly-wrong number. The totals above treat those rows as
-          contributing $0 unrealized P/L, so they may understate the true total.
+          Rows with no live quote are held at cost and show N/A for P/L, so the totals above
+          understate the true figure. HK listings often have no free quote.
         </p>
       )}
 
@@ -232,15 +233,21 @@ export default function PositionsTable({
                           align="right"
                 className="hidden lg:table-cell"
               />
+              {/* "P/L" rather than "Unrealized P/L": the long form was the
+                  widest thing in each of these two columns, and every figure in
+                  the table is unrealized until the position is sold — the
+                  full wording lives on the hover. */}
               <SortableTh
-                label="Unrealized P/L (%)"
+                label="P/L (%)"
+                title="Unrealized profit or loss as a percentage of the average cost."
                 active={sortKey === "unrealizedPLPct"}
                 direction={sortDir}
                 onClick={() => toggleSort("unrealizedPLPct")}
                           align="right"
               />
               <SortableTh
-                label="Unrealized P/L"
+                label="P/L"
+                title="Unrealized profit or loss, in each market's native currency."
                 active={sortKey === "unrealizedPL"}
                 direction={sortDir}
                 onClick={() => toggleSort("unrealizedPL")}

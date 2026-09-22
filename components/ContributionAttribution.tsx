@@ -100,17 +100,20 @@ export default function ContributionAttribution({ matrix }: { matrix: Attributio
           </p>
           <p className="mt-2 text-xs text-ink-300">
             {winners.length} position{winners.length === 1 ? "" : "s"} added, {losers.length}{" "}
-            subtracted — money paid in or taken out is not counted as a gain, so this is what the
-            holdings actually earned over the window.
+            subtracted. Money paid in or taken out is not a gain, so this is what the holdings
+            earned.
           </p>
           {/* Only shown when stored values exist to check against. */}
           {table.snapshotGain.some((v) => v !== 0) && (
+            // Kept, and deliberately: this is the one line that says the two
+            // ways of pricing the same periods disagree, so the figures above
+            // cannot be read as a blend of them.
             <p className="mt-2 text-xs text-ink-500">
-              Cross-check: pricing the same periods from the stored daily holdings values gives{" "}
+              Cross-check against the stored daily values:{" "}
               <span className="num">{formatSigned(snapshotTotal)}</span>, a{" "}
               <span className={`num ${toneClass(residual)}`}>{formatSigned(residual)}</span>{" "}
-              difference from the grid — the two price histories disagreeing on a few days, which is
-              why every figure above comes from the ledger rather than from a blend of the two.
+              difference — the two price histories disagree on a few days, so every figure comes
+              from the ledger alone.
             </p>
           )}
         </div>
@@ -148,7 +151,12 @@ export default function ContributionAttribution({ matrix }: { matrix: Attributio
       </div>
 
       <div key={`table-${range}-${period}`} className="swap-in table-scroll">
-        <table className="ledger-table">
+        {/* `table-compact` is width, not style: this grid grows a column per
+            month, so at 19 months it is 21 columns wide and the denser variant
+            is what puts a year of them on screen without scrolling. The
+            ledger-shaped tables (positions, trades) stay at text-sm — this is
+            the one table whose column count is unbounded. */}
+        <table className="ledger-table table-compact">
           <thead>
             <tr>
               <th className="cell-pin">Instrument</th>
@@ -211,8 +219,7 @@ export default function ContributionAttribution({ matrix }: { matrix: Attributio
       </div>
 
       <p className="text-xs text-ink-500">
-        A cell is one position&apos;s gain in one period: its value moved that much, minus whatever
-        was paid in or taken out. Cells in a row or column always add up to the totals beside them.
+        Each cell is that position&apos;s gain in that period, net of money paid in or taken out.
         Every figure is in SGD.
       </p>
     </div>

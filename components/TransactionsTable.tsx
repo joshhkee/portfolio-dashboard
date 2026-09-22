@@ -71,7 +71,8 @@ export default function TransactionsTable({
               className="hidden lg:table-cell"
             />
             <SortableTh
-              label="Running avg cost"
+              label="Running avg"
+              title="Running average cost basis per share after this transaction."
               active={sortKey === "runningAvgCost"}
               direction={sortDir}
               onClick={() => toggleSort("runningAvgCost")}

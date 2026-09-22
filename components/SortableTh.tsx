@@ -9,6 +9,7 @@ export default function SortableTh({
   onClick,
   align = "left",
   className = "",
+  title,
 }: {
   label: string;
   active: boolean;
@@ -19,12 +20,16 @@ export default function SortableTh({
    *  screens. Has to live on the header cell itself, since a responsive
    *  utility on some wrapper would have nothing to hide. */
   className?: string;
+  /** Hover explanation. Columns get abbreviated to keep a wide table inside its
+   *  container, and the abbreviation is where the full name belongs rather
+   *  than nowhere. */
+  title?: string;
 }) {
   const Icon = active ? (direction === "asc" ? ChevronUp : ChevronDown) : ChevronsUpDown;
   const alignClass =
     align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left";
   return (
-    <th className={`${alignClass} ${className}`.trim()}>
+    <th className={`${alignClass} ${className}`.trim()} title={title}>
       <button
         type="button"
         onClick={onClick}

@@ -82,7 +82,7 @@ export default function CommandPalette() {
   const [active, setActive] = useState(0);
   const [tickers, setTickers] = useState<PaletteTicker[] | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const listRef = useRef<HTMLUListElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
 
   // The login page has nothing to navigate to yet.
   const hidden = pathname === "/login";
@@ -150,6 +150,27 @@ export default function CommandPalette() {
     [commands, query]
   );
 
+  /**
+   * The same results, arranged under their group headings.
+   *
+   * Each entry keeps its index in the FLAT filtered list, because that is what
+   * the keyboard walks — grouping is a rendering concern and must not renumber
+   * the arrows. Groups appear in the order their first result did, so a query
+   * that only matches holdings leads with holdings.
+   */
+  const groups = useMemo(() => {
+    const order: string[] = [];
+    const byGroup = new Map<string, { command: Command; index: number }[]>();
+    results.forEach((command, index) => {
+      if (!byGroup.has(command.group)) {
+        byGroup.set(command.group, []);
+        order.push(command.group);
+      }
+      byGroup.get(command.group)!.push({ command, index });
+    });
+    return order.map((group) => ({ group, items: byGroup.get(group)! }));
+  }, [results]);
+
   useEffect(() => {
     setActive(0);
   }, [query]);
@@ -187,10 +208,12 @@ export default function CommandPalette() {
 
   // Keep the highlighted row visible when arrowing past the fold. "nearest"
   // scrolls only when needed and never animates, so there is no motion to
-  // suppress for prefers-reduced-motion.
+  // suppress for prefers-reduced-motion. Addressed by data-index rather than
+  // by child position, because the list is now grouped and a child of the
+  // listbox is a group rather than a row.
   useEffect(() => {
     if (!open) return;
-    const node = listRef.current?.children[active] as HTMLElement | undefined;
+    const node = listRef.current?.querySelector<HTMLElement>(`[data-index="${active}"]`);
     node?.scrollIntoView({ block: "nearest" });
   }, [active, open]);
 
@@ -205,19 +228,24 @@ export default function CommandPalette() {
     <>
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 pt-[12vh]"
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 p-4 pt-[10vh] backdrop-blur-[2px]"
           onClick={close}
           role="presentation"
         >
+          {/* Sized and lit to read as the primary control it is: wider than a
+              dialog needs to be for text, a taller input, a gold top edge that
+              ties it to the app's accent, and a heavier shadow so it sits ON
+              the page rather than in it. `swap-in` is the app's one entrance
+              motion, under prefers-reduced-motion it simply appears. */}
           <div
             role="dialog"
             aria-modal="true"
             aria-label="Command palette"
             onClick={(event) => event.stopPropagation()}
-            className="panel w-full max-w-lg overflow-hidden border-ink-600 bg-ink-850 shadow-2xl"
+            className="swap-in w-full max-w-2xl overflow-hidden rounded-xl border border-ink-600 border-t-2 border-t-accent bg-ink-850 shadow-[0_24px_64px_rgba(0,0,0,0.65)]"
           >
-            <div className="flex items-center gap-2 border-b border-ink-700 px-4 py-3">
-              <Search size={15} className="shrink-0 text-ink-500" />
+            <div className="flex items-center gap-3 border-b border-ink-700 px-5 py-4">
+              <Search size={18} className="shrink-0 text-accent" />
               <input
                 ref={inputRef}
                 value={query}
@@ -228,45 +256,66 @@ export default function CommandPalette() {
                 aria-activedescendant={results[active] ? `cmd-${results[active].id}` : undefined}
                 role="combobox"
                 aria-expanded="true"
-                className="w-full bg-transparent text-sm text-ink-100 outline-none placeholder:text-ink-500"
+                className="w-full bg-transparent text-base text-ink-100 outline-none placeholder:text-ink-500"
               />
             </div>
 
-            <ul
+            <div
               id="command-results"
               ref={listRef}
               role="listbox"
               aria-label="Commands"
-              className="max-h-80 overflow-auto py-1"
+              className="max-h-[26rem] overflow-auto py-1.5"
             >
               {results.length === 0 && (
-                <li className="px-4 py-3 text-sm text-ink-300">
+                <p className="px-5 py-3 text-sm text-ink-300">
                   Nothing matches &ldquo;{query}&rdquo;.
-                </li>
+                </p>
               )}
-              {results.map((command, index) => (
-                <li key={command.id} id={`cmd-${command.id}`} role="option" aria-selected={index === active}>
-                  <button
-                    type="button"
-                    onClick={() => run(command)}
-                    onMouseEnter={() => setActive(index)}
-                    className={`flex w-full items-center justify-between gap-4 px-4 py-2 text-left text-sm transition-colors motion-reduce:transition-none ${
-                      index === active ? "bg-ink-800 text-ink-100" : "text-ink-300"
-                    }`}
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate">{command.label}</span>
-                      {command.hint && (
-                        <span className="block truncate text-xs text-ink-500">{command.hint}</span>
-                      )}
-                    </span>
-                    <span className="shrink-0 text-xs text-ink-500">{command.group}</span>
-                  </button>
-                </li>
+              {groups.map(({ group, items }) => (
+                <div key={group} role="group" aria-label={group}>
+                  <p className="px-5 pb-1 pt-2.5 text-[10px] font-medium uppercase tracking-wide text-ink-500">
+                    {group}
+                  </p>
+                  <ul role="presentation">
+                    {items.map(({ command, index }) => (
+                      <li
+                        key={command.id}
+                        id={`cmd-${command.id}`}
+                        role="option"
+                        aria-selected={index === active}
+                      >
+                        {/* The active row is marked by a gold rail as well as
+                            its background, so the eye finds it without
+                            depending on a subtle shift of grey. */}
+                        <button
+                          type="button"
+                          data-index={index}
+                          onClick={() => run(command)}
+                          onMouseEnter={() => setActive(index)}
+                          className={`flex w-full items-center justify-between gap-4 border-l-2 px-5 py-2 text-left text-sm transition-colors motion-reduce:transition-none ${
+                            index === active
+                              ? "border-l-accent bg-accent/10 text-ink-100"
+                              : "border-l-transparent text-ink-300"
+                          }`}
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate">{command.label}</span>
+                            {command.hint && (
+                              <span className="block truncate text-xs text-ink-500">
+                                {command.hint}
+                              </span>
+                            )}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
 
-            <div className="flex items-center justify-between border-t border-ink-700 px-4 py-2 text-xs text-ink-500">
+            <div className="flex items-center justify-between border-t border-ink-700 px-5 py-2.5 text-xs text-ink-500">
               <span>&uarr;&darr; to move &middot; &crarr; to open</span>
               <span>esc to close</span>
             </div>

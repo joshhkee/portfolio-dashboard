@@ -74,8 +74,13 @@ export default function TickerName({
   }
 
   return (
-    <span className="group/name mt-0.5 flex items-center gap-1">
-      <span className="truncate text-xs text-ink-300" title={name ?? undefined}>
+    // `max-w-[13rem]` bounds the cell in a sized-by-content table. Without it
+    // the longest name sets the width of the whole instrument column — 330px
+    // for "Vanguard Total World Stock Index Fund ETF Shares" — which pushed
+    // the ledger past its container and made the date column break mid-value.
+    // Truncation with the full name on hover is the honest trade.
+    <span className="group/name mt-0.5 flex max-w-[13rem] items-center gap-1">
+      <span className="min-w-0 truncate text-xs text-ink-300" title={name ?? undefined}>
         {name ?? "—"}
       </span>
       <button

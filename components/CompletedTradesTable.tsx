@@ -129,7 +129,7 @@ export default function CompletedTradesTable({
                 <td className="text-right">
                   <Percent value={t.returnPct} />
                 </td>
-                <td className="max-w-xs truncate text-left text-ink-300" title={t.notes ?? undefined}>
+                <td className="max-w-[11rem] truncate text-left text-ink-300" title={t.notes ?? undefined}>
                   {t.notes}
                 </td>
               </tr>

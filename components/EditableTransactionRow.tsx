@@ -179,7 +179,10 @@ export default function EditableTransactionRow({
         {symbol}
         {formatAmount(t.transactionValue)}
       </td>
-      <td className="max-w-xs truncate text-left text-ink-300" title={t.notes ?? undefined}>
+      {/* Capped rather than `max-w-xs`: the notes are free text of any length,
+          and at 20rem the column alone was a fifth of the ledger's width. The
+          full text stays one hover away. */}
+      <td className="max-w-[11rem] truncate text-left text-ink-300" title={t.notes ?? undefined}>
         {t.notes}
       </td>
       <td>
