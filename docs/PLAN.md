@@ -134,10 +134,9 @@ correctly reads Unclassified 100% until the owner tags instruments on
 (`6a357af`, `c166bf0`, `c6071c5`); the Ctrl+K / benchmark-explainer notes plus
 the parts 8–12 backlog through #7; part 9 through #6. Both #6 and #7 are MERGED,
 so part 10 onward rides a fresh pull request (see below) — check the open PR's
-number before quoting it, it changes each batch. At the end of this session that
-was **#9**, open and reading `mergeable: true / clean`, carrying parts 12-14b
-(its body was rewritten to cover the 14b removal, so the earlier "Parts 12-14a"
-title is no longer what it says). **One pull request per checkpoint** (see "Pull-request
+number before quoting it, it changes each batch. **#9 was merged** (its squash is
+`main` at `0927f2c`), so parts 15-17 went up as a NEW pull request: **#10**, open
+and reading `mergeable: true / clean`, with Vercel green on its head commit. **One pull request per checkpoint** (see "Pull-request
 workflow") — never force-push, and re-read the PR's `mergeable_state` after
 every push, because GitHub computes it asynchronously and it reads `unstable`
 while CI runs.
