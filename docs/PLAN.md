@@ -44,9 +44,12 @@ every checkpoint keeps it green:
 
 - Branch: `freebuff/analyse-my-current-portfolio-dashboard-project-and-29b0adb2-a864-46b1-9352-6fb3fcb2b204`
   (`origin` -> `github.com/joshhkee/portfolio-dashboard`).
-- Open pull request: **#6** — https://github.com/joshhkee/portfolio-dashboard/pull/6
-  (same branch -> `main`). It carries parts 5–12; nothing should open a second
-  PR for this branch.
+- A batch of work rides ONE long-lived pull request (same branch -> `main`).
+  #6 and #7 are merged; **the PR carrying parts 10–12 is #8**
+  (https://github.com/joshhkee/portfolio-dashboard/pull/8). Nothing should open a
+  second PR while one is already open for this branch — but DO open a new one
+  when the previous batch was merged, because a merged PR cannot be reopened to
+  carry later work.
 - Push normally. **Never** force-push, switch branches, or change git config.
 - A clean `git push` is NOT proof the PR is conflict-free — re-read the PR and
   check `mergeable` / `mergeable_state` explicitly.
@@ -77,22 +80,30 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 7 | Sparklines + command palette | **DONE** |
 | 8 | Notes redesign (auto factual half + structured context) | TODO — owner picks an option first |
 | 9 | Concentration & risk analytics (HHI, Sharpe, correlation, rolling 1Y) | **DONE** |
-| 10 | Exposure analytics (sector tags, currency + FX attribution) | TODO — **start here**; needs a Prisma migration |
-| 11 | Contribution attribution (per position, per period) | TODO |
+| 10 | Exposure analytics (sector tags, currency + FX attribution) | **DONE** |
+| 11 | Contribution attribution (per position, per period) | TODO — **start here** |
 | 12 | Responsive & loading polish (mobile tables, skeletons) | TODO |
 
 ---
 
-## Resume checkpoint — 2026-09-22 (after Part 9)
+## Resume checkpoint — 2026-09-22 (after Part 10)
 
-**State:** parts 1–7 and 9 finished and verified. Next action: **Part 10
-(exposure analytics)** — the first remaining unblocked part, but it needs a
-Prisma migration for the sector tag, so give it its own session.
+**State:** parts 1–7, 9 and 10 finished and verified. Next action: **Part 11
+(contribution attribution)** — no schema change needed, so it needs no
+migration and no special session. Part 12 (responsive & loading polish) follows
+and is independent of it.
+
+**Part 10 needs no further action on the database:** migration
+`20260922140000_add_ticker_sector` is applied and the column exists. No sector
+tags are stored yet (the DB is exactly as it was found), so the sector donut
+correctly reads Unclassified 100% until the owner tags instruments on
+`/exposure`.
 
 **Git:** parts 1–4 merged into `main` through pull requests #3, #4 and #5
-(`6a357af`, `c166bf0`, `c6071c5`); parts 5–7 through #6; the Ctrl+K /
-benchmark-explainer notes plus the parts 8–12 backlog through #7. Part 9 is
-committed on top. **One pull request per checkpoint** (see "Pull-request
+(`6a357af`, `c166bf0`, `c6071c5`); the Ctrl+K / benchmark-explainer notes plus
+the parts 8–12 backlog through #7; part 9 through #6. Both #6 and #7 are MERGED,
+so part 10 onward rides a fresh pull request (see below) — check the open PR's
+number before quoting it, it changes each batch. **One pull request per checkpoint** (see "Pull-request
 workflow") — never force-push, and re-read the PR's `mergeable_state` after
 every push, because GitHub computes it asynchronously and it reads `unstable`
 while CI runs.
@@ -100,7 +111,7 @@ while CI runs.
 **Verification on the current tree (all green at the end of this session):**
 
 ```
-npm test                            -> 11 files, 159 tests passed
+npm test                            -> 12 files, 189 tests passed
 npx tsc --noEmit                    -> clean
 npx eslint app components lib tests -> clean
 npx next build                      -> succeeded (see the build note below)
@@ -124,8 +135,10 @@ procedures are in `.freebuff/run.md`.
 2. `npm run dev` and confirm the home page renders: hero, value/drawdown
    charts, benchmark panel, calendar-year table and the **risk & concentration
    panel** (HHI 14, volatility 14.1%, Sharpe 0.40, rolling-1Y line, an 18×18
-   correlation matrix once the client fetch returns).
-3. Read the Part 10 section, follow its acceptance criteria, then run the
+   correlation matrix once the client fetch returns). Then confirm `/exposure`
+   renders: two donuts, the local-vs-currency P&L split with a totals row that
+   adds up, and the tag editor.
+3. Read the Part 11 section, follow its acceptance criteria, then run the
    checkpoint protocol.
 
 **Build note:** `npm run build` runs `prisma generate` first, which fails with
@@ -682,7 +695,82 @@ inputs.
 
 ---
 
-## Part 10 — Exposure analytics
+## Part 10 — Exposure analytics — DONE
+
+A `/exposure` page (plus a nav link and a command-palette entry) answering
+"what am I exposed to", as opposed to "what is it worth".
+
+What was actually done:
+
+- **Migration `20260922140000_add_ticker_sector`** adds `TickerMeta.sector`
+  (`TEXT`, nullable). Generated with `prisma migrate diff` and applied with
+  `migrate deploy` (invariant 6 — `migrate dev` refuses in a non-interactive
+  shell). Nullable on purpose: no free data source classifies these
+  instruments, so an untagged holding must read as UNKNOWN and never silently
+  become an "Other" bucket that overstates how much is known.
+- **`lib/exposure.ts`** (new, pure): `groupExposure` with `sectorExposure` and
+  `currencyExposure` over it, `toExposureLines`, `fxAttribution` and
+  `sgdCostPerShare`. 30 tests in `tests/exposure.test.ts`.
+- **`lib/fx-history.ts`** (new): daily SGD-per-unit closes for SGD/USD/HKD from
+  the same Yahoo chart endpoint the app already uses, shaped ONCE into "SGD per
+  one unit" (Yahoo quotes units of foreign currency per USD — the opposite
+  direction, and getting it backwards is off by 1.3–7.8× while still looking
+  plausible). The HKD cross rate is derived, not fetched. 15-minute in-process
+  cache plus single-flight on top of Next's 1-hour fetch cache, so the cost is
+  two upstream calls an hour regardless of page views.
+- **`sgdPerUnit`** added to `lib/fx.ts`: the single place the rate direction is
+  converted, instead of dividing by a rate at each call site.
+- **Cost basis in SGD at PURCHASE-date rates.** `sgdCostPerShare` feeds
+  `computeLedger()` a copy of the ledger whose Buy prices are already converted
+  to SGD, so the engine's existing weighted-average replay does the blending and
+  its "average cost carries forward through a Sell" behaviour is exactly right
+  for the shares still held. No second average is written anywhere.
+- **The P&L split.** `localPlSgd = qty × (price − avgCost) × fxNow` is
+  precisely what the holdings page already shows (it converts native P&L at
+  today's rate), and `fxPlSgd = qty × avgCost × (fxNow − fxAtCost)` is the part
+  that page leaves out. Computed from the closed form rather than as the
+  residual `total − local`: the two differ only in the last floating-point
+  places, and for an SGD position the closed form is EXACTLY zero while the
+  residual lands on ±1e-12 and renders as "-S$0.00". A test pins the identity
+  that keeps the decomposition complete — `total − local` equals this term.
+- **UI:** `components/ExposureDonut.tsx` (recharts donut + a legend carrying
+  the exact value and share of every slice, since a donut is a shape you have to
+  estimate off), `components/FxAttributionTable.tsx` (server-rendered, with a
+  totals row), `components/SectorTagEditor.tsx` (one row per instrument, biggest
+  holding first, Enter saves, Escape reverts, autocomplete from tags already in
+  use so a second position can reuse a tag without retyping — and no pre-canned
+  sector list, because guessing is exactly what this design refuses to do).
+- **`app/api/ticker-meta/route.ts` PATCH is now field-presence aware.** It
+  previously set `name` unconditionally, so a sector-only edit would have
+  cleared a hand-corrected name as a side effect. Verified: a sector write leaves
+  `nameOverridden` false and the name intact.
+
+**Verified on the real ledger** (18 open positions, S$61,840.88):
+
+- Sector donut sums to 100% — with nothing tagged yet it reads **Unclassified
+  100.0%** and says why, which is the honest empty state rather than a fabricated
+  breakdown. Tagging D05 as "Banks" in the live page moved it to **Banks 30.8% +
+  Unclassified 69.2%** with coverage "1 of 18 tagged", and the header announcing
+  "31% of value is sector-tagged".
+- Currency exposure: **USD 61.7%, SGD 36.9%, HKD 1.4%** — i.e. only ~a third of
+  the holdings is in the reporting currency.
+- FX attribution on the same render: value **S$61,840.88** − cost at purchase FX
+  **S$54,216.94** = **S$7,623.93** total P&L, split into **+S$7,809.02 from prices
+  and −S$185.09 from currency**. Both identities hold exactly, on screen and in
+  the rendered HTML: value − cost equals the total, and price + FX equals the
+  total. Currency is **−2.4%** of the SGD P&L — the portfolio's real SGD gain is
+  slightly SMALLER than the holdings page implies, because SGD strengthened
+  against USD over the holding period.
+
+**Bug found and fixed while verifying:** the page's two totals disagreed by S$21
+(S$61,827.94 vs S$61,806.63) on first render. Cause: `getOpenPositionsFor()`
+fetched its OWN FX rates while the page fetched a second set, and two FX quotes
+taken moments apart differ in the fourth decimal. `getOpenPositionsFor()` now
+accepts an optional `rates` argument and the page fetches once and passes it in,
+so one render only ever holds one FX snapshot. Re-measured: both totals identical
+across three consecutive renders.
+
+Original scope (kept for reference):
 
 - **Sector / asset-class exposure.** One manual tag per instrument
   (`DRAM -> Semiconductors`, `D05 -> Banks`, `VOO -> US Equity Index`) stored on

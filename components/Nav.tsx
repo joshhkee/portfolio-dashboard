@@ -11,6 +11,7 @@ const links = [
   { href: "/outlay", label: "Outlay" },
   { href: "/transactions", label: "Transactions" },
   { href: "/holdings", label: "Holdings" },
+  { href: "/exposure", label: "Exposure" },
   { href: "/watchlist", label: "Watchlist" },
   { href: "/completed-trades", label: "Completed Trades" },
 ];

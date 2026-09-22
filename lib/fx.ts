@@ -44,6 +44,29 @@ export async function fetchFxRates(): Promise<FxRates> {
   };
 }
 
+/**
+ * SGD per ONE unit of `currency`, from the USD-based rate pair.
+ *
+ * FxRates are quoted the way Yahoo quotes them — units of FOREIGN currency per
+ * 1 USD (SGD=X = 1.35 means 1 USD buys 1.35 SGD) — which is the opposite
+ * direction from what the reporting side needs. Everything the exposure view
+ * does is "what is this worth in SGD", so the direction is converted once,
+ * here, instead of dividing by a rate at each call site and hoping the
+ * direction was remembered correctly.
+ *
+ * Cross rates go through USD: SGD per HKD = (SGD per USD) / (HKD per USD).
+ * Falls back to 1 rather than returning NaN or Infinity when a rate is
+ * missing — a wrong-but-finite number is recoverable, a poisoned division
+ * silently corrupts every total it touches.
+ */
+export function sgdPerUnit(currency: Currency, rates: FxRates): number {
+  if (currency === "SGD") return 1;
+  const sgdPerUsd = rates.SGD;
+  const foreignPerUsd = currency === "USD" ? 1 : rates[currency];
+  if (!foreignPerUsd || foreignPerUsd <= 0 || !sgdPerUsd || sgdPerUsd <= 0) return 1;
+  return sgdPerUsd / foreignPerUsd;
+}
+
 export function toUSD(amount: number, region: string, rates: FxRates): number {
   const currency = currencyForRegion(region);
   if (currency === "USD") return amount;

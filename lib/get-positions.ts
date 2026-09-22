@@ -2,9 +2,25 @@ import { prisma } from "@/lib/prisma";
 import { computeLedger, fromDbRows, withLivePrices } from "@/lib/portfolio-engine";
 import { fetchPositionQuotes, priceKey, type QuoteMeta } from "@/lib/prices";
 import { ensureTickerMeta, getNameMap, type TickerMetaEntry } from "@/lib/ticker-meta";
-import { fetchFxRates, convertCurrency, type Currency } from "@/lib/fx";
+import { fetchFxRates, convertCurrency, type Currency, type FxRates } from "@/lib/fx";
 
-export async function getOpenPositionsFor(regions: string[], displayCurrency: Currency = "USD") {
+/**
+ * Open positions with live prices, names and amounts converted to one display
+ * currency.
+ *
+ * `rates` lets a caller that ALSO converts money inject its own snapshot. Two
+ * independent `fetchFxRates()` calls inside a single render can return quotes
+ * taken moments apart (FX ticks in the fourth decimal), which is enough to make
+ * two totals derived from the same positions disagree by a few dollars on the
+ * same page — a discrepancy that reads as a bug and is almost impossible to
+ * reproduce later. Callers that convert should therefore fetch once and pass
+ * it in.
+ */
+export async function getOpenPositionsFor(
+  regions: string[],
+  displayCurrency: Currency = "USD",
+  rates?: FxRates
+) {
   const raw = await prisma.transaction.findMany({
     orderBy: [{ date: "asc" }, { id: "asc" }],
   });
@@ -17,9 +33,9 @@ export async function getOpenPositionsFor(regions: string[], displayCurrency: Cu
   // this costs exactly what price-only fetching cost before. Cache the
   // metadata (never overwriting a hand-edited name) so subsequent renders
   // need no lookup at all.
-  const [quoteData, rates, cachedNames] = await Promise.all([
+  const [quoteData, fxRates, cachedNames] = await Promise.all([
     fetchPositionQuotes(filtered),
-    fetchFxRates(),
+    rates ? Promise.resolve(rates) : fetchFxRates(),
     getNameMap(),
   ]);
   const metaEntries: TickerMetaEntry[] = [];
@@ -47,8 +63,8 @@ export async function getOpenPositionsFor(regions: string[], displayCurrency: Cu
   // add SGD and HKD together as if they were equal.
   const withConverted = withPrices.map((r) => ({
     ...r,
-    totalHoldingsConverted: convertCurrency(r.totalHoldings, r.region, displayCurrency, rates),
-    unrealizedPLConverted: convertCurrency(r.unrealizedPL, r.region, displayCurrency, rates),
+    totalHoldingsConverted: convertCurrency(r.totalHoldings, r.region, displayCurrency, fxRates),
+    unrealizedPLConverted: convertCurrency(r.unrealizedPL, r.region, displayCurrency, fxRates),
   }));
   const groupTotalConverted = withConverted.reduce((sum, r) => sum + r.totalHoldingsConverted, 0);
   const withPct = withConverted.map((r) => ({

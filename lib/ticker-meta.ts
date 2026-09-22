@@ -51,24 +51,73 @@ export function mergeMeta(existing: ExistingMeta | null, incoming: QuoteMeta) {
 }
 
 /**
- * Every cached name, keyed by compound "REGION::TICKER" — a single DB read
- * with no network calls, safe to call on any render path.
+ * Every cached name AND exposure tag, in one DB read with no network calls —
+ * safe to call on any render path.
+ *
+ * Both maps are keyed by compound "REGION::TICKER" and both omit blank values,
+ * so a caller can treat "absent" as "not known" rather than having to test for
+ * empty strings. Empty maps rather than nulls when a category is entirely
+ * unpopulated, which keeps call sites free of null checks.
  */
-export async function getNameMap(): Promise<Record<string, string>> {
+export async function getTickerMetaMaps(): Promise<{
+  names: Record<string, string>;
+  sectors: Record<string, string>;
+}> {
   const rows = await prisma.tickerMeta.findMany({
-    select: { region: true, ticker: true, name: true },
+    select: { region: true, ticker: true, name: true, sector: true },
   });
-  const map: Record<string, string> = {};
+  const names: Record<string, string> = {};
+  const sectors: Record<string, string> = {};
   for (const r of rows) {
-    if (r.name) map[priceKey(r.region, r.ticker)] = r.name;
+    const key = priceKey(r.region, r.ticker);
+    if (r.name) names[key] = r.name;
+    if (r.sector) sectors[key] = r.sector;
   }
-  return map;
+  return { names, sectors };
+}
+
+/** Just the names. Thin delegate so existing callers are unaffected. */
+export async function getNameMap(): Promise<Record<string, string>> {
+  return (await getTickerMetaMaps()).names;
+}
+
+/**
+ * Hand-tag an instrument's exposure (sector / asset class).
+ *
+ * Deliberately NOT part of the auto-lookup path: no free data source
+ * classifies these instruments, so this value is only ever set by the owner.
+ * Passing a blank tag clears it back to "unclassified" rather than storing an
+ * empty string, so the exposure breakdown can report what is genuinely
+ * unknown. A blank upsert must not create a row out of nothing, hence the
+ * existence check.
+ */
+export async function setTickerSector(
+  region: string,
+  ticker: string,
+  sector: string | null
+): Promise<void> {
+  const trimmed = sector?.trim().replace(/\s+/g, " ") || null;
+  if (trimmed === null) {
+    await prisma.tickerMeta.updateMany({
+      where: { region, ticker },
+      data: { sector: null },
+    });
+    return;
+  }
+  await prisma.tickerMeta.upsert({
+    where: { region_ticker: { region, ticker } },
+    update: { sector: trimmed },
+    create: { region, ticker, sector: trimmed },
+  });
 }
 
 /**
  * Persist freshly fetched metadata, respecting overrides. Called from the
  * holdings path, which already has this data in hand from the price call —
  * so caching it costs no extra network request.
+ *
+ * Only the fetched fields are written, so `sector` — which is hand-entered and
+ * never auto-derived — survives every refresh untouched.
  */
 export async function ensureTickerMeta(entries: TickerMetaEntry[]): Promise<void> {
   for (const { region, ticker, meta } of entries) {
