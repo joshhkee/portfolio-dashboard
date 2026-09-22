@@ -45,11 +45,11 @@ every checkpoint keeps it green:
 - Branch: `freebuff/analyse-my-current-portfolio-dashboard-project-and-29b0adb2-a864-46b1-9352-6fb3fcb2b204`
   (`origin` -> `github.com/joshhkee/portfolio-dashboard`).
 - A batch of work rides ONE long-lived pull request (same branch -> `main`).
-  #6 and #7 are merged; **the PR carrying parts 10–12 is #8**
-  (https://github.com/joshhkee/portfolio-dashboard/pull/8). Nothing should open a
-  second PR while one is already open for this branch — but DO open a new one
-  when the previous batch was merged, because a merged PR cannot be reopened to
-  carry later work.
+  #3–#8 are all merged. **The open PR is #9**
+  (https://github.com/joshhkee/portfolio-dashboard/pull/9), carrying parts 12–14a
+  plus the Prisma build fix. Nothing should open a second PR while one is
+  already open for this branch — but DO open a new one when the previous batch
+  was merged, because a merged PR cannot be reopened to carry later work.
 - Push normally. **Never** force-push, switch branches, or change git config.
 - A clean `git push` is NOT proof the PR is conflict-free — re-read the PR and
   check `mergeable` / `mergeable_state` explicitly.
@@ -1197,6 +1197,34 @@ to an on-time date moved the marker count 7 -> 6 and the caption with it, wrote
 the same date to all five rows, and the restore put both back; the CSV export
 gained a `paidOn` column and `prisma/seed.ts` was corrected to match, so a fresh
 install reproduces the corrected ledger rather than the old one.
+
+### The Part 13 regression this batch also fixes
+
+Part 13 broke the Vercel preview build, and nothing local could see it: the
+four local checks stayed green. The evidence was in the commit statuses —
+**Vercel succeeded on 80296c5 (Part 12) and failed on every commit after it**
+(d1a6330, da7a5bd, e710f49).
+
+The cause is the pool override Part 13 added, which always passed an explicit
+URL:
+
+```
+new PrismaClient({ datasources: { db: { url: datasourceUrl() } } })
+```
+
+With `DATABASE_URL` unset, `datasourceUrl()` returns `undefined`, and Prisma
+rejects an explicit `undefined` for a datasource — `Invalid value undefined for
+datasource "db" provided to PrismaClient constructor` — where a bare
+`new PrismaClient()` simply resolves the variable later, at connect time. That
+difference is fatal at BUILD time, because `next build` imports every route
+module to collect metadata, so any build machine without `DATABASE_URL` (a
+Vercel preview, in this case) fails the build outright.
+
+The override is now additive: no URL, no override. Verified three ways — the
+explicit-undefined form and the default form constructed in isolation (throws /
+does not throw), a build with `DATABASE_URL` emptied now succeeding, and Vercel
+itself going green again on `133bcaa`. **The lesson worth keeping: a local green
+build says nothing about a build environment without your `.env`.**
 
 ### 14b — currency reporting (next)
 
