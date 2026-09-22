@@ -70,10 +70,10 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 1 | Gold chart series + outlay-line separation | **DONE** (merged in #3) |
 | 2 | Stock name lookup from chart meta, cached + override | **DONE** (merged in #4) |
 | 3 | Contrast corrections + gold-as-data fix | **DONE** (merged in #4) |
-| 3b | Multi-series data palette | DEFERRED -> folded into Part 5 |
+| 3b | Multi-series data palette | **DONE** (shipped with Part 5) |
 | 4 | TWR, underwater chart, range selectors, yearly table | **DONE** (merged in #5) |
-| 5 | Benchmark comparison + alpha/beta (+ Part 3b palette) | TODO — **start here** |
-| 6 | Per-stakeholder performance view | TODO |
+| 5 | Benchmark comparison + alpha/beta (+ Part 3b palette) | **DONE** |
+| 6 | Per-stakeholder performance view | TODO — **start here** |
 | 7 | Sparklines + command palette | TODO |
 | 8 | Notes redesign (auto factual half + structured context) | TODO — owner picks an option first |
 | 9 | Concentration & risk analytics (HHI, Sharpe, correlation) | TODO |
@@ -340,15 +340,56 @@ What was actually done:
 single-lump-sum case and the uneven-contribution case, and the divergence is
 visible on the live page (+16.99% vs +8.92%).
 
-## Part 5 — Benchmark comparison
+## Part 5 — Benchmark comparison — DONE
 
-Overlay `^GSPC`, `URTH`, `^STI` rebased to 100 via `fetchHistoricalCloses`,
-with alpha and beta from regressing daily snapshot returns on benchmark
-returns. Follow the backfill script's 500ms sleep between Yahoo calls.
+Overlay `^GSPC`, `URTH`, `^STI` via `fetchHistoricalCloses`, with alpha and beta
+from regressing daily portfolio returns on benchmark returns.
 
-**Acceptance:** both series rebased to 100 at range start; alpha/beta labelled
-with their window; no unbounded extra Yahoo calls per page load.
-Depends on Part 4's range selector.
+What was actually done:
+
+- **`lib/benchmarks.ts`** (new — the fetch plus all the math, kept pure so the
+  regression is tested against arithmetic rather than pixels): `BENCHMARKS`
+  (`^GSPC`, `URTH`, `^STI`), `getBenchmarkCloses`, `alignCloses`,
+  `rebaseTo100`, `benchmarkDailyReturns`, `portfolioDailyReturns`,
+  `growthIndex`, `alphaBeta`.
+- **The portfolio line is a growth index, not raw value.** Comparing portfolio
+  *value* against a price index would mostly plot the owner's monthly deposits,
+  because every deposit steps the line up. `growthIndex()` chains Part 4's
+  contribution-stripped daily returns instead, so both lines measure the growth
+  of money already invested — the same quantity an index measures. A test pins
+  that a deposit which raises value 100 → 150 with 50 of new money is a **0%
+  return**, not +50%.
+- **Alignment:** benchmark series are trading-day only while `DailySnapshot`
+  rows are calendar-daily, so `alignCloses` carries the last close forward
+  across weekends/holidays and returns `null` (never a back-filled value)
+  before the index has data. Both arrays stay 1:1 with the snapshot series so
+  the range slice cuts them by the same offset — pairing returns from different
+  dates would silently produce a wrong beta.
+- **Bounded Yahoo calls:** `getBenchmarkCloses` keeps a 15-minute TTL cache
+  plus single-flight, so calls are bounded by the number of INDICES (three),
+  not by positions, days, or page loads. An empty result is deliberately not
+  cached, so one transient Yahoo failure can't blank the chart for 15 minutes.
+- **Part 3b palette shipped here:** `data.*` tokens (steel, sage, terracotta,
+  gold, mauve, teal) in `tailwind.config.ts`, all measured ≥5.7:1 on the page
+  background. The benchmark line is `data-steel`; the portfolio keeps `accent`
+  gold because that is the established single-series colour and the owner's
+  choice. The two series also differ in dash pattern and stroke weight, so the
+  comparison never depends on hue alone.
+- **The alpha/beta stat row is labelled with its window** ("Alpha vs S&P 500
+  (ann.)", plus Beta, R², Correlation and Days compared), and the chart states
+  the rebase date and the window span in words.
+
+**Measured on the real ledger over 2 Mar 2025 – 22 Sep 2026 (569 days): alpha
++2.3%/yr, beta 0.35, R² 0.18, correlation 0.42.** A beta of 0.35 is the
+interesting part: this portfolio moves roughly a third as much as the S&P,
+which is what a large cash balance plus SG/HK holdings should look like.
+
+**Acceptance met:** both series rebased to 100 at range start (verified in the
+rendered page), alpha/beta labelled with their window, and the extra Yahoo
+calls are bounded to three per 15 minutes.
+
+**Verified how:** `npm test` (92 tests), `tsc --noEmit`, `eslint`, build, and
+the stat values read back out of the rendered page.
 
 ## Part 6 — Per-stakeholder performance
 

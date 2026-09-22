@@ -10,6 +10,7 @@ import { xirr } from "@/lib/xirr";
 import RegionFlag from "@/components/RegionFlag";
 import { recordTodaySnapshot, getSnapshots, maxDrawdown } from "@/lib/snapshots";
 import { annualizeReturn, timeWeightedReturn, yearlyReturns } from "@/lib/performance";
+import { BENCHMARKS, alignCloses, getBenchmarkCloses } from "@/lib/benchmarks";
 import PortfolioPerformance from "@/components/PortfolioPerformance";
 import YearlyReturnsTable from "@/components/YearlyReturnsTable";
 
@@ -44,6 +45,24 @@ export default async function HomePage() {
       prisma.cashExchange.findMany({ orderBy: { date: "desc" }, take: 3 }),
       getSnapshots(),
     ]);
+
+  // Benchmark indices for the comparison chart. getBenchmarkCloses() caches
+  // for 15 minutes and single-flights, so this costs three Yahoo requests per
+  // quarter hour rather than three per page load — and the point of the
+  // cache is that the number of calls is bounded by the NUMBER OF INDICES,
+  // never by the number of positions or days. Skipped entirely until there
+  // are two snapshots to compare.
+  const benchmarkCloses =
+    snapshots.length >= 2
+      ? await Promise.all(BENCHMARKS.map((b) => getBenchmarkCloses(b.symbol)))
+      : [];
+  const snapshotDates = snapshots.map((s) => s.date);
+  const benchmarkSeries: Record<string, (number | null)[]> = {};
+  for (let i = 0; i < BENCHMARKS.length; i++) {
+    // Aligned 1:1 with `snapshots` so the client can slice both by the same
+    // offset when the range changes (see PortfolioPerformance).
+    benchmarkSeries[BENCHMARKS[i].key] = alignCloses(snapshotDates, benchmarkCloses[i] ?? {});
+  }
 
   // --- Outlay totals + stakeholder breakdown ---
   let totalOutlay = 0;
@@ -252,8 +271,13 @@ export default async function HomePage() {
         </div>
       </div>
 
-      {/* Portfolio value over time + underwater curve, driven by one range picker */}
-      <PortfolioPerformance data={snapshots} />
+      {/* Portfolio value over time, underwater curve and benchmark
+          comparison, all driven by one range picker */}
+      <PortfolioPerformance
+        data={snapshots}
+        benchmarks={BENCHMARKS}
+        benchmarkSeries={benchmarkSeries}
+      />
 
       {/* Sub-page summary cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

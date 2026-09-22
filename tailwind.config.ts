@@ -40,9 +40,28 @@ const config: Config = {
         // +/− sign, so they never rely on hue alone.
         loss: "#c07f74",
         lossBg: "#2a1e1c",
-        accent: "#d4a94a", // muted gold — UI chrome only, not charts/data
+        accent: "#d4a94a", // muted gold — the brand/interactive colour
         accentHover: "#e0bb63",
         accentMuted: "#3a331f",
+
+        // Muted multi-series data palette. It exists because the app now has
+        // charts with more than one series (portfolio vs benchmark), where a
+        // single gold line cannot distinguish the two. Every value was
+        // measured at >= 5.7:1 against the page background (#121212).
+        //
+        // `data-gold` is deliberately the DESATURATED cousin of the chrome
+        // gold: `accent` (#d4a94a) remains the brand/interactive colour and
+        // the single-series portfolio line (the owner's explicit choice),
+        // while multi-series data draws from these. See the notes on the
+        // palette decision in docs/PLAN.md.
+        data: {
+          steel: "#7d97b3",
+          sage: "#7fa87a",
+          terracotta: "#c07f74",
+          gold: "#c9a86a",
+          mauve: "#9b8ab8",
+          teal: "#6fa8a3",
+        },
       },
       fontFamily: {
         // Base UI font is serif per the brand direction — Source Serif 4
