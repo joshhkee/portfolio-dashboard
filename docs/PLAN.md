@@ -74,9 +74,9 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 4 | TWR, underwater chart, range selectors, yearly table | **DONE** (merged in #5) |
 | 5 | Benchmark comparison + alpha/beta (+ Part 3b palette) | **DONE** |
 | 6 | Per-stakeholder performance view | **DONE** |
-| 7 | Sparklines + command palette | TODO — **start here** |
+| 7 | Sparklines + command palette | **DONE** |
 | 8 | Notes redesign (auto factual half + structured context) | TODO — owner picks an option first |
-| 9 | Concentration & risk analytics (HHI, Sharpe, correlation) | TODO |
+| 9 | Concentration & risk analytics (HHI, Sharpe, correlation) | TODO — **start here** (first unblocked part) |
 | 10 | Exposure analytics (sector tags, currency + FX attribution) | TODO |
 | 11 | Contribution attribution (per position, per period) | TODO |
 | 12 | Responsive & loading polish (mobile tables, skeletons) | TODO |
@@ -440,12 +440,59 @@ consecutive paired requests.
 instant; the delta should be 0.00. This is price drift, not a rounding
 mismatch in the split.
 
-## Part 7 — Sparklines + command palette
+## Part 7 — Sparklines + command palette — DONE
 
-30-day mini-trends in the positions tables sourced from `fetchHistoricalCloses`
-(batch the fetches — no per-row waterfall), and a Cmd/Ctrl+K palette to jump to
-a ticker, log a transaction, and navigate, styled to ink-850 with a hairline
-border. Honour `prefers-reduced-motion`.
+30-day mini-trends in the positions tables, and a Cmd/Ctrl+K palette to jump to
+a ticker, log a transaction, or navigate.
+
+What was actually done:
+
+- **`lib/sparklines.ts`** (new): `getSparklines` (15-minute TTL cache +
+  `mapWithConcurrency` at 4 in flight, capped at 60 symbols per request) plus the
+  pure helpers `trendOf` and `toSparklinePoints`. `fetchHistoricalCloses`
+  already sits behind Next's 1h fetch cache, so the cache here covers the
+  shaping and the concurrency bound.
+- **`app/api/sparklines/route.ts`**: every row's series in ONE request, batched
+  on purpose — a per-row endpoint would be an ~18-request waterfall every time a
+  positions page opens. Tickers with no usable history are omitted rather than
+  faked, so a row with no data shows a dash.
+- **`components/Sparkline.tsx`**: a hand-rolled inline SVG polyline, not a chart
+  library — this renders once per row, and mounting ~18 chart instances (each
+  with its own ResizeObserver) costs far more than a string of coordinates. No
+  animation at all, so `prefers-reduced-motion` needs no special case, and the
+  trend is exposed as `aria-label` so direction isn't colour-only.
+- **`lib/command-search.ts`** (new, pure): `filterCommands` with tiers (exact →
+  label prefix → word prefix → substring in label/hint/keywords), alphabetical
+  tie-break so the list doesn't reshuffle between keystrokes, plus
+  `OPEN_PALETTE_EVENT`. 12 unit tests.
+- **`components/CommandPalette.tsx`**: global Cmd/Ctrl+K, arrows (clamped, not
+  wrapping), Enter, Escape; input focused on open; `role=dialog` +
+  `role=listbox`/`option` with `aria-activedescendant`. Tickers come from
+  **`app/api/palette/route.ts`**, which is DB-only (names from the `TickerMeta`
+  cache, no Yahoo), fetched once on first open and memoized in state.
+- **Discoverability:** `components/Nav.tsx` gained a small ⌘K chip that fires
+  `OPEN_PALETTE_EVENT` — a custom event instead of shared React state, so the
+  trigger and the palette need no context provider or prop drilling.
+- **Real "jump to a ticker":** the palette links to
+  `/holdings/<region>?ticker=…`, and `PositionsTable` reads that param to
+  highlight the row and scroll it into view (honouring reduced-motion for the
+  scroll itself).
+
+**Bug found only by exercising the UI:** the first cut looked up sparkline data
+with a single-colon key (`US:VOO`) while the API returns the app's compound
+`US::VOO` keys (invariant 4). Every cell rendered empty — the unit tests and the
+endpoint both passed, so only driving the real page caught it. Fixed by going
+through `priceKey()`.
+
+**Acceptance met, verified in the running app:** 13/13 US rows and all SG rows
+show sparklines with real trends (+1.6%, −11.4%, +18.6% …); the palette opened
+from the chip, filtered `d05` to "SG D05 · DBS Group Holdings Ltd", and Enter
+navigated to `/holdings/sg?ticker=D05` with exactly one row highlighted and
+scrolled into view.
+
+**Also verified:** the new routes are auth-protected by the existing middleware
+(`/api/palette` without a cookie → 307), and a bogus ticker is omitted rather
+than drawn flat (3 of 4 requested keys returned).
 
 ---
 

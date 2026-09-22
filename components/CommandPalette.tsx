@@ -1,0 +1,260 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { Search } from "lucide-react";
+import {
+  COMMAND_LIMIT,
+  filterCommands,
+  OPEN_PALETTE_EVENT,
+  type Command,
+} from "@/lib/command-search";
+
+const ACTIONS: Command[] = [
+  {
+    id: "action-log-transaction",
+    label: "Log a transaction",
+    group: "Actions",
+    href: "/transactions?add=1",
+    keywords: "buy sell add new trade",
+  },
+  {
+    id: "action-record-deposit",
+    label: "Record a deposit",
+    group: "Actions",
+    href: "/outlay?add=1",
+    keywords: "contribution outlay add money deposit",
+  },
+];
+
+const PAGES: Command[] = [
+  { id: "page-home", label: "Home", group: "Go to", href: "/", keywords: "overview dashboard" },
+  { id: "page-outlay", label: "Outlay", group: "Go to", href: "/outlay", keywords: "contributions deposits stakeholders" },
+  { id: "page-transactions", label: "Transactions", group: "Go to", href: "/transactions", keywords: "ledger entries" },
+  { id: "page-holdings", label: "Holdings", group: "Go to", href: "/holdings/us", keywords: "positions open us" },
+  { id: "page-watchlist", label: "Watchlist", group: "Go to", href: "/watchlist", keywords: "watching ideas" },
+  { id: "page-completed", label: "Completed Trades", group: "Go to", href: "/completed-trades", keywords: "realized sold closed" },
+  { id: "page-cash", label: "Cash", group: "Go to", href: "/holdings/cash", keywords: "balances currency exchange" },
+];
+
+interface PaletteTicker {
+  region: string;
+  ticker: string;
+  name: string | null;
+}
+
+/**
+ * Cmd/Ctrl+K palette: jump to a page, jump to an instrument, or start logging.
+ *
+ * The ticker list is fetched once on first open and cached in state, and the
+ * endpoint behind it is DB-only (see app/api/palette/route.ts) — so opening
+ * the palette costs no Yahoo requests and typing costs no requests at all.
+ *
+ * Keyboard handling lives on `window` rather than the input so Escape and the
+ * arrows work even if focus drifts, and the shortcut is registered globally so
+ * it works from any page. Arrow movement is clamped rather than wrapping: with
+ * a filtered list, wrapping from the last row to the first is more often a
+ * mis-press than an intent.
+ */
+export default function CommandPalette() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [active, setActive] = useState(0);
+  const [tickers, setTickers] = useState<PaletteTicker[] | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const listRef = useRef<HTMLUListElement | null>(null);
+
+  // The login page has nothing to navigate to yet.
+  const hidden = pathname === "/login";
+
+  const close = useCallback(() => {
+    setOpen(false);
+    setQuery("");
+    setActive(0);
+  }, []);
+
+  useEffect(() => {
+    if (hidden) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setOpen((value) => !value);
+      }
+    }
+    function onOpenRequest() {
+      setOpen(true);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener(OPEN_PALETTE_EVENT, onOpenRequest);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener(OPEN_PALETTE_EVENT, onOpenRequest);
+    };
+  }, [hidden]);
+
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || tickers !== null) return;
+    let cancelled = false;
+    fetch("/api/palette")
+      .then((res) => (res.ok ? res.json() : { tickers: [] }))
+      .then((data) => {
+        if (!cancelled) setTickers(Array.isArray(data.tickers) ? data.tickers : []);
+      })
+      .catch(() => {
+        if (!cancelled) setTickers([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, tickers]);
+
+  const commands = useMemo<Command[]>(() => {
+    const tickerCommands: Command[] = (tickers ?? []).map((t) => ({
+      id: `ticker-${t.region}-${t.ticker}`,
+      label: `${t.region} ${t.ticker}`,
+      group: "Holdings",
+      // The region page highlights and scrolls to this ticker on arrival.
+      href: `/holdings/${t.region.toLowerCase()}?ticker=${encodeURIComponent(t.ticker)}`,
+      hint: t.name ?? undefined,
+      keywords: `${t.ticker} ${t.region} ${t.name ?? ""}`.toLowerCase(),
+    }));
+    return [...ACTIONS, ...PAGES, ...tickerCommands];
+  }, [tickers]);
+
+  const results = useMemo(
+    () => filterCommands(commands, query, COMMAND_LIMIT),
+    [commands, query]
+  );
+
+  useEffect(() => {
+    setActive(0);
+  }, [query]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close();
+        return;
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setActive((index) => Math.min(index + 1, Math.max(results.length - 1, 0)));
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setActive((index) => Math.max(index - 1, 0));
+        return;
+      }
+      if (event.key === "Enter") {
+        const choice = results[active];
+        if (choice) {
+          event.preventDefault();
+          close();
+          router.push(choice.href);
+        }
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, results, active, close, router]);
+
+  // Keep the highlighted row visible when arrowing past the fold. "nearest"
+  // scrolls only when needed and never animates, so there is no motion to
+  // suppress for prefers-reduced-motion.
+  useEffect(() => {
+    if (!open) return;
+    const node = listRef.current?.children[active] as HTMLElement | undefined;
+    node?.scrollIntoView({ block: "nearest" });
+  }, [active, open]);
+
+  function run(command: Command) {
+    close();
+    router.push(command.href);
+  }
+
+  if (hidden) return null;
+
+  return (
+    <>
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 pt-[12vh]"
+          onClick={close}
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Command palette"
+            onClick={(event) => event.stopPropagation()}
+            className="panel w-full max-w-lg overflow-hidden border-ink-600 bg-ink-850 shadow-2xl"
+          >
+            <div className="flex items-center gap-2 border-b border-ink-700 px-4 py-3">
+              <Search size={15} className="shrink-0 text-ink-500" />
+              <input
+                ref={inputRef}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Jump to a ticker, page or action…"
+                aria-label="Search commands"
+                aria-controls="command-results"
+                aria-activedescendant={results[active] ? `cmd-${results[active].id}` : undefined}
+                role="combobox"
+                aria-expanded="true"
+                className="w-full bg-transparent text-sm text-ink-100 outline-none placeholder:text-ink-500"
+              />
+            </div>
+
+            <ul
+              id="command-results"
+              ref={listRef}
+              role="listbox"
+              aria-label="Commands"
+              className="max-h-80 overflow-auto py-1"
+            >
+              {results.length === 0 && (
+                <li className="px-4 py-3 text-sm text-ink-300">
+                  Nothing matches &ldquo;{query}&rdquo;.
+                </li>
+              )}
+              {results.map((command, index) => (
+                <li key={command.id} id={`cmd-${command.id}`} role="option" aria-selected={index === active}>
+                  <button
+                    type="button"
+                    onClick={() => run(command)}
+                    onMouseEnter={() => setActive(index)}
+                    className={`flex w-full items-center justify-between gap-4 px-4 py-2 text-left text-sm transition-colors motion-reduce:transition-none ${
+                      index === active ? "bg-ink-800 text-ink-100" : "text-ink-300"
+                    }`}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{command.label}</span>
+                      {command.hint && (
+                        <span className="block truncate text-xs text-ink-500">{command.hint}</span>
+                      )}
+                    </span>
+                    <span className="shrink-0 text-xs text-ink-500">{command.group}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            <div className="flex items-center justify-between border-t border-ink-700 px-4 py-2 text-xs text-ink-500">
+              <span>&uarr;&darr; to move &middot; &crarr; to open</span>
+              <span>esc to close</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
