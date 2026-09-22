@@ -183,8 +183,13 @@ export default function ContributionAttribution({ matrix }: { matrix: Attributio
                     {value === 0 ? <span className="text-ink-500">—</span> : formatSigned(value)}
                   </td>
                 ))}
-                <td className={`num text-right font-medium ${toneClass(row.total)}`}>
-                  {formatSigned(row.total)}
+                {/* The Total column carries the currency symbol while the
+                    period cells do not: it is the same figure as the headline
+                    above, which shows S$, and a column of symbols in the
+                    per-period grid would cost real width for no new meaning
+                    (the caption states the units). */}
+                <td className="text-right font-medium">
+                  <NativeMoney value={row.total} symbol={sgd} showPlus />
                 </td>
               </tr>
             ))}
@@ -197,8 +202,8 @@ export default function ContributionAttribution({ matrix }: { matrix: Attributio
                   {formatSigned(value)}
                 </td>
               ))}
-              <td className={`num text-right font-medium ${toneClass(table.total)}`}>
-                {formatSigned(table.total)}
+              <td className="text-right font-medium">
+                <NativeMoney value={table.total} symbol={sgd} showPlus />
               </td>
             </tr>
           </tfoot>
@@ -208,6 +213,7 @@ export default function ContributionAttribution({ matrix }: { matrix: Attributio
       <p className="text-xs text-ink-500">
         A cell is one position&apos;s gain in one period: its value moved that much, minus whatever
         was paid in or taken out. Cells in a row or column always add up to the totals beside them.
+        Every figure is in SGD.
       </p>
     </div>
   );

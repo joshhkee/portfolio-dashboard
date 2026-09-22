@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { Money } from "@/components/SignedNumber";
+import { NativeMoney } from "@/components/SignedNumber";
 import AddContributionForm from "@/components/AddContributionForm";
 import AllocationCards from "@/components/AllocationCards";
 import ContributionsPivotTable from "@/components/ContributionsPivotTable";
@@ -155,8 +155,11 @@ export default async function ContributionsPage() {
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-ink-300">Total outlay</p>
-          <p className="num mt-1 text-4xl font-medium">
-            <Money value={grandTotal} />
+          {/* Every contribution in this ledger is SGD, so the symbol is S$ —
+              `Money` would print a bare "$" here and read as USD beside the
+              S$-labelled cards directly below. */}
+          <p className="mt-1 text-4xl font-medium">
+            <NativeMoney value={grandTotal} symbol="S$" />
           </p>
         </div>
         {/* API download — rule only wants page navigations in <Link>. */}

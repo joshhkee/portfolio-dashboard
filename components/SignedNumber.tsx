@@ -31,8 +31,16 @@ export function Percent({ value }: { value: number }) {
   );
 }
 
-export function PlainMoney({ value }: { value: number }) {
-  return <span className="num">{formatMoney(Math.abs(value)).replace("-", "")}</span>;
+/** Always-positive money with no sign and no colour — for ledger amounts that
+ * are neither a gain nor a loss. `symbol` defaults to "$" for the app's
+ * USD-native figures; an SGD ledger passes "S$", because a bare "$" beside an
+ * "S$" in the same table reads as two different currencies. */
+export function PlainMoney({ value, symbol = "$" }: { value: number; symbol?: string }) {
+  return (
+    <span className="num">
+      {formatMoney(Math.abs(value)).replace("-", "").replace("$", symbol)}
+    </span>
+  );
 }
 
 /** For shares-of-total percentages (e.g. Portfolio %, % of portfolio) — these

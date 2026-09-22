@@ -740,8 +740,10 @@ What was actually done:
   instruments, so an untagged holding must read as UNKNOWN and never silently
   become an "Other" bucket that overstates how much is known.
 - **`lib/exposure.ts`** (new, pure): `groupExposure` with `sectorExposure` and
-  `currencyExposure` over it, `toExposureLines`, `fxAttribution` and
-  `sgdCostPerShare`. 30 tests in `tests/exposure.test.ts`.
+  `currencyExposure` over it, and `toExposureLines`. 16 tests in
+  `tests/exposure.test.ts`. `fxAttribution` and `sgdCostPerShare` were part of
+  this module at the time and were **removed in 14b** — see that section, and
+  the note below, for why.
 - **`lib/fx-history.ts`** (new): daily SGD-per-unit closes for SGD/USD/HKD from
   the same Yahoo chart endpoint the app already uses, shaped ONCE into "SGD per
   one unit" (Yahoo quotes units of foreign currency per USD — the opposite
@@ -751,23 +753,17 @@ What was actually done:
   two upstream calls an hour regardless of page views.
 - **`sgdPerUnit`** added to `lib/fx.ts`: the single place the rate direction is
   converted, instead of dividing by a rate at each call site.
-- **Cost basis in SGD at PURCHASE-date rates.** `sgdCostPerShare` feeds
-  `computeLedger()` a copy of the ledger whose Buy prices are already converted
-  to SGD, so the engine's existing weighted-average replay does the blending and
-  its "average cost carries forward through a Sell" behaviour is exactly right
-  for the shares still held. No second average is written anywhere.
-- **The P&L split.** `localPlSgd = qty × (price − avgCost) × fxNow` is
-  precisely what the holdings page already shows (it converts native P&L at
-  today's rate), and `fxPlSgd = qty × avgCost × (fxNow − fxAtCost)` is the part
-  that page leaves out. Computed from the closed form rather than as the
-  residual `total − local`: the two differ only in the last floating-point
-  places, and for an SGD position the closed form is EXACTLY zero while the
-  residual lands on ±1e-12 and renders as "-S$0.00". A test pins the identity
-  that keeps the decomposition complete — `total − local` equals this term.
+- **Cost basis in SGD at PURCHASE-date rates** (`sgdCostPerShare` feeding
+  `computeLedger()` a ledger whose Buy prices are pre-converted) and the **P&L
+  split** it existed to serve (`localPlSgd` = the price part the holdings page
+  already shows, `fxPlSgd = qty × avgCost × (fxNow − fxAtCost)` = the currency
+  part) are **both REMOVED in 14b**. They were correct arithmetic built on the
+  wrong premise: a per-holding currency gain measured from the PURCHASE date.
+  Kept in this paragraph only so the history is not rewritten — neither symbol
+  is exported from `lib/exposure.ts` any more, and no test references either.
 - **UI:** `components/ExposureDonut.tsx` (recharts donut + a legend carrying
   the exact value and share of every slice, since a donut is a shape you have to
-  estimate off), `components/FxAttributionTable.tsx` (server-rendered, with a
-  totals row), `components/SectorTagEditor.tsx` (one row per instrument, biggest
+  estimate off), `components/SectorTagEditor.tsx` (one row per instrument, biggest
   holding first, Enter saves, Escape reverts, autocomplete from tags already in
   use so a second position can reuse a tag without retyping — and no pre-canned
   sector list, because guessing is exactly what this design refuses to do).
@@ -787,11 +783,11 @@ What was actually done:
   the holdings is in the reporting currency.
 - FX attribution on the same render: value **S$61,840.88** − cost at purchase FX
   **S$54,216.94** = **S$7,623.93** total P&L, split into **+S$7,809.02 from prices
-  and −S$185.09 from currency**. Both identities hold exactly, on screen and in
+  and −S$185.09 from currency**. Both identities held exactly, on screen and in
   the rendered HTML: value − cost equals the total, and price + FX equals the
-  total. Currency is **−2.4%** of the SGD P&L — the portfolio's real SGD gain is
-  slightly SMALLER than the holdings page implies, because SGD strengthened
-  against USD over the holding period.
+  total. Currency was **−2.4%** of the SGD P&L. **This whole panel is REMOVED in
+  14b** — the arithmetic was sound and is recorded here as the measurement that
+  prompted the removal, not as a description of what `/exposure` shows today.
 
 **Bug found and fixed while verifying:** the page's two totals disagreed by S$21
 (S$61,827.94 vs S$61,806.63) on first render. Cause: `getOpenPositionsFor()`
@@ -1226,27 +1222,53 @@ The override is now additive: no URL, no override. Verified three ways — the
 explicit-undefined form and the default form constructed in isolation (throws /
 does not throw), a build with `DATABASE_URL` emptied now succeeding, and Vercel
 itself going green again on `133bcaa`. **The lesson worth keeping: a local green
-build says nothing about a build environment without your `.env`.**
-
-### 14b — currency reporting (next)
+build says nothing about a build environment without your `.env`.**### 14b — currency reporting: the purchase-FX split is REMOVED (done)
 
 The owner's model, in their words: everyone bulk-deposits, the money sits in a
 three-currency margin account, and stocks are bought with cash **already
-exchanged** — so a per-holding "gain from currency" measures the wrong thing.
-The current `/exposure` FX table does exactly that (it splits each position's
-SGD P&L into a price part and a currency part). The approved replacement:
+exchanged**. The old `/exposure` FX table measured the opposite thing — it
+costed each position at its PURCHASE date's rate and called the difference a
+currency gain. The owner asked the direct question ("since exchange is done
+before the purchase, do the purchase FX still apply?") and the answer is no,
+because the rate that funded a holding is a conversion the `CashExchange`
+ledger records, not the day the trade happened.
 
-1. **Per-holding P&L becomes price-only**, with cost at the purchase-date rate
-   (what "Cost at purchase FX" already approximates).
-2. **Realized FX on conversions** — now computable for the first time, because
-the 25 `CashExchange` rows exist: each conversion's executed rate against that
-   day's mid is the spread paid (0.14-0.74% across the file), and a round trip
-   shows its own loss.
-3. **Unrealized FX on foreign cash** — US$3,262.68 and HK$0.23 are a live rate
-   position and the only place the exposure is unambiguous.
+What was removed (all of it, rather than left dark on the page):
 
-**Acceptance:** no per-holding row claims an FX gain; the conversions panel
-reconciles against the imported ledger; the foreign-cash figure matches
-`CashBalance` at today's rate; and the portfolio total still agrees with the
-overview (the SGD total necessarily keeps whatever FX is embedded in today's
-value — only the attribution changes).
+- `components/FxAttributionTable.tsx` — deleted.
+- `lib/exposure.ts`: `fxAttribution`, `sgdCostPerShare` and the
+  `MAX_FX_*` / cost-spread types — removed, so the module is now exactly the two
+  groupings the page shows (`sectorExposure`, `currencyExposure`).
+- `lib/fx-history.ts`: `rateSeriesSpan` removed (it only served the panel's
+  coverage caption, which is where the owner's "FX rates from 21 Sep 21" came
+  from). `buildSgdRateSeries` and `sgdRateOn` stay — `/attribution` prices each
+  trade at its OWN day's rate with them. The file header now says so instead of
+  pointing at the exposure view.
+- `tests/exposure.test.ts`: the 14 FX-split tests deleted (30 -> 16 tests; full
+  suite 230 -> 216). The historical-rate tests stay, because `/attribution` still
+  depends on that behaviour.
+- `app/exposure/page.tsx`: the section, its caption and the now-unneeded
+  `getSgdRateSeries()` fetch and `Promise.all` entry are gone; the page's own
+  header comment records what used to be there and why.
+
+The sentence that replaces it points at where currency IS real: the currency
+donut notes that the rate which matters is the one the funding cash was
+**converted** at, "which your deposit ledger records, not the day the shares
+were bought". Nothing on `/exposure` claims a per-holding FX gain any more, and
+the portfolio total is unchanged — the SGD value necessarily keeps whatever FX
+is embedded in today's prices; only the attribution changed.
+
+**Still open from this workstream** (specified, deliberately not built yet — the
+owner has not asked for either panel):
+
+1. **Realized FX on conversions.** The 25 `CashExchange` rows now exist, so each
+   conversion's executed rate against that day's mid is computable — measured
+   across the file at 0.14-0.74% below mid, which is the spread paid, and the one
+   same-day round trip would show its own loss.
+2. **Unrealized FX on foreign cash.** US$3,262.68 and HK$0.23 are a live rate
+   position, and the only place currency exposure is unambiguous.
+
+**Acceptance for what is now done:** no per-holding row claims an FX gain, no
+symbol removed above is referenced anywhere (checked with a repo-wide grep),
+`tsc` / `eslint` / `npm test` (216) / `npm run build` all pass, and `/exposure`
+still renders its two donuts with the same totals as before the removal.

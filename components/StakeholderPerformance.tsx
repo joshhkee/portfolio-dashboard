@@ -10,7 +10,7 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import { Money, NativeMoney, Percent, PlainPercent } from "@/components/SignedNumber";
+import { NativeMoney, Percent, PlainPercent } from "@/components/SignedNumber";
 import SegmentedControl from "@/components/SegmentedControl";
 import { seriesColor } from "@/lib/palette";
 import type { StakeholderRow, StakeholderTimelinePoint } from "@/lib/stakeholders";
@@ -163,14 +163,16 @@ export default function StakeholderPerformance({
                     <span className="text-ink-100">{r.name}</span>
                   </span>
                 </td>
+                {/* S$, not `Money`'s bare "$": these are SGD figures sitting
+                    in the same row as an S$-labelled gain. */}
                 <td className="num text-right">
-                  <Money value={r.contributed} />
+                  <NativeMoney value={r.contributed} symbol="S$" />
                 </td>
                 <td className="num text-right">
                   <PlainPercent value={r.share} />
                 </td>
                 <td className="num text-right">
-                  <Money value={r.currentValue} />
+                  <NativeMoney value={r.currentValue} symbol="S$" />
                 </td>
                 <td className="num text-right">
                   <NativeMoney value={r.currentValue - r.contributed} symbol="S$" showPlus />
@@ -183,11 +185,11 @@ export default function StakeholderPerformance({
             <tr className="border-t-2 border-ink-600">
               <td className="text-ink-300">Total</td>
               <td className="num text-right">
-                <Money value={totalContributed} />
+                <NativeMoney value={totalContributed} symbol="S$" />
               </td>
               <td className="num text-right text-ink-300">100.0%</td>
               <td className="num text-right">
-                <Money value={totalValue} />
+                <NativeMoney value={totalValue} symbol="S$" />
               </td>
               <td className="num text-right">
                 <NativeMoney value={totalValue - totalContributed} symbol="S$" showPlus />

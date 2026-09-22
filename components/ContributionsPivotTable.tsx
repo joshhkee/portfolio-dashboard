@@ -6,6 +6,10 @@ import { PlainMoney } from "@/components/SignedNumber";
 import { formatShortDate } from "@/lib/dates";
 import { Check, Clock, X } from "lucide-react";
 
+/** Every figure in this table is SGD (the ledger has no currency column), so
+ * the symbol is stated rather than left as a bare "$" that reads as USD. */
+const SGD = "S$";
+
 interface Cell {
   name: string;
   id: number | null;
@@ -131,7 +135,7 @@ function LabelCell({ row }: { row: LabelRow }) {
           aria-label={`Late deposit — ${row.label} allocation deposited ${formatShortDate(
             new Date(`${row.paidOn}T00:00:00.000Z`)
           )}`}
-          title={`Late deposit\n${row.label} allocation deposited ${formatShortDate(
+          title={`Late deposit\n${row.label} allocation deposited on ${formatShortDate(
             new Date(`${row.paidOn}T00:00:00.000Z`)
           )} — ${row.daysLate} days after the month closed.`}
         >
@@ -156,7 +160,7 @@ function PivotCell({ cell }: { cell: Cell }) {
   // show the combined total but don't offer edit/delete on an ambiguous
   // group of entries.
   if (cell.multiple || cell.id === null) {
-    return <PlainMoney value={cell.amount} />;
+    return <PlainMoney value={cell.amount} symbol={SGD} />;
   }
 
   async function handleDelete() {
@@ -241,7 +245,7 @@ function PivotCell({ cell }: { cell: Cell }) {
         className="rounded-sm px-1 py-0.5 hover:bg-ink-800 hover:text-accent"
         title="Edit this contribution"
       >
-        <PlainMoney value={cell.amount} />
+        <PlainMoney value={cell.amount} symbol={SGD} />
       </button>
       <button
         type="button"
@@ -291,7 +295,7 @@ export default function ContributionsPivotTable({
                 </td>
               ))}
               <td className="text-right font-medium">
-                <PlainMoney value={row.rowTotal} />
+                <PlainMoney value={row.rowTotal} symbol={SGD} />
               </td>
             </tr>
           ))}
@@ -309,11 +313,11 @@ export default function ContributionsPivotTable({
               <td>Total</td>
               {contributorNames.map((name) => (
                 <td key={name} className="text-right">
-                  <PlainMoney value={contributorTotals[name] ?? 0} />
+                  <PlainMoney value={contributorTotals[name] ?? 0} symbol={SGD} />
                 </td>
               ))}
               <td className="text-right">
-                <PlainMoney value={grandTotal} />
+                <PlainMoney value={grandTotal} symbol={SGD} />
               </td>
             </tr>
           </tfoot>
