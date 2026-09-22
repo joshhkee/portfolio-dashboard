@@ -1,15 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Percent, PlainPercent, NativeMoney, formatAmount } from "@/components/SignedNumber";
 import { TriangleAlert } from "lucide-react";
 import { currencySymbol, currencyForRegion, type Currency } from "@/lib/fx";
+import { priceKey } from "@/lib/prices";
 import { formatHoldingPeriod } from "@/lib/dates";
 import SortableTh from "@/components/SortableTh";
 import SearchBox from "@/components/SearchBox";
 import { useSortable } from "@/lib/use-sortable";
 import TransactionHistoryModal from "@/components/TransactionHistoryModal";
 import TickerName from "@/components/TickerName";
+import Sparkline from "@/components/Sparkline";
 
 export interface PositionRow {
   region: string;
@@ -57,6 +60,38 @@ export default function PositionsTable({
     null
   );
 
+  // The command palette navigates here with ?ticker=… to "jump to" a holding,
+  // so this row is highlighted and scrolled into view on arrival.
+  const searchParams = useSearchParams();
+  const highlightTicker = searchParams.get("ticker");
+  const highlightRef = useRef<HTMLTableRowElement | null>(null);
+
+  // One batched request for every row's 30-day trend, rather than a request
+  // per row — see app/api/sparklines/route.ts for why that matters. Tickers
+  // without usable history simply stay absent, and the cell renders a dash
+  // instead of an invented flat line.
+  const [spark, setSpark] = useState<Record<string, number[]>>({});
+  const sparkKeys = useMemo(
+    () => rows.map((r) => `${r.region}:${r.ticker}`).join(","),
+    [rows]
+  );
+
+  useEffect(() => {
+    if (!sparkKeys) return;
+    let cancelled = false;
+    fetch(`/api/sparklines?keys=${encodeURIComponent(sparkKeys)}`)
+      .then((res) => (res.ok ? res.json() : { series: {} }))
+      .then((data) => {
+        if (!cancelled) setSpark(data.series ?? {});
+      })
+      .catch(() => {
+        if (!cancelled) setSpark({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sparkKeys]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
@@ -64,6 +99,18 @@ export default function PositionsTable({
   }, [rows, search]);
 
   const { sorted, sortKey, sortDir, toggleSort } = useSortable(filtered, GETTERS, "portfolioPct", "desc");
+
+  // Declared after useSortable because it depends on `sorted` — the ref only
+  // exists once the matching row has rendered.
+  useEffect(() => {
+    if (!highlightTicker) return;
+    const node = highlightRef.current;
+    if (!node) return;
+    // Respect a reduced-motion preference: the jump still happens, it just
+    // doesn't animate.
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    node.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
+  }, [highlightTicker, sorted.length]);
 
   const displaySymbol = currencySymbol[displayCurrency];
 
@@ -155,6 +202,11 @@ export default function PositionsTable({
                 onClick={() => toggleSort("currentPrice")}
                           align="right"
               />
+              {/* Not sortable: a trend line has no single ordering key that
+                  would mean anything next to the numeric columns. */}
+              <th className="text-right" title="Price trend over the last 30 days">
+                30d
+              </th>
               <SortableTh
                 label="Total holdings"
                 active={sortKey === "totalHoldings"}
@@ -188,11 +240,22 @@ export default function PositionsTable({
           <tbody>
             {sorted.map((r) => {
               const symbol = currencySymbol[currencyForRegion(r.region)];
+              // Looked up by the compound "REGION::TICKER" key the API returns
+              // (see priceKey) — the request parameter uses a single-colon
+              // transport form, but the response is keyed like every other
+              // price map in the app.
+              const trend = spark[priceKey(r.region, r.ticker)];
+              const isHit =
+                highlightTicker !== null &&
+                r.ticker.toLowerCase() === highlightTicker.toLowerCase();
               return (
                 <tr
                   key={`${r.region}-${r.ticker}`}
+                  ref={isHit ? highlightRef : undefined}
                   onClick={() => setSelected({ region: r.region, ticker: r.ticker, currentPrice: r.currentPrice })}
-                  className="cursor-pointer hover:bg-ink-900/60"
+                  className={`cursor-pointer hover:bg-ink-900/60 ${
+                    isHit ? "bg-accent/10 ring-1 ring-inset ring-accent/40" : ""
+                  }`}
                   title="View transaction history"
                 >
                   <td className="text-ink-300">{r.region}</td>
@@ -231,6 +294,9 @@ export default function PositionsTable({
                       </>
                     )}
                   </td>
+                  <td className="text-right">
+                    {trend ? <Sparkline values={trend} /> : <span className="text-ink-500">—</span>}
+                  </td>
                   <td className="num text-right">
                     {symbol}
                     {formatAmount(r.totalHoldings)}
@@ -259,7 +325,7 @@ export default function PositionsTable({
             })}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={10} className="py-6 text-center text-ink-300">
+                <td colSpan={11} className="py-6 text-center text-ink-300">
                   {rows.length === 0
                     ? "No holdings in this region right now."
                     : "No holdings match your search."}

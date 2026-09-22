@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { Search } from "lucide-react";
+import { OPEN_PALETTE_EVENT } from "@/lib/command-search";
 
 const links = [
   { href: "/", label: "Home" },
@@ -50,9 +52,21 @@ export default function Nav() {
           );
         })}
       </ul>
+      {/* Keyboard is the fast path, but a palette nobody can discover is a
+          palette nobody uses — so it gets a visible affordance too. */}
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new Event(OPEN_PALETTE_EVENT))}
+        title="Search tickers, pages and actions (Cmd/Ctrl+K)"
+        aria-label="Open command palette"
+        className="ml-auto flex items-center gap-2 rounded-md border border-ink-700 px-2.5 py-1 text-xs text-ink-300 transition hover:border-ink-500 hover:text-ink-100 motion-reduce:transition-none"
+      >
+        <Search size={13} strokeWidth={1.75} />
+        <span className="text-ink-500">⌘K</span>
+      </button>
       <button
         onClick={handleLogout}
-        className="ml-auto text-sm text-ink-300 hover:text-ink-100"
+        className="text-sm text-ink-300 hover:text-ink-100"
       >
         Log out
       </button>
