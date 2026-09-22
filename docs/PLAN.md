@@ -45,8 +45,10 @@ every checkpoint keeps it green:
 - Branch: `freebuff/analyse-my-current-portfolio-dashboard-project-and-29b0adb2-a864-46b1-9352-6fb3fcb2b204`
   (`origin` -> `github.com/joshhkee/portfolio-dashboard`).
 - A batch of work rides ONE long-lived pull request (same branch -> `main`).
-  #3–#10 are all merged. **The open PR is #11**
-  (https://github.com/joshhkee/portfolio-dashboard/pull/11), carrying Part 20.
+  #3–#11 are all merged. **The open PR is #12**
+  (https://github.com/joshhkee/portfolio-dashboard/pull/12), carrying Parts
+  22–26 (movers + colour rule, palette prominence + table sizing, set-once tag
+  chips + text pass, the derived ledger line + notes cleanup, and the watchlist).
   Nothing should open a second PR while one is already open for this branch —
   but DO open a new one when the previous batch was merged, because a merged PR
   cannot be reopened to carry later work. This happens every time: the owner
