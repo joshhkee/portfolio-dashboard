@@ -39,6 +39,22 @@ function toMs(date: string): number {
 }
 
 /**
+ * Epoch ms the range window opens at, or null for "ALL" (and for an
+ * unrecognised key, which is treated as ALL rather than as an empty window).
+ *
+ * Exported because the range selector is shared: the charts slice DAILY
+ * points with it, while contribution attribution slices MONTHLY periods. Both
+ * must agree on what "3M" means, and the only way to guarantee that is to
+ * have one definition of the boundary.
+ */
+export function rangeStartMs(range: RangeKey, now: Date = new Date()): number | null {
+  if (range === "ALL") return null;
+  if (range === "YTD") return Date.UTC(now.getUTCFullYear(), 0, 1);
+  const days = RANGE_DAYS[range];
+  return days === undefined ? null : now.getTime() - days * DAY_MS;
+}
+
+/**
  * Slice the series to a window ending today. Includes ONE point before the
  * window start where possible, so the first segment of the chart has a prior
  * value to grow from instead of starting mid-air.
@@ -54,14 +70,8 @@ export function filterByRange(
 ): PerfPoint[] {
   if (range === "ALL" || points.length === 0) return points;
 
-  let startMs: number;
-  if (range === "YTD") {
-    startMs = Date.UTC(now.getUTCFullYear(), 0, 1);
-  } else {
-    const days = RANGE_DAYS[range];
-    if (days === undefined) return points;
-    startMs = now.getTime() - days * DAY_MS;
-  }
+  const startMs = rangeStartMs(range, now);
+  if (startMs === null) return points;
 
   const firstInside = points.findIndex((p) => toMs(p.date) >= startMs);
   if (firstInside <= 0) return points; // window covers everything we have

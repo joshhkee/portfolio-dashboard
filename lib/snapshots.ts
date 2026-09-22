@@ -15,11 +15,7 @@
 // All values are in SGD so the series is directly chartable.
 
 import { prisma } from "@/lib/prisma";
-import {
-  computeLedger,
-  fromDbRows,
-  type RawTransaction,
-} from "@/lib/portfolio-engine";
+import { computeLedger, fromDbRows } from "@/lib/portfolio-engine";
 import { fetchHistoricalCloses, toYahooSymbol, type HistoricalCloses } from "@/lib/prices";
 import { convertCurrency, fetchFxRates, type FxRates } from "@/lib/fx";
 import { drawdownSeries, type PerfPoint } from "@/lib/performance";
@@ -30,17 +26,6 @@ export function dayKey(d: Date): string {
 }
 function dayStart(key: string): Date {
   return new Date(`${key}T00:00:00.000Z`);
-}
-
-/** Replay the ledger as of the END of `key`, returning open positions in
- * the native currencies. Positions opened later or fully closed by that
- * day don't appear; holdings priced at that day's close are the
- * caller's job (it has the historical price maps). */
-export function positionsAsOf(transactions: RawTransaction[], key: string) {
-  const cutoff = dayStart(key).getTime() + 86399999; // end of that UTC day
-  const upto = transactions.filter((t) => t.date.getTime() <= cutoff);
-  const { openPositions } = computeLedger(upto);
-  return openPositions;
 }
 
 /** Outlay (contributions) total recorded as of the end of `key`. */
