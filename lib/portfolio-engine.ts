@@ -55,6 +55,18 @@ export interface LedgerRow extends RawTransaction {
   runningQty: number;
   runningAvgCost: number;
   transactionValue: number;
+  /**
+   * The position as it stood IMMEDIATELY BEFORE this row — the same fields,
+   * one transaction earlier in the replay.
+   *
+   * Derived here rather than in the UI because the alternative is a component
+   * guessing it from whichever neighbours the table happens to be sorted by,
+   * and "what did this row do to the position" is a property of the replay,
+   * not of the current sort order. Its one consumer is the row summary a
+   * ledger row renders instead of a hand-typed note (see lib/notes.ts).
+   */
+  qtyBefore: number;
+  avgCostBefore: number;
 }
 
 export interface EngineResult {
@@ -126,6 +138,8 @@ export function computeLedger(transactions: RawTransaction[]): EngineResult {
         runningQty: newQty,
         runningAvgCost: newAvgCost,
         transactionValue: t.qty * t.price,
+        qtyBefore: prev.qty,
+        avgCostBefore: prev.avgCost,
       });
     } else {
       // Sell — realize P/L against the average cost carried into this sale.
@@ -144,6 +158,8 @@ export function computeLedger(transactions: RawTransaction[]): EngineResult {
         runningQty: newQty,
         runningAvgCost: avgCostAtSale,
         transactionValue: t.qty * t.price,
+        qtyBefore: prev.qty,
+        avgCostBefore: avgCostAtSale,
       });
 
       completedTrades.push({

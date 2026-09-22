@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import RegionFlag from "@/components/RegionFlag";
 import { formatShortDate, formatHoldingPeriod } from "@/lib/dates";
 import { formatQty, formatAmount, NativeMoney } from "@/components/SignedNumber";
+import { classifyNote, ledgerSummary } from "@/lib/notes";
 
 interface HistoryRow {
   id: number;
@@ -19,6 +20,10 @@ interface HistoryRow {
   runningQty: number;
   runningAvgCost: number;
   transactionValue: number;
+  /** Position state carried INTO this row — what the derived ledger line needs
+   *  to say whether a buy opened the position or added to it. */
+  qtyBefore: number;
+  avgCostBefore: number;
 }
 
 interface Trade {
@@ -129,12 +134,14 @@ function TradeSection({
   rates,
   region,
   currentPrice,
+  companyName,
 }: {
   trade: Trade;
   symbol: string;
   rates: FxRates | null;
   region: string;
   currentPrice: number;
+  companyName: string | null;
 }) {
   const stats = computeCycleStats(trade.cycle);
   const sgdSymbol = currencySymbol.SGD;
@@ -169,11 +176,14 @@ function TradeSection({
               <th className="text-right">Qty</th>
               <th className="text-right">Price</th>
               <th className="text-right">Running qty</th>
-              <th className="text-left">Notes</th>
+              <th className="text-left">Note</th>
             </tr>
           </thead>
           <tbody>
-            {trade.cycle.map((row) => (
+            {trade.cycle.map((row) => {
+              const note = classifyNote(row.notes, { ticker: row.ticker, name: companyName });
+              const derived = ledgerSummary(row, symbol);
+              return (
               <tr key={row.id}>
                 <td className="num text-ink-300">{formatShortDate(new Date(row.date))}</td>
                 <td className={row.action === "Buy" ? "text-gain" : "text-loss"}>{row.action}</td>
@@ -183,11 +193,19 @@ function TradeSection({
                   {formatAmount(row.price)}
                 </td>
                 <td className="num text-right">{formatQty(row.runningQty)}</td>
-                <td className="max-w-[16rem] truncate text-left text-ink-300" title={row.notes ?? undefined}>
-                  {row.notes}
+                {/* Same rule as the ledger table: the owner's note if there is
+                    one, otherwise the line the ledger derives from the row. */}
+                <td
+                  className={`max-w-[16rem] truncate text-left ${
+                    note.note ? "text-ink-300" : "text-ink-500"
+                  }`}
+                  title={note.note ? `${note.note} — ${derived}` : derived}
+                >
+                  {note.note ?? derived}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -356,6 +374,7 @@ export default function TransactionHistoryModal({
                   rates={rates}
                   region={region}
                   currentPrice={currentPrice}
+                  companyName={companyName}
                 />
               ))}
             </div>
