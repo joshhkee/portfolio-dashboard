@@ -1022,22 +1022,46 @@ success), which keeps the intent and drops the cost.
 
 Pool timeouts after the change: **0**.
 
-**Transitions.** A `.swap-in` utility (240ms fade + 6px rise) on a container
-keyed by the current selection, so React remounts it and the browser replays
-the animation: the time-range picker, the benchmark index picker, the
-stakeholder picker, and the month/quarter toggle all animate, and the range
-picker's three charts share one key so they move as a single gesture. Recharts'
-own draw animation is switched OFF on the value chart on purpose — it defaults
-to 1.5s and restarts from a flat line on every data change, which fought the
-crossfade and read as a stutter. Reduced motion is honoured in the stylesheet
-(`@media (prefers-reduced-motion: reduce) { .swap-in { animation: none } }`),
-verified present in the built CSS.
+**Transitions, corrected after owner feedback.** The first attempt made every
+selection a crossfade: a keyed `.swap-in` container remounted the charts and
+Recharts' own animation was switched off so the two couldn't compete. The owner
+rejected that for the time-period selector specifically — remounting restarts a
+chart from an empty axis, whereas what reads as smooth is *the same chart
+narrowing its window*. So the two halves are now split by what is actually
+changing:
 
-**Verified in the browser, not asserted:** clicking `1Y` put three elements
-into `swap-in/running/240`; the stakeholder picker ran it on the chart block
-and switched the caption to "Keng: value (solid) vs contributed (dashed)";
-the quarter toggle re-rendered to "Portfolio gain over 7 quarters" with both
-the summary and the table animating.
+- **Charts: the chart animates itself.** The range-driven charts are no longer
+  keyed or crossfaded, so they stay mounted and Recharts tweens the line to its
+  new shape (`isAnimationActive` on the value, drawdown and benchmark series —
+  the benchmark pair previously snapped, so a window change animated two charts
+  and not the third). Recharts' default timing is deliberately left alone: it is
+  the behaviour the owner asked to have back.
+- **The selected pill: it slides.** A new `components/SegmentedControl.tsx`
+  replaces the four hand-rolled copies of the same markup (time range,
+  benchmark index, stakeholder, period grouping). One absolutely positioned
+  gold pill moves with a `transform` transition, so the motion is
+  compositor-only and reads as the selection travelling rather than two
+  repaints. It is measured, not assumed: labels differ in width and the
+  stakeholder row wraps on narrow screens, so the offset carries a vertical
+  component too (verified moving diagonally to `(46.3, 25.9)` on a wrapped
+  row). Until the first measurement lands the active button paints its own
+  background, and afterwards the pill alone owns the colour — leaving both on
+  would show two gold rectangles mid-slide.
+- **Tables and stats: still `.swap-in`.** The attribution summary and table,
+  and the benchmark statistics, are not charts, so a 240ms fade + rise is the
+  right transition there.
+
+Reduced motion is honoured in both paths: `motion-reduce:transition-none` on
+the pill and `@media (prefers-reduced-motion: reduce) { .swap-in { animation:
+ none } }` in the stylesheet, verified present in the built CSS.
+
+**Verified in the browser, not asserted:** the pill's transform walked
+77.1 → 83.7 → 121.5 over 200ms on the range picker and landed with no offset
+(dx/dy/dw all 0); the value chart's path length went 46233 (All) → 29677
+(mid-flight, 250ms in) → 29530 (settled at 1Y), which is a tween and not a
+snap; the stakeholder picker moved the pill diagonally and left the active
+button with no background of its own; the quarter toggle re-rendered to
+"Portfolio gain over 7 quarters" with both the summary and the table fading.
 
 **Left on the table:** the remaining 1-2s per route is ~4-6 sequential round
 trips at ~300ms against a pooler on the other side of the world. A

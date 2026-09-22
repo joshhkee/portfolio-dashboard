@@ -147,11 +147,11 @@ export default function PortfolioValueChart({ data }: { data: SnapshotPoint[] })
               stroke="#5f5c57"
               strokeDasharray="4 4"
             />
-            {/* Recharts' own draw animation is off here on purpose. It
-                defaults to 1.5s and restarts from a flat line on every data
-                change, which fought the container's crossfade when the range
-                changed — two animations for one gesture, reading as a stutter.
-                The crossfade in PortfolioPerformance is the transition. */}
+            {/* Animated on purpose, at Recharts' own default timing — this is
+                the transition the owner asked to keep when a range changes:
+                the line travels to its new shape while the chart stays the
+                same chart. Nothing else animates this block (see the note in
+                PortfolioPerformance) so there is exactly one thing moving. */}
             <Area
               type="monotone"
               dataKey="totalValueSgd"
@@ -160,7 +160,7 @@ export default function PortfolioValueChart({ data }: { data: SnapshotPoint[] })
               fill="url(#valueFill)"
               dot={false}
               activeDot={{ r: 3, fill: "#d4a94a" }}
-              isAnimationActive={false}
+              isAnimationActive
             />
           </AreaChart>
         </ResponsiveContainer>

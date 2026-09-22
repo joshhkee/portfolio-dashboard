@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import SegmentedControl from "@/components/SegmentedControl";
 import { RANGE_KEYS, type RangeKey } from "@/lib/performance";
 import {
   groupByQuarter,
@@ -63,45 +64,22 @@ export default function ContributionAttribution({ matrix }: { matrix: Attributio
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div
-          role="group"
-          aria-label="Period grouping"
-          className="flex rounded-md border border-ink-700 p-0.5 text-xs"
-        >
-          {(["month", "quarter"] as const).map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setPeriod(key)}
-              aria-pressed={period === key}
-              className={`rounded px-2.5 py-1 capitalize transition duration-200 motion-reduce:transition-none ${
-                period === key ? "bg-accent text-ink-950" : "text-ink-300 hover:text-ink-100"
-              }`}
-            >
-              By {key}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          ariaLabel="Period grouping"
+          options={[
+            { value: "month", label: "By month" },
+            { value: "quarter", label: "By quarter" },
+          ]}
+          value={period}
+          onChange={setPeriod}
+        />
 
-        <div
-          role="group"
-          aria-label="Time range"
-          className="flex rounded-md border border-ink-700 p-0.5 text-xs"
-        >
-          {RANGE_KEYS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setRange(key)}
-              aria-pressed={range === key}
-              className={`rounded px-2.5 py-1 transition duration-200 motion-reduce:transition-none ${
-                range === key ? "bg-accent text-ink-950" : "text-ink-300 hover:text-ink-100"
-              }`}
-            >
-              {key === "ALL" ? "All" : key}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          ariaLabel="Time range"
+          options={RANGE_KEYS.map((key) => ({ value: key, label: key === "ALL" ? "All" : key }))}
+          value={range}
+          onChange={setRange}
+        />
       </div>
 
       {/* The answer, up top, in the units the question was asked in. Keyed on

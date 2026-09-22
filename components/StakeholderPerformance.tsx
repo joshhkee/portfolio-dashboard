@@ -11,6 +11,7 @@ import {
   Tooltip,
 } from "recharts";
 import { Money, NativeMoney, Percent, PlainPercent } from "@/components/SignedNumber";
+import SegmentedControl from "@/components/SegmentedControl";
 import { seriesColor } from "@/lib/palette";
 import type { StakeholderRow, StakeholderTimelinePoint } from "@/lib/stakeholders";
 
@@ -125,35 +126,16 @@ export default function StakeholderPerformance({
           Shares are pro-rata by contribution, so the values below add up to the portfolio
           total on the overview.
         </p>
-        <div
-          role="group"
-          aria-label="Stakeholder to chart"
-          className="flex flex-wrap rounded-md border border-ink-700 p-0.5 text-xs"
-        >
-          <button
-            type="button"
-            onClick={() => setSelected(null)}
-            aria-pressed={selected === null}
-            className={`rounded px-2.5 py-1 transition duration-200 motion-reduce:transition-none ${
-              selected === null ? "bg-accent text-ink-950" : "text-ink-300 hover:text-ink-100"
-            }`}
-          >
-            Everyone
-          </button>
-          {names.map((n) => (
-            <button
-              key={n}
-              type="button"
-              onClick={() => setSelected(n)}
-              aria-pressed={selected === n}
-              className={`rounded px-2.5 py-1 transition duration-200 motion-reduce:transition-none ${
-                selected === n ? "bg-accent text-ink-950" : "text-ink-300 hover:text-ink-100"
-              }`}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          ariaLabel="Stakeholder to chart"
+          className="flex-wrap"
+          options={[
+            { value: null, label: "Everyone" },
+            ...names.map((n) => ({ value: n, label: n })),
+          ]}
+          value={selected}
+          onChange={setSelected}
+        />
       </div>
 
       <div className="table-scroll">
