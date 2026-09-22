@@ -19,6 +19,29 @@ import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 const PARAMS = { N: 16384, r: 8, p: 1 };
 const KEY_LENGTH = 64;
 
+/** Eight characters. Short enough to type on a phone, long enough that the
+ * login route's 5-attempts-per-5-minutes limiter is not the only thing standing
+ * between a guesser and an account. */
+export const MIN_PASSWORD_LENGTH = 8;
+
+/**
+ * The password rule, in one place.
+ *
+ * Both writers call this — the create-user script and the accounts API — so the
+ * rule cannot drift between the two ways an account gets made, which is exactly
+ * how a UI ends up accepting something the CLI would have refused (or worse,
+ * the other way round).
+ *
+ * Returns an error message, or null when the password is acceptable.
+ */
+export function validatePassword(password: string): string | null {
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return `Use at least ${MIN_PASSWORD_LENGTH} characters.`;
+  }
+  if (password.length > 200) return "That password is too long.";
+  return null;
+}
+
 export function hashPassword(password: string): string {
   const salt = randomBytes(16);
   const hash = scryptSync(password, salt, KEY_LENGTH, PARAMS);

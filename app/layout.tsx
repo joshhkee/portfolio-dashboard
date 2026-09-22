@@ -3,6 +3,7 @@ import { Source_Serif_4, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import Nav from "@/components/Nav";
 import CommandPalette from "@/components/CommandPalette";
+import { accountAdminContext } from "@/lib/account-admin";
 
 const serif = Source_Serif_4({
   subsets: ["latin"],
@@ -20,12 +21,23 @@ export const metadata: Metadata = {
   description: "Personal portfolio ledger and dashboard",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+/**
+ * The chrome, with the session resolved once for the whole app.
+ *
+ * The nav needs to know whether to offer the accounts page, and the answer
+ * depends on who is signed in — so it is resolved here, on the server, and
+ * handed to the (client) nav. This file is already the one place every page
+ * passes through, which is what keeps it a single query rather than one per
+ * page that wants it.
+ */
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const { me, guard } = await accountAdminContext();
+
   return (
     <html lang="en" className={`${serif.variable} ${mono.variable}`}>
       <body>
         <div className="flex min-h-screen flex-col">
-          <Nav />
+          <Nav account={{ username: me?.username ?? null, canManage: guard.ok }} />
           <main className="min-w-0 flex-1 px-8 py-8">{children}</main>
           {/* Mounted once for the whole app so Cmd/Ctrl+K works from any
               page; it renders nothing until opened. */}

@@ -39,6 +39,51 @@ export interface VisitContext {
 }
 
 /**
+ * Resolve the cookie to a live account.
+ *
+ * Deliberately a database lookup rather than trusting the token: middleware can
+ * only verify a signature (it runs on the Edge runtime, without Prisma), so a
+ * cookie belonging to an account that has since been DELETED still gets past it.
+ * Anything that acts on behalf of a person — reading their last-seen, changing
+ * accounts — resolves the row here, where deleting a user really does end their
+ * access to it.
+ */
+async function resolveAccount(): Promise<{
+  account: SignedInAccount;
+  storedLastSeenAt: Date | null;
+} | null> {
+  const store = await cookies();
+  const token = store.get(AUTH_COOKIE_NAME)?.value;
+  const session = await readSessionToken(token);
+  if (!session) return null;
+
+  const user = await prisma.user.findUnique({ where: { username: session.username } });
+  if (!user) return null;
+
+  return {
+    account: { id: user.id, username: user.username },
+    storedLastSeenAt: user.lastSeenAt,
+  };
+}
+
+/**
+ * Who is signed in, without touching anything.
+ *
+ * This is the read the CHROME uses (the nav's greeting, the accounts page), and
+ * it must not record a visit: the dashboard's "since you last looked" line is
+ * the only writer of lastSeenAt, and if the layout recorded a visit on every
+ * page then Today would arrive at an already-touched timestamp and always
+ * report that nothing changed.
+ */
+export async function readAccount(): Promise<SignedInAccount | null> {
+  try {
+    return (await resolveAccount())?.account ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Resolve the current visit, touching lastSeenAt when it is stale.
  *
  * Fails soft at every step: an unreadable cookie, an unknown user or a database
@@ -47,21 +92,16 @@ export interface VisitContext {
  */
 export async function readVisit(): Promise<VisitContext> {
   try {
-    const store = await cookies();
-    const token = store.get(AUTH_COOKIE_NAME)?.value;
-    const session = await readSessionToken(token);
-    if (!session) return { account: null, previousSeenAt: null };
+    const resolved = await resolveAccount();
+    if (!resolved) return { account: null, previousSeenAt: null };
 
-    const user = await prisma.user.findUnique({ where: { username: session.username } });
-    if (!user) return { account: null, previousSeenAt: null };
-
-    const previousSeenAt = user.lastSeenAt;
+    const previousSeenAt = resolved.storedLastSeenAt;
     const now = new Date();
     if (!previousSeenAt || now.getTime() - previousSeenAt.getTime() > TOUCH_AFTER_MS) {
-      await prisma.user.update({ where: { id: user.id }, data: { lastSeenAt: now } });
+      await prisma.user.update({ where: { id: resolved.account.id }, data: { lastSeenAt: now } });
     }
 
-    return { account: { id: user.id, username: user.username }, previousSeenAt };
+    return { account: resolved.account, previousSeenAt };
   } catch {
     return { account: null, previousSeenAt: null };
   }

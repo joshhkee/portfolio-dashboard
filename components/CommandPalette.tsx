@@ -46,6 +46,11 @@ const PAGES: Command[] = [
   { id: "page-money", label: "Money", group: "Go to", href: "/money", keywords: "outlay contributions deposits stakeholders schedule" },
   { id: "page-cash", label: "Cash", group: "Go to", href: "/money/cash", keywords: "balances currency exchange conversions" },
   { id: "page-watchlist", label: "Watchlist", group: "Go to", href: "/watchlist", keywords: "watching ideas" },
+  // Chrome rather than an object, so it is not in the nav's object list — but it
+  // is a page, and someone who wants to add a person should be able to type
+  // "user" rather than hunt for it. It explains itself if the visitor may not
+  // manage accounts (see app/accounts/page.tsx).
+  { id: "page-accounts", label: "Accounts", group: "Go to", href: "/accounts", keywords: "users people identities add user sign in password stakeholders" },
   { id: "page-exposure", label: "Exposure", group: "Lens", href: "/positions/exposure", keywords: "sector currency fx concentration what am i in" },
   { id: "page-attribution", label: "Attribution", group: "Lens", href: "/performance/attribution", keywords: "contribution which holding drove returns monthly quarterly" },
 ];

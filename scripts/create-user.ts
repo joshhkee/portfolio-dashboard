@@ -15,7 +15,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { prisma } from "../lib/prisma";
 import { normalizeUsername } from "../lib/auth";
-import { hashPassword } from "../lib/password";
+import { hashPassword, validatePassword } from "../lib/password";
 
 /** Read a line with the terminal's echo turned off.
  *
@@ -95,7 +95,11 @@ async function main() {
     if (existing) throw new Error(`Account "${username}" already exists.`);
 
     const password = await promptHidden(`Password for ${username}: `);
-    if (password.length < 8) throw new Error("Use at least 8 characters.");
+    // The same rule the accounts page enforces (lib/accounts.ts), called rather
+    // than restated: the CLI and the UI must not be able to disagree about what
+    // makes a usable password.
+    const problem = validatePassword(password);
+    if (problem) throw new Error(problem);
 
     const confirm = await promptHidden("Confirm password: ");
     if (password !== confirm) throw new Error("The passwords didn't match.");
