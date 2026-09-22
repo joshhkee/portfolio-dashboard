@@ -9,6 +9,7 @@ function quote(over: Partial<QuoteMeta> = {}): QuoteMeta {
     instrumentType: "EQUITY",
     exchange: "NYSEArca",
     currency: "USD",
+    dayChangePct: null,
     ...over,
   };
 }

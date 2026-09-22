@@ -182,12 +182,17 @@ export function computeLedger(transactions: RawTransaction[]): EngineResult {
 /** Attach live prices and derived unrealized P/L to a set of open positions. All figures are in the position's native currency — USD conversion and portfolio-% aggregation across currencies happens one layer up (see lib/fx.ts and lib/get-positions.ts), since mixing e.g. SGD and HKD totals directly would be meaningless. */
 export function withLivePrices(
   positions: OpenPosition[],
-  prices: Record<string, number>
+  prices: Record<string, number>,
+  /** Latest-session change per "REGION::TICKER" key, as a fraction. Optional
+   *  because it is presentation data (the dashboard's movers tile) while price
+   *  is arithmetic: a caller with no quote meta still gets correct values. */
+  dayChanges: Record<string, number> = {}
 ) {
   return positions.map((p) => {
+    const key = `${p.region}::${p.ticker}`;
     // Prices map is keyed by compound "REGION::TICKER" (see lib/prices.ts
     // priceKey) — a bare ticker isn't unique across regions.
-    const livePrice = prices[`${p.region}::${p.ticker}`];
+    const livePrice = prices[key];
     const priceUnavailable = livePrice === undefined;
     // Fall back to cost basis when there's no live quote (e.g. HK
     // tickers, which Yahoo's free endpoint doesn't reliably cover) —
@@ -207,6 +212,7 @@ export function withLivePrices(
       unrealizedPL,
       unrealizedPLPct,
       priceUnavailable,
+      dayChangePct: dayChanges[key] ?? null,
     };
   });
 }

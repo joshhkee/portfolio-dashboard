@@ -17,6 +17,8 @@ describe("parseChartMeta", () => {
         fullExchangeName: "NYSEArca",
         currency: "USD",
         regularMarketPrice: 711.54,
+        // Yahoo reports this in PERCENT units, despite the field's name.
+        regularMarketChangePercent: 0.569,
       })
     );
     expect(parsed).toEqual({
@@ -25,7 +27,27 @@ describe("parseChartMeta", () => {
       instrumentType: "ETF",
       exchange: "NYSEArca",
       currency: "USD",
+      dayChangePct: 0.00569,
     });
+  });
+
+  it("converts the reported change from percent to a fraction", () => {
+    expect(
+      parseChartMeta(chartPayload({ regularMarketChangePercent: -0.8 }))?.dayChangePct
+    ).toBeCloseTo(-0.008, 10);
+  });
+
+  it("leaves the day change null when the source omits or mangles it", () => {
+    expect(parseChartMeta(chartPayload({ regularMarketPrice: 1 }))?.dayChangePct).toBeNull();
+    expect(
+      parseChartMeta(chartPayload({ regularMarketChangePercent: null }))?.dayChangePct
+    ).toBeNull();
+    expect(
+      parseChartMeta(chartPayload({ regularMarketChangePercent: "0.5" }))?.dayChangePct
+    ).toBeNull();
+    expect(
+      parseChartMeta(chartPayload({ regularMarketChangePercent: NaN }))?.dayChangePct
+    ).toBeNull();
   });
 
   it("prefers longName over shortName", () => {

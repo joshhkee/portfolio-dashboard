@@ -10,7 +10,7 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import { NativeMoney, Percent, PlainPercent } from "@/components/SignedNumber";
+import { NativeMoney, Percent, PlainMoney, PlainPercent } from "@/components/SignedNumber";
 import SegmentedControl from "@/components/SegmentedControl";
 import { seriesColor } from "@/lib/palette";
 import type { StakeholderRow, StakeholderTimelinePoint } from "@/lib/stakeholders";
@@ -123,8 +123,7 @@ export default function StakeholderPerformance({
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-ink-500">
-          Shares are pro-rata by contribution, so the values below add up to the portfolio
-          total on the overview.
+          Pro-rata by contribution, so these values add up to the portfolio total.
         </p>
         <SegmentedControl
           ariaLabel="Stakeholder to chart"
@@ -164,15 +163,17 @@ export default function StakeholderPerformance({
                   </span>
                 </td>
                 {/* S$, not `Money`'s bare "$": these are SGD figures sitting
-                    in the same row as an S$-labelled gain. */}
+                    in the same row as an S$-labelled gain. Contributed and
+                    current value are plain amounts, so they are neutral — only
+                    the Gain and XIRR columns beside them carry a direction. */}
                 <td className="num text-right">
-                  <NativeMoney value={r.contributed} symbol="S$" />
+                  <PlainMoney value={r.contributed} symbol="S$" />
                 </td>
                 <td className="num text-right">
                   <PlainPercent value={r.share} />
                 </td>
                 <td className="num text-right">
-                  <NativeMoney value={r.currentValue} symbol="S$" />
+                  <PlainMoney value={r.currentValue} symbol="S$" />
                 </td>
                 <td className="num text-right">
                   <NativeMoney value={r.currentValue - r.contributed} symbol="S$" showPlus />
@@ -185,11 +186,11 @@ export default function StakeholderPerformance({
             <tr className="border-t-2 border-ink-600">
               <td className="text-ink-300">Total</td>
               <td className="num text-right">
-                <NativeMoney value={totalContributed} symbol="S$" />
+                <PlainMoney value={totalContributed} symbol="S$" />
               </td>
               <td className="num text-right text-ink-300">100.0%</td>
               <td className="num text-right">
-                <NativeMoney value={totalValue} symbol="S$" />
+                <PlainMoney value={totalValue} symbol="S$" />
               </td>
               <td className="num text-right">
                 <NativeMoney value={totalValue - totalContributed} symbol="S$" showPlus />

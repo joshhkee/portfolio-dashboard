@@ -52,6 +52,18 @@ export interface QuoteMeta {
   instrumentType: string | null;
   exchange: string | null;
   currency: string | null;
+  /**
+   * The latest session's move, as a FRACTION despite the source's name: Yahoo
+   * reports `regularMarketChangePercent` in percent units (0.569 means +0.569%),
+   * and every other rate in this app is a fraction (see `unrealizedPLPct`), so
+   * the divide-by-100 happens once, here, where the payload is known.
+   *
+   * Deliberately NOT derived from `chartPreviousClose`: that field is the close
+   * BEFORE the requested window, so with the default range it is the close from
+   * a month ago and "today's move" computed from it would be a month's move.
+   * The reported field is the honest one, and null when the source omits it.
+   */
+  dayChangePct: number | null;
 }
 
 /**
@@ -71,12 +83,17 @@ export function parseChartMeta(data: unknown): QuoteMeta | null {
   const rawName = meta.longName ?? meta.shortName;
   const name = typeof rawName === "string" && rawName.trim().length > 0 ? rawName.trim() : null;
 
+  const rawChange = meta.regularMarketChangePercent;
+  const dayChangePct =
+    typeof rawChange === "number" && Number.isFinite(rawChange) ? rawChange / 100 : null;
+
   return {
     price: typeof meta.regularMarketPrice === "number" ? meta.regularMarketPrice : null,
     name,
     instrumentType: typeof meta.instrumentType === "string" ? meta.instrumentType : null,
     exchange: typeof meta.fullExchangeName === "string" ? meta.fullExchangeName : null,
     currency: typeof meta.currency === "string" ? meta.currency : null,
+    dayChangePct,
   };
 }
 
@@ -185,6 +202,11 @@ export interface MetaMap {
   [compoundKey: string]: QuoteMeta;
 }
 
+/** Latest-session change per compound "REGION::TICKER" key, as a fraction. */
+export interface DayChangeMap {
+  [compoundKey: string]: number;
+}
+
 /**
  * Current price AND descriptive metadata for a set of (region, ticker)
  * positions, in one pass — the chart endpoint returns both from a single
@@ -196,7 +218,7 @@ export interface MetaMap {
  */
 export async function fetchPositionQuotes(
   positions: { region: string; ticker: string }[]
-): Promise<{ prices: PriceMap; meta: MetaMap }> {
+): Promise<{ prices: PriceMap; meta: MetaMap; dayChanges: DayChangeMap }> {
   const unique = Array.from(
     new Map(positions.map((p) => [priceKey(p.region, p.ticker), p])).values()
   );
@@ -211,12 +233,14 @@ export async function fetchPositionQuotes(
 
   const prices: PriceMap = {};
   const meta: MetaMap = {};
+  const dayChanges: DayChangeMap = {};
   for (const r of results) {
     if (!r.meta) continue;
     if (r.meta.price !== null) prices[r.key] = r.meta.price;
+    if (r.meta.dayChangePct !== null) dayChanges[r.key] = r.meta.dayChangePct;
     meta[r.key] = r.meta;
   }
-  return { prices, meta };
+  return { prices, meta, dayChanges };
 }
 
 /**
