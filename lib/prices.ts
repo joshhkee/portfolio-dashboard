@@ -243,12 +243,4 @@ export async function fetchPositionQuotes(
   return { prices, meta, dayChanges };
 }
 
-/**
- * Prices only. Kept for callers that need nothing else (the watchlist);
- * it shares the same cache entries as fetchPositionQuotes.
- */
-export async function fetchQuotesForPositions(
-  positions: { region: string; ticker: string }[]
-): Promise<PriceMap> {
-  return (await fetchPositionQuotes(positions)).prices;
-}
+

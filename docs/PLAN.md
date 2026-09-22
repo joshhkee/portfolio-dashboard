@@ -99,10 +99,11 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 23 | Command palette prominence; table sizing pass (one-line dates, no horizontal scroll on desktop) | **DONE** |
 | 24 | Exposure tags as a set-once chip; site-wide text pass; late-deposit notices removed | **DONE** |
 | 25 | Notes: the ledger derives its own line, and the 64 stored notes cleaned up against the owner's verdicts | **DONE** |
+| 26 | Watchlist: names and today's move from the full quote pipeline, a 30-day trend, and the notes column repurposed to "why I'm watching this" | **DONE** |
 
 ---
 
-## Resume checkpoint — 2026-09-23 (after Part 25)
+## Resume checkpoint — 2026-09-23 (after Part 26)
 
 **State:** parts 1–7, 9–17 and 19–21 were already done, plus **Part 22** (Today's
 movers, the colour rule, a shorter attention list), **Part 23** (a prominent
@@ -113,6 +114,14 @@ no longer needs a typed note to explain itself — and the stored notes were the
 cleaned up against the owner's verdicts: **51 cleared, 8 rewritten, 5 kept**,
 with a backup file that reverts the whole thing in one command). The `notes`
 column now holds 13 real notes instead of 64 rows of duplicated names.
+
+**Part 26** then finished the watchlist — the last surface still hand-typing an
+instrument's name. It now resolves names and the day's move from the same quote
+pipeline every other page uses (which also put XLV and CRWD into the command
+palette), shows a 30-day sparkline from the batched `/api/sparklines` endpoint,
+and its `notes` column means "why I am watching this" rather than doubling as a
+name. See the Part 26 section for the two wrong attempts at getting a free
+month of prices out of the quote payload.
 
 **The colour rule, now written down because it was violated in four places:**
 colour means *up or down*. Gains, losses, returns, and percentages carry
@@ -153,14 +162,10 @@ stop the dev server first — the failure is the file lock, not the code.
 
 **Next action (owner's call):** still open — **Part 18** the merged `/activity`
 ledger, modelling the **stop-loss / take-profit levels** the notes still carry as
-text (the owner's chosen follow-up to Part 8), the **monolith split**
-(`app/page.tsx`, `lib/portfolio-engine.ts`), and one thing Parts 8 and 25 left in
-place: the
-**watchlist still uses its notes column as the instrument name**
-(`State Street Healthcare ETF`, `Crowdstrike`), the same hand-typed-name habit
-Part 2 removed from the positions and ledger tables. The watchlist is a separate
-model (`Watchlist.notes`), so Part 25's classifier does not touch it — it needs
-the resolved name rendered beside the ticker, then the column can go.
+text (the owner's chosen follow-up to Part 8), and the **monolith split**
+(`app/page.tsx`, `lib/portfolio-engine.ts`). Part 26 closed the last hand-typed
+name in the app: the watchlist now resolves its own names, and its notes column
+is a reason rather than a duplicate of the ticker.
 
 ---
 
@@ -2257,6 +2262,84 @@ wrote **59 rows** (51 cleared, 8 rewritten) from backup
 to what they were. Verified against the database afterwards: **13 rows carry a
 note, 51 do not**, and the ledger renders the same split.
 
-**Still open here:** the watchlist, whose `notes` column is a *different* model
-and still doubles as the instrument name, and modelling the SL/TP levels as
-structured data.
+**Still open here:** modelling the SL/TP levels as structured data. (The
+watchlist, the other thing this left open, was finished in Part 26.)
+
+---
+
+## Part 26 — the watchlist stops being a price list (DONE)
+
+The owner's request, in three words: *"upgrade the watchlist section"*. The
+rewritten version it was approved as, and the evidence behind it:
+
+**What was actually wrong.** The watchlist held **2 rows** and neither ticker had
+a `TickerMeta` row at all, because the page called `fetchQuotesForPositions` —
+the prices-only wrapper — while every other surface used `fetchPositionQuotes`,
+whose single upstream call already returns the name and the day change. Two
+consequences were visible without looking for them: the page showed a bare price
+with **no day change** (the number a watchlist exists for, thrown away in the
+payload it had already downloaded), and `app/api/palette/route.ts` reads names
+from that same cache, so **XLV and CRWD appeared nameless in the command
+palette**. `Watchlist.notes` was also still hand-typing the instrument's name
+(`State Street Healthcare ETF`, `Crowdstrike`) — the habit Part 25 had just
+deleted from 64 ledger rows, in a second model Part 25's classifier never
+reached.
+
+**`lib/watchlist.ts` (new, pure)** — `WatchlistRow` plus `watchlistRows()`. One
+builder shared by the page and the refresh route, so a 60-second poll can never
+disagree with the first render, and the row is `{ id, region, ticker, notes }`
+from the database plus `name` / `price` / `dayChangePct` resolved from the quote
+call. A cached name wins over the fetched one (it may be hand-edited), matching
+the precedence the holdings path uses.
+
+**`app/watchlist/page.tsx` + `app/api/watchlist/route.ts`** now make the full
+`fetchPositionQuotes` call and `ensureTickerMeta(...)` the result, which is what
+puts a watchlist ticker into the cache the palette reads. `GET /api/watchlist`
+returns the same shaped rows. `fetchQuotesForPositions` was deleted with its last
+caller.
+
+**The panel**: ticker with the resolved name and an editable override
+(`TickerName`) instead of a typed name in a note, `Price`, `Today` (day change —
+the only figure on the row that carries colour, per the colour rule), a **30d**
+sparkline, and `Why` as the one editable text field. The add form asks for a
+*reason*, not a name.
+
+**The trend, and a wrong turn worth recording.** The obvious source looked free:
+the quote payload the page already downloads carries bars, so the first version
+parsed them out of it. Measured against the live response, those bars are the
+**current session's 1-minute bars** — `range: "1d"`, `dataGranularity: "1m"`,
+**299** of them, every one stamped with today's date — so the column was labelled
+`30d` over **thirty minutes** of data. Reading them is now explicitly not done
+(`lib/prices.ts` says so where the parser would have gone), and the trend comes
+from `app/api/sparklines?keys=…` instead: one batched, 15-minute-cached request
+per page, keyed by `priceKey()`, exactly as `PositionsTable` and `TopPositions`
+already do. Two attempts at "free" data were wrong; the third reused what works.
+
+**Column widths, because a five-column table sized by content is mostly
+whitespace.** Unpinned, the instrument column took **559px** and the reason
+column **264px**. Every column but `Why` is now pinned (`w-[24rem]` /
+`w-[7rem]` / `w-[6rem]` / `w-[6rem]` / `w-8`), so the slack lands on the one
+column whose contents actually vary. Measured at 1470×900: header and rows
+identical at `x = 33 / 417 / 529 / 625 / 721 / 1405`, document overflow 0. And
+`TickerName` gained an optional `maxWidthClass` (default unchanged at
+`max-w-[13rem]`): the ledger's cap exists because a content-sized table lets the
+longest name set a 330px column, but this table has slack — so it passes
+`max-w-[10rem] sm:max-w-[22rem]`, which shows
+`State Street Health Care Select Sector SPDR ETF` in full on a desktop and
+still fits a phone (measured at 430px: **0px** of sideways scroll, `30d` and
+`Why` hidden).
+
+**Verified in the running app, with the real 2 rows:** names resolve
+(`CrowdStrike Holdings, Inc.`, `State Street Health Care Select Sector SPDR ETF`),
+day change shows (+0.72% / +0.38%), both sparklines render 21 closing days, and
+`GET /api/palette` now returns `{"name":"CrowdStrike Holdings, Inc."}` for CRWD
+and the full name for XLV. The reason field was exercised end to end — typed
+`Waiting for a pullback`, survived a reload, then cleared back to blank and
+survived that too — so the watchlist was left exactly as it was found. The
+hand-typed names were the only rows the owner had, and they are gone from the
+stored `notes`.
+
+**Verification:** `npm test` **20 files / 307 tests** (`tests/watchlist.test.ts`
+is new; the price tests lost the series-parsing cases when that parser was
+reverted), `npx tsc --noEmit` clean, `npx eslint .` clean, `npx next build`
+clean, no console errors, one sparklines request per page load.
