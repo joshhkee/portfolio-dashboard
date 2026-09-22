@@ -16,6 +16,18 @@ export function toLocalDateInputValue(d: Date): string {
  * "18d" — used for "how long have I held this" displays. Coarse on
  * purpose (years/months/days, not exact), since precision to the day
  * isn't useful once you're holding for months. */
+/** Parses a request body's optional date field ("YYYY-MM-DD", "", or null).
+ *
+ * Returns null for "not provided / deliberately cleared", a Date when it
+ * parses, and `undefined` when the value is unusable — so a caller can reject
+ * a typo'd date explicitly instead of silently storing an Invalid Date, which
+ * Postgres would then refuse with a much less helpful error. */
+export function parseOptionalDateInput(value: unknown): Date | null | undefined {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = new Date(String(value));
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
 export function formatHoldingPeriod(from: Date, to: Date = new Date()): string {
   const days = Math.max(0, Math.floor((to.getTime() - from.getTime()) / 86400000));
   if (days < 30) return `${days}d`;

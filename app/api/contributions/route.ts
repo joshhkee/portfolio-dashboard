@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { adjustCashBalance } from "@/lib/cash";
+import { parseOptionalDateInput } from "@/lib/dates";
 
 export async function GET() {
   const contributions = await prisma.contribution.findMany({
@@ -21,6 +22,12 @@ export async function POST(req: NextRequest) {
     if (!label || !date || entries.length === 0) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
+    // `paidOn` is when the money arrived; `date` is the month it is attributed
+    // to. Optional, and honestly null when unknown.
+    const paidOn = parseOptionalDateInput(body.paidOn);
+    if (paidOn === undefined) {
+      return NextResponse.json({ error: "paidOn must be a date or empty" }, { status: 400 });
+    }
     for (const entry of entries) {
       if (!entry.contributorName || entry.amount === undefined || Number(entry.amount) <= 0) {
         return NextResponse.json(
@@ -35,6 +42,7 @@ export async function POST(req: NextRequest) {
         prisma.contribution.create({
           data: {
             date: new Date(date),
+            paidOn,
             label: String(label).trim(),
             amount: Number(entry.amount),
             contributor: {
@@ -64,6 +72,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
+  const paidOn = parseOptionalDateInput(body.paidOn);
+  if (paidOn === undefined) {
+    return NextResponse.json({ error: "paidOn must be a date or empty" }, { status: 400 });
+  }
+
   const contributor = await prisma.contributor.upsert({
     where: { name: String(contributorName).trim() },
     update: {},
@@ -75,6 +88,7 @@ export async function POST(req: NextRequest) {
       contributorId: contributor.id,
       label: String(label).trim(),
       date: new Date(date),
+      paidOn,
       amount: Number(amount),
     },
   });

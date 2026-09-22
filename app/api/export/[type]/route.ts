@@ -57,9 +57,17 @@ export async function GET(
       include: { contributor: true },
       orderBy: [{ date: "asc" }, { id: "asc" }],
     });
+    // `date` is the attributed month, `paidOn` the day the money arrived.
     const csv = toCsv(
-      ["id", "date", "contributor", "label", "amount"],
-      rows.map((c) => [c.id, isoDate(c.date), c.contributor.name, c.label, c.amount.toFixed(2)])
+      ["id", "date", "paidOn", "contributor", "label", "amount"],
+      rows.map((c) => [
+        c.id,
+        isoDate(c.date),
+        c.paidOn ? isoDate(c.paidOn) : "",
+        c.contributor.name,
+        c.label,
+        c.amount.toFixed(2),
+      ])
     );
     return csvResponse(`contributions-${stamp}.csv`, csv);
   }

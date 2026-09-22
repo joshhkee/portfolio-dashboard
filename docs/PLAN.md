@@ -84,15 +84,20 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 11 | Contribution attribution (per position, per period) | **DONE** |
 | 12 | Responsive & loading polish (mobile tables, skeletons) | **DONE** |
 | 13 | Range-selector transitions + load-time optimisation | **DONE** |
+| 14a | Deposit schedule: `Contribution.paidOn` + a quiet late flag | **DONE** |
+| 14b | Currency reporting: price-only P&L, realized FX, foreign cash | TODO — see the Part 14b section |
 
 ---
 
-## Resume checkpoint — 2026-09-22 (after Part 11)
+## Resume checkpoint — 2026-09-22 (after Part 14a)
 
-**State:** parts 1–7 and 9–11 finished and verified. Next action: **Part 12
-(responsive & loading polish)** — no schema change, no new dependency, and
-independent of everything else. Part 8 (notes redesign) remains blocked on an
-owner decision and is the only part left after that.
+**State:** parts 1–7 and 9–13 finished and verified, plus **14a** (the deposit
+schedule) and a full reconciliation of the owner's revised deposit/exchange
+ledger into the database. Next action: **Part 14b (currency reporting)** — see
+its section at the end. Part 8 (notes redesign) is still blocked on an owner
+decision. (This heading said "after Part 11" until 14a landed; the body below
+is kept because its environment notes and data-quality findings are still
+current.)
 
 **Part 10 needs no further action on the database:** migration
 `20260922140000_add_ticker_sector` is applied and the column exists. No sector
@@ -112,10 +117,10 @@ while CI runs.
 **Verification on the current tree (all green at the end of this session):**
 
 ```
-npm test                            -> 13 files, 219 tests passed
-npx tsc --noEmit                    -> clean
-npx eslint app components lib tests -> clean
-npx next build                      -> succeeded (see the build note below)
+npm test                                     -> 14 files, 230 tests passed
+npx tsc --noEmit                             -> clean
+npx eslint app components lib tests prisma   -> clean
+npm run build                                -> succeeded (see the build note below)
 ```
 
 **Live preview:** a dev server runs from this worktree, but **Next picks the
@@ -154,10 +159,15 @@ shipped and in use (benchmark chart, stakeholder chart, correlation heatmap);
 the **bars** stay gold by the owner's explicit choice.
 
 **Known data-quality issue #2 — the ledger and the cash balances disagree.**
-Measured 2026-09-22 by the cash check on `/attribution`: contributions total
-**S$56,897.00** and the ledger's net purchases total **S$51,046.38**, so the
-ledger implies **S$5,850.62** should still be uninvested, while the
-`CashBalance` rows hold **S$4,597.80** — a gap of **S$1,252.82**.
+Measured 2026-09-22 by the cash check on `/attribution`, AFTER the ledger
+correction in Part 14: contributions total **S$54,697.00**, the ledger says
+**S$3,650.62** should still be uninvested, and the `CashBalance` rows hold
+**S$4,597.47** — so the balances now hold **S$946.85 MORE** than the ledger
+implies. (Before the correction this read as a shortfall of S$1,252.82;
+removing the duplicate March-2025 month moves it by exactly +S$2,200, so the
+flip is the correction, not a new mystery. A SURPLUS points at money that
+arrived without a matching contribution row — a dividend, interest, or a
+deposit not in the sheet — rather than at a trade missing its cash leg.)
 
 Nothing stores or derives from this gap: `/attribution` never touches cash, and
 the overview hero uses the recorded balances (invariant 2), so both pages are
@@ -1070,3 +1080,143 @@ it needs invalidation on every write path (transactions, contributions, cash,
 ticker meta) and a stale read after an edit is a far worse bug than a slow
 page — so it is deliberately NOT done here. The measuring probe
 (`tmp-perf-probe.ts`) was deleted after use.
+
+## Part 14 — The owner's revised ledger, and the deposit schedule
+
+The owner supplied an updated deposit/exchange ledger (the 2026-09-22 revision)
+and asked for three things: vet it, reconcile the database to it, and answer
+"are we up to schedule?". Two answers were approved up front:
+currency is reported in the places it is real (14b), and deposit timing is
+tracked with a payment date plus a deliberately quiet late flag (14a).
+
+### Vetting the sheet
+
+**Every one of the 25 conversion rows has exactly one debit and one credit.**
+Checked structurally — the only row with more than one debit column is row 2,
+the header. No accidental double-debit anywhere.
+
+**One rate was genuinely wrong: row 11, 2025-08-13.** The sheet records
+S$2,400 debited for HK$18,797.42, which implies **7.83 HKD per SGD** against a
+day's cross rate of **6.13** — **+27.7%**, which no spread explains. The HKD
+figure only prices correctly as a **US$2,400** debit: 7.8323 is 0.22% below
+that day's USD mid, the same direction and size as its neighbours (row 12
++0.04%, row 13 -0.20%). The row is imported as **USD 2,400 -> HKD 18,797.42**
+and is the ONE row corrected rather than transcribed; the correction is an
+explicit table in the importer so it can never be mistaken for a faithful read.
+The sheet cell itself should be fixed by the owner.
+
+**The other 24 rows are clean:** every one within **0.75%** of the day's mid,
+22 of them slightly below it with the same sign every time — a broker spread,
+which is what real fills look like. One item is for the owner's eyes rather
+than an error: 2025-10-13 carries S$1,600 -> HK$9,549.63 and HK$10,281.30 ->
+S$1,708.74 the same day. Both prices are right for that day and the amounts do
+not mirror each other as a duplicated entry would, so it reads as a real sweep
+back to SGD.
+
+### What the database now holds
+
+The ledger was stored as a per-person, per-month model, and the revision changed
+four things plus the exchange log:
+
+| change | why |
+|---|---|
+| deleted the 5 scheduled `MAR (2025)` rows (-S$2,200) | March 2025 is the Initial's month, not a scheduled one — exactly the S$2,200 the owner said the total comes down by |
+| Keng `APR (2025)` 4,400 -> 500, with S$3,900 split out as `Additional (MAR 2025)` | the sheet marks it "add inline" to March, and April's schedule is 500 |
+| Josh `JAN (2026)` 1,000 -> 500, `MAR (2026)` 500 -> 1,000 | same, for his March top-up |
+| Keng `Additional` re-dated 2026-03-15 -> 2026-05-09 | the sheet keeps it as a separate row and dates it |
+| 25 `CashExchange` rows imported (table was empty) | the audit trail the ledger was always meant to provide |
+
+**Cash balances were not touched** (invariant 2, and `CashExchange` feeds only
+the activity feed — verified by grepping every reference: the cash page's recent
+list and the home page's three-item feed. No money math reads it).
+
+Result: **96 contributions, S$54,697.00** — the sheet's total exactly. The month
+grid reads **18 consecutive scheduled months, every one at exactly S$2,200**,
+plus three labelled additions (Initial 8,752; Keng's MAR-2025 3,900; Josh's
+MAR-2026 500 inside that month's 2,700; Keng's 1,945).
+
+### The snapshot consequence, and why `npm run backfill` was NOT used
+
+`DailySnapshot.costBasisSgd` is derived from contributions (both writers call
+`outlayAsOf()`), so changing the ledger made every historical row's outlay stale
+— the chart's dashed outlay line would have disagreed with the headline.
+
+The repo's own `prisma/backfill-snapshots.ts` says it is safe to run "after
+correcting the ledger", but it also **re-prices every historical day and passes
+`fetchFxRates()` — TODAY's FX — into `dayValue` for those past dates**. Running
+it would have restated 18 months of foreign holdings by the SGD's drift since,
+to fix one field. Instead `costBasisSgd` alone was recomputed in a single
+statement.
+
+Before touching anything, all **570** stored snapshots were checked against the
+OLD ledger's outlay: **0 mismatches**, so the stored series was internally
+consistent and the correction would be a pure propagation. After the recompute:
+**0 mismatches**, today's row 56,897 -> **54,697**. (The fix used
+`UPDATE ... FROM (SELECT SUM(...) ...)`, not 570 round trips; the migration-style
+one-off scripts were deleted after use.)
+
+### 14a — the deposit schedule
+
+**`Contribution.paidOn` (nullable).** The attribution date (`date`, always the
+month's first day) is what the outlay curve and pivot need and cannot double as
+the payment date: a month funded two months late has to keep belonging to its
+own month. Migration `20260922150000_add_contribution_paid_on`, applied with
+`npx prisma migrate deploy` (deploy, not dev — dev wants a shadow database this
+pooled connection cannot create). Backfilled for all 96 rows from the sheet's
+remarks: the lumps are transcribed as they were paid, so "May and June" carries
+5 Jun on both months and Josh's March row (which also holds his 9 May top-up)
+carries 14 May, when that month was complete.
+
+**`lib/schedule.ts` is pure** and answers exactly one question: is a scheduled
+month's money in on time? Late means the money landed after the attributed month
+closed; paying EARLY is never late; an unknown date is unmeasured, not on time
+(`measuredMonths` is counted separately from the total). A month's lump is
+complete when its LAST row lands, so a label's date is the max across its rows.
+Non-month labels (`Initial Investment`, `Additional`, `Additional (MAR 2025)`)
+never carry a verdict — they have no month to be late against. 11 tests cover
+month-end arithmetic, leap February, a December year-end, early payment, unknown
+dates, the last-row rule and the worst-offender summary.
+
+**The UI is deliberately quiet** (owner's explicit constraint): a dim
+`text-[10px] text-ink-500` "44d late" beside the month, a tooltip naming the
+rule, and ONE dim caption line under the section heading — no badges, no colour,
+no separate dashboard. Measured live: **7 of 18** scheduled months arrived after
+the month closed, worst `MAR (2026)` at **44 days**; the seven are MAY 2025 (5),
+JUL 2025 (22), DEC 2025 (29), FEB 2026 (39), MAR 2026 (44), APR 2026 (26), MAY
+2026 (11).
+
+The payment date is settable in three places, so the feature is maintainable
+rather than write-once: the deposit form (both tabs, defaulting to today),
+`POST /api/contributions`, and the pivot's LABEL cell — clicking a month opens a
+one-field editor that PATCHes every row under that label, because a month's lump
+arrives as one payment split across stakeholders. `PATCH` now accepts `paidOn`
+alone (`"paidOn" in body` so an explicit null means "unknown", which is
+different from not sending it) and a payment-date change never touches cash — it
+changes WHEN money arrived, not how much. Verified end-to-end: setting MAY 2026
+to an on-time date moved the marker count 7 -> 6 and the caption with it, wrote
+the same date to all five rows, and the restore put both back; the CSV export
+gained a `paidOn` column and `prisma/seed.ts` was corrected to match, so a fresh
+install reproduces the corrected ledger rather than the old one.
+
+### 14b — currency reporting (next)
+
+The owner's model, in their words: everyone bulk-deposits, the money sits in a
+three-currency margin account, and stocks are bought with cash **already
+exchanged** — so a per-holding "gain from currency" measures the wrong thing.
+The current `/exposure` FX table does exactly that (it splits each position's
+SGD P&L into a price part and a currency part). The approved replacement:
+
+1. **Per-holding P&L becomes price-only**, with cost at the purchase-date rate
+   (what "Cost at purchase FX" already approximates).
+2. **Realized FX on conversions** — now computable for the first time, because
+the 25 `CashExchange` rows exist: each conversion's executed rate against that
+   day's mid is the spread paid (0.14-0.74% across the file), and a round trip
+   shows its own loss.
+3. **Unrealized FX on foreign cash** — US$3,262.68 and HK$0.23 are a live rate
+   position and the only place the exposure is unambiguous.
+
+**Acceptance:** no per-holding row claims an FX gain; the conversions panel
+reconciles against the imported ledger; the foreign-cash figure matches
+`CashBalance` at today's rate; and the portfolio total still agrees with the
+overview (the SGD total necessarily keeps whatever FX is embedded in today's
+value — only the attribution changes).

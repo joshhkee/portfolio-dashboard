@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { PlainMoney } from "@/components/SignedNumber";
+import { formatShortDate } from "@/lib/dates";
 import { Check, X } from "lucide-react";
 
 interface Cell {
@@ -17,6 +18,119 @@ interface LabelRow {
   dateMs: number;
   cells: Cell[];
   rowTotal: number;
+  /** Arrival date of this month's lump, "YYYY-MM-DD", or null when unknown. */
+  paidOn: string | null;
+  /** Days past the end of the attributed month; 0 when on time or unknown. */
+  daysLate: number;
+  /** Every contribution under this label — a month's lump, edited together. */
+  contributionIds: number[];
+}
+
+/**
+ * The row's label, plus a deliberately quiet note when that month's money
+ * arrived late, and an inline editor for the arrival date.
+ *
+ * The date lives on the LABEL because the schedule question is about a month,
+ * not about one stakeholder's cell: a month's lump lands across several rows at
+ * once, so editing it here writes the same date to all of them. Styling stays
+ * plain text (like the amount cells) so a late month reads as a footnote
+ * rather than an alert.
+ */
+function LabelCell({ row }: { row: LabelRow }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const value = String(new FormData(e.currentTarget).get("paidOn") ?? "");
+
+    setBusy(true);
+    try {
+      const results = await Promise.all(
+        row.contributionIds.map((id) =>
+          fetch(`/api/contributions/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ paidOn: value === "" ? null : value }),
+          })
+        )
+      );
+      const failed = results.find((r) => !r.ok);
+      if (failed) {
+        const body = await failed.json().catch(() => ({}));
+        throw new Error(body.error || "Failed to save");
+      }
+      setEditing(false);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <form onSubmit={handleSave} className="flex flex-col gap-1">
+        <div className="flex items-center gap-1.5">
+          <input
+            name="paidOn"
+            type="date"
+            autoFocus
+            defaultValue={row.paidOn ?? ""}
+            className="field w-36 px-1 py-1"
+            title="When this month's deposit actually arrived (empty = unknown)"
+          />
+          <button
+            type="submit"
+            className="rounded-md bg-gainBg px-2.5 py-1.5 text-gain hover:brightness-125 disabled:opacity-50"
+            disabled={busy}
+            title="Save"
+          >
+            <Check size={14} strokeWidth={2.5} />
+          </button>
+          <button
+            type="button"
+            className="rounded-md bg-ink-800 px-2.5 py-1.5 text-ink-300 hover:bg-ink-700 hover:text-ink-100 disabled:opacity-50"
+            onClick={() => setEditing(false)}
+            disabled={busy}
+            title="Cancel"
+          >
+            <X size={14} strokeWidth={2.5} />
+          </button>
+        </div>
+        {error && <p className="text-[10px] text-loss">{error}</p>}
+      </form>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        className="rounded-sm px-1 py-0.5 text-left hover:bg-ink-800 hover:text-accent"
+        title={
+          row.paidOn
+            ? `Deposit arrived ${formatShortDate(new Date(`${row.paidOn}T00:00:00.000Z`))} — click to change`
+            : "Set when this deposit arrived"
+        }
+      >
+        {row.label}
+      </button>
+      {row.daysLate > 0 && (
+        <span
+          className="shrink-0 text-[10px] text-ink-500"
+          title={`Paid ${row.daysLate} days after the month closed — measured from the end of the month this deposit belongs to, not the day it was recorded.`}
+        >
+          {row.daysLate}d late
+        </span>
+      )}
+    </div>
+  );
 }
 
 function PivotCell({ cell }: { cell: Cell }) {
@@ -159,7 +273,9 @@ export default function ContributionsPivotTable({
         <tbody>
           {labelRows.map((row) => (
             <tr key={row.label}>
-              <td className="text-ink-300">{row.label}</td>
+              <td className="text-ink-300">
+                <LabelCell row={row} />
+              </td>
               {row.cells.map((cell) => (
                 <td key={cell.name} className="text-right">
                   <PivotCell cell={cell} />
