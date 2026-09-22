@@ -146,21 +146,27 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
 
       {adding && (
         <form onSubmit={handleAdd} className="panel flex flex-wrap items-end gap-3 p-4">
-          <div className="flex flex-col gap-1">
+          {/* The width lives on the WRAPPER, not the control: `.field` is a
+              component-layer rule and it carries `w-full`, and `@layer
+              components` beats the utilities layer whatever the class order —
+              so `w-28` on the input itself silently does nothing and the field
+              collapses to whatever flex gives it. Sizing the wrapper is what
+              the layer order actually respects. */}
+          <div className="flex w-28 flex-col gap-1">
             <label className="text-xs text-ink-300">Ticker</label>
-            <input name="ticker" required className="field w-28" placeholder="NVDA" autoFocus />
+            <input name="ticker" required className="field" placeholder="NVDA" autoFocus />
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex w-24 flex-col gap-1">
             <label className="text-xs text-ink-300">Region</label>
-            <select name="region" required className="field w-24" defaultValue="US">
+            <select name="region" required className="field" defaultValue="US">
               <option value="US">US</option>
               <option value="SG">SG</option>
               <option value="HK">HK</option>
             </select>
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex w-64 flex-col gap-1">
             <label className="text-xs text-ink-300">Why</label>
-            <input name="notes" className="field w-64" placeholder="What you're waiting for" />
+            <input name="notes" className="field" placeholder="What you're waiting for" />
           </div>
           <div className="flex gap-2">
             <button type="submit" className="btn-primary" disabled={busy}>
