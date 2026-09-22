@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { PlainMoney } from "@/components/SignedNumber";
 import { formatShortDate } from "@/lib/dates";
-import { Check, X } from "lucide-react";
+import { Check, Clock, X } from "lucide-react";
 
 interface Cell {
   name: string;
@@ -121,12 +121,21 @@ function LabelCell({ row }: { row: LabelRow }) {
       >
         {row.label}
       </button>
-      {row.daysLate > 0 && (
+      {/* A late deposit is a note, not a problem (money sitting in the account
+          earns nothing), so this is a quiet icon rather than a label: the
+          detail is there on hover for anyone who wants it. */}
+      {row.daysLate > 0 && row.paidOn && (
         <span
-          className="shrink-0 text-[10px] text-ink-500"
-          title={`Paid ${row.daysLate} days after the month closed — measured from the end of the month this deposit belongs to, not the day it was recorded.`}
+          className="shrink-0 text-ink-500"
+          role="img"
+          aria-label={`Late deposit — ${row.label} allocation deposited ${formatShortDate(
+            new Date(`${row.paidOn}T00:00:00.000Z`)
+          )}`}
+          title={`Late deposit\n${row.label} allocation deposited ${formatShortDate(
+            new Date(`${row.paidOn}T00:00:00.000Z`)
+          )} — ${row.daysLate} days after the month closed.`}
         >
-          {row.daysLate}d late
+          <Clock size={12} strokeWidth={2} />
         </span>
       )}
     </div>

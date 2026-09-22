@@ -22,10 +22,32 @@
     @apply w-full min-w-[720px] border-separate border-spacing-0 text-left text-sm;
   }
   .ledger-table th {
-    @apply sticky top-0 z-10 whitespace-nowrap border-b border-ink-700 bg-ink-850 px-3 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-300;
+    @apply sticky top-0 z-30 whitespace-nowrap border-b border-ink-700 bg-ink-850 px-3 py-2.5 text-xs font-medium uppercase tracking-wide text-ink-300;
   }
   .ledger-table td {
     @apply border-b border-ink-700/60 px-3 py-2.5 align-middle;
+  }
+  /* The pinned first column of a wide table.
+
+     The z-index lives HERE rather than as a `z-*` utility because utilities are
+     emitted before this layer, so these rules win over any class regardless of
+     the order they're written in — the same hazard .table-compact documents
+     below. Writing `sticky left-0 z-20` on the cell and expecting it to outrank
+     `.ledger-table th`'s own z-index silently does nothing, which is how the
+     header came to be painted OVER by the body rows scrolling under it.
+
+     The layering is what makes the pinning readable: body rows scroll beneath
+     the header row (z-30 > z-20), and the corner cell — the header of the
+     pinned column — sits above both (z-40), since it is the one cell that has
+     to stay legible while either axis moves. */
+  .ledger-table .cell-pin {
+    @apply sticky left-0;
+  }
+  .ledger-table td.cell-pin {
+    @apply z-20 bg-ink-900;
+  }
+  .ledger-table th.cell-pin {
+    @apply z-40 bg-ink-850;
   }
   /* The table needs to own its scroll (both axes) for its sticky <thead>
      to actually stick to the top of ITS scrollport — an ancestor with

@@ -134,8 +134,11 @@ export default function ContributionAttribution({ matrix }: { matrix: Attributio
                       style={{ width: `${largest === 0 ? 0 : (Math.abs(row.total) / largest) * 100}%` }}
                     />
                   </div>
-                  <span className={`num w-24 shrink-0 text-right text-xs ${toneClass(row.total)}`}>
-                    {formatSigned(row.total)}
+                  {/* Same figure as the table, in the same units — the
+                      currency symbol belongs on it too, since every other
+                      money value in the app carries one. */}
+                  <span className={`w-24 shrink-0 text-right text-xs ${toneClass(row.total)}`}>
+                    <NativeMoney value={row.total} symbol={sgd} showPlus />
                   </span>
                 </div>
               ))}
@@ -148,7 +151,7 @@ export default function ContributionAttribution({ matrix }: { matrix: Attributio
         <table className="ledger-table">
           <thead>
             <tr>
-              <th className="sticky left-0 z-20 bg-ink-850">Instrument</th>
+              <th className="cell-pin">Instrument</th>
               {table.columns.map((column) => (
                 <th key={column.key} className="text-right" title={`Ends ${column.endDay}`}>
                   {column.label}
@@ -160,7 +163,7 @@ export default function ContributionAttribution({ matrix }: { matrix: Attributio
           <tbody>
             {rows.map((row) => (
               <tr key={row.key}>
-                <td className="sticky left-0 z-10 bg-ink-900">
+                <td className="cell-pin">
                   <span className="flex items-baseline gap-2">
                     <span className="num text-ink-100">{row.ticker}</span>
                     {row.openQty <= 0 && (
@@ -188,7 +191,7 @@ export default function ContributionAttribution({ matrix }: { matrix: Attributio
           </tbody>
           <tfoot>
             <tr className="border-t border-ink-600">
-              <td className="sticky left-0 z-10 bg-ink-900 text-ink-300">Total</td>
+              <td className="cell-pin text-ink-300">Total</td>
               {table.columnTotals.map((value, i) => (
                 <td key={table.columns[i].key} className={`num text-right ${toneClass(value)}`}>
                   {formatSigned(value)}

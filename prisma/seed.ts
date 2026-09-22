@@ -20,9 +20,9 @@ const CONTRIBUTORS = ["Josh", "Roy", "Chin", "Keng", "Zhiming"] as const;
 // carries its own date on both rows, because that is when the money for both
 // actually showed up.
 //
-// Sourced from the owner's deposit ledger (25 Sep 2026 revision): March 2025
-// is the Initial's month rather than a scheduled one, which is why the
-// schedule is 18 months of 2,200 and not 19.
+// Sourced from the owner's deposit ledger (2026-09-22 revision): March 2025 is
+// the Initial's month rather than a scheduled one, which is why the schedule is
+// 18 months of 2,200 and not 19.
 const CONTRIBUTION_ROWS: [
   string,
   string,
@@ -30,8 +30,10 @@ const CONTRIBUTION_ROWS: [
   Partial<Record<(typeof CONTRIBUTORS)[number], number>>,
 ][] = [
   ["Initial Investment", "2025-03-01", "2025-03-01", { Josh: 1252, Roy: 2500, Keng: 2500, Zhiming: 2500 }],
-  ["Additional (MAR 2025)", "2025-03-01", "2025-04-14", { Keng: 3900 }],
   ["APR (2025)", "2025-04-01", "2025-04-03", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
+  // Keng's top-up for March, which the owner attributes to the month it was
+  // PAID in — so March holds the Initial alone and April carries 6,100.
+  ["Additional (APR 2025)", "2025-04-01", "2025-04-14", { Keng: 3900 }],
   ["MAY (2025)", "2025-05-01", "2025-06-05", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
   ["JUN (2025)", "2025-06-01", "2025-06-05", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],
   ["JUL (2025)", "2025-07-01", "2025-08-22", { Josh: 500, Roy: 500, Chin: 200, Keng: 500, Zhiming: 500 }],

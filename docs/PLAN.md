@@ -1121,7 +1121,7 @@ four things plus the exchange log:
 | change | why |
 |---|---|
 | deleted the 5 scheduled `MAR (2025)` rows (-S$2,200) | March 2025 is the Initial's month, not a scheduled one — exactly the S$2,200 the owner said the total comes down by |
-| Keng `APR (2025)` 4,400 -> 500, with S$3,900 split out as `Additional (MAR 2025)` | the sheet marks it "add inline" to March, and April's schedule is 500 |
+| Keng `APR (2025)` 4,400 -> 500, with S$3,900 split out as its own row | the sheet marks it "add inline", and April's schedule is 500. The owner later moved that row's attribution to **April 2025** (it was paid 14 Apr, and March belongs to the Initial), so April reads 6,100 and March holds the Initial alone |
 | Josh `JAN (2026)` 1,000 -> 500, `MAR (2026)` 500 -> 1,000 | same, for his March top-up |
 | Keng `Additional` re-dated 2026-03-15 -> 2026-05-09 | the sheet keeps it as a separate row and dates it |
 | 25 `CashExchange` rows imported (table was empty) | the audit trail the ledger was always meant to provide |
@@ -1132,8 +1132,8 @@ list and the home page's three-item feed. No money math reads it).
 
 Result: **96 contributions, S$54,697.00** — the sheet's total exactly. The month
 grid reads **18 consecutive scheduled months, every one at exactly S$2,200**,
-plus three labelled additions (Initial 8,752; Keng's MAR-2025 3,900; Josh's
-MAR-2026 500 inside that month's 2,700; Keng's 1,945).
+plus the labelled additions (Initial 8,752 in March; Keng's 3,900 in April, which
+is where it was paid; Josh's 500 inside MAR-2026's 2,700; Keng's 1,945).
 
 ### The snapshot consequence, and why `npm run backfill` was NOT used
 
@@ -1177,13 +1177,15 @@ never carry a verdict — they have no month to be late against. 11 tests cover
 month-end arithmetic, leap February, a December year-end, early payment, unknown
 dates, the last-row rule and the worst-offender summary.
 
-**The UI is deliberately quiet** (owner's explicit constraint): a dim
-`text-[10px] text-ink-500` "44d late" beside the month, a tooltip naming the
-rule, and ONE dim caption line under the section heading — no badges, no colour,
-no separate dashboard. Measured live: **7 of 18** scheduled months arrived after
-the month closed, worst `MAR (2026)` at **44 days**; the seven are MAY 2025 (5),
-JUL 2025 (22), DEC 2025 (29), FEB 2026 (39), MAR 2026 (44), APR 2026 (26), MAY
-2026 (11).
+**The UI is deliberately quiet** (owner's explicit constraint, refined after
+feedback): a small dim clock icon beside the month — no text, no colour, no
+badge — whose tooltip reads "Late deposit / MAR (2026) allocation deposited
+14 May 26 — 44 days after the month closed", plus ONE dim caption line under the
+section heading. A late deposit is a note rather than a problem, because money
+sitting in the account earns nothing. Measured live: **7 of 18** scheduled
+months arrived after the month closed, worst `MAR (2026)` at **44 days**; the
+seven are MAY 2025 (5), JUL 2025 (22), DEC 2025 (29), FEB 2026 (39), MAR 2026
+(44), APR 2026 (26), MAY 2026 (11).
 
 The payment date is settable in three places, so the feature is maintainable
 rather than write-once: the deposit form (both tabs, defaulting to today),
