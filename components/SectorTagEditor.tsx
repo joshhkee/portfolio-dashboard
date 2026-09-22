@@ -30,18 +30,32 @@ export interface TaggablePosition {
 
 /**
  * Column template, shared by the header and every row so the two can never
- * drift: selection, instrument, value, weight, type, tag control, action.
+ * drift: instrument, value, weight, type, tag control, action.
  *
- * It is a FLEX row below `md` and a grid above it. Seven columns on a phone is
- * a horizontal scrollbar for nothing, so there the tag control takes its own
- * line (`basis-full`) and the rest wrap; `flex-1`/`basis-full` have no meaning
- * inside a grid, which is what lets one element list carry both layouts.
+ * It is a FLEX row below `md` and a grid above it. Six columns on a phone is a
+ * horizontal scrollbar for nothing, so there the tag control takes its own line
+ * (`basis-full`) and the rest wrap; `flex-1`/`basis-full` have no meaning inside
+ * a grid, which is what lets one element list carry both layouts.
+ *
+ * There is no selection column any more. Tagging used to be batched by ticking
+ * rows, which cost a leading 1.5rem column plus a toolbar of Select all /
+ * Select untagged / Apply-to-N controls — a lot of chrome for a list of labels
+ * whose whole point is that you set each one once. The only batch left is
+ * accepting the classifier's drafts, which is one button.
+ *
+ * The instrument column is CAPPED, and the tag column takes the slack, because
+ * the alternative is what the table did before: an instrument column of `1fr`
+ * in a 1230px panel grew to ~690px, so a row read "name ……… S$19,061.00" with
+ * a hand-span of empty space between the two. Capping the name and letting the
+ * tag column absorb the remainder keeps the figures next to their instrument
+ * and moves the leftover room to the one cell whose contents are of variable
+ * width.
  */
 const ROW =
-  "flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-ink-700 py-2.5 md:grid md:grid-cols-[1.5rem_minmax(0,1fr)_6.5rem_3.25rem_4.25rem_13rem_3.5rem]";
+  "flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-ink-700 py-2.5 md:grid md:grid-cols-[minmax(0,20rem)_5.5rem_3rem_4rem_minmax(0,1fr)_5rem]";
 
 const HEAD =
-  "hidden md:grid md:grid-cols-[1.5rem_minmax(0,1fr)_6.5rem_3.25rem_4.25rem_13rem_3.5rem] md:gap-x-3 md:border-b md:border-ink-700 md:pb-1.5";
+  "hidden md:grid md:grid-cols-[minmax(0,20rem)_5.5rem_3rem_4rem_minmax(0,1fr)_5rem] md:gap-x-3 md:border-b md:border-ink-700 md:pb-1.5";
 
 /** "EQUITY" is not a word anyone says out loud; an unreported type stays a
  *  dash rather than being called a stock by default. */
@@ -72,11 +86,9 @@ function drafts(positions: TaggablePosition[]) {
  *    typo can no longer split one sector into two half-weight buckets. Free
  *    text still works, because the vocabulary is not a cage;
  *  - where the classifier has a first-draft tag it is OFFERED, never applied —
- *    "suggested: Financials" is a button, and a batch action accepts them all.
- *    It is stated on that one clickable line and nowhere else, so an empty
- *    field never looks filled in;
- *  - rows can be selected, so a sector can be applied to several instruments at
- *    once, which is the whole point of grouping (D05 and XLF are one trade).
+ *    "+ Financials" is a button on the untagged row, and one batch action
+ *    accepts every draft. It is stated on that one clickable line and nowhere
+ *    else, so an empty field never looks filled in.
  *
  * Deliberately not a fixed single-select: an untagged instrument stays visibly
  * untagged rather than defaulting into a bucket nobody chose.
@@ -84,6 +96,11 @@ function drafts(positions: TaggablePosition[]) {
  * The control is a chip, not a field. A tag is set once and then read for
  * years, so the row rests as a label you can click — a permanently visible
  * input would say "this needs maintaining" about something that does not.
+ *
+ * Grouping is therefore done by TAG, not by multi-selecting rows: two
+ * instruments in the same trade are given the same tag one after the other
+ * (D05 and XLF are one trade), which is the same outcome without a checkbox
+ * column and a toolbar standing next to a list of labels.
  */
 export default function SectorTagEditor({
   positions,
@@ -100,8 +117,6 @@ export default function SectorTagEditor({
   // set once, so the resting state of the column is a tag, not a form.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const [batchTag, setBatchTag] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   // The vocabulary first, then any tag already in use that is not in it. Legacy
@@ -156,31 +171,11 @@ export default function SectorTagEditor({
    * Accepting a suggestion passes "auto" instead, and that has to be the same
    * on both paths: whether a draft is accepted one row at a time or all at
    * once, the tag is the classifier's, and marking one "auto" while the other
-   * is "manual" would make the chip mean "which button did I press".
+   * is "manual" would make the stored source mean "which button did I press".
    */
   async function commit(row: TaggablePosition, next: string, src: "auto" | "manual" = "manual") {
     const ok = await write(row, next, src);
     if (ok) router.refresh();
-  }
-
-  /** Apply one tag to every selected row, then clear the selection. */
-  async function applyToSelected(tag: string, src: "auto" | "manual") {
-    const clean = tag.trim();
-    const rows = positions.filter((p) => selected.has(key(p)));
-    if (rows.length === 0) return;
-    let changed = 0;
-    for (const row of rows) {
-      // Sequential on purpose: 18 parallel PATCHes against a connection pool
-      // pinned to one connection queue up anyway, and this keeps busy/error
-      // attribution to a single row clear.
-      const ok = await write(row, clean, src);
-      if (ok) changed++;
-    }
-    if (changed > 0) {
-      setSelected(new Set());
-      setBatchTag("");
-      router.refresh();
-    }
   }
 
   /**
@@ -203,7 +198,6 @@ export default function SectorTagEditor({
       if (!row.suggested) continue;
       await write(row, row.suggested, "auto");
     }
-    setSelected(new Set());
     router.refresh();
   }
 
@@ -213,86 +207,16 @@ export default function SectorTagEditor({
 
   const untagged = positions.filter((p) => !saved[key(p)]?.trim());
   const suggestedRows = untagged.filter((p) => !!p.suggested);
-  const allSelected = selected.size === positions.length;
-
-  function toggle(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-3 rounded-md border border-ink-700 bg-ink-850 px-3 py-2">
+      {/* One line, and one action: how much is left to tag, and the offer to
+          take the classifier's drafts. Everything else this bar used to hold
+          was batch-selection machinery. */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-ink-700 bg-ink-850 px-3 py-2">
         <span className="text-xs text-ink-300">
-          {selected.size === 0
-            ? `${untagged.length} of ${positions.length} untagged`
-            : `${selected.size} selected`}
+          {untagged.length} of {positions.length} untagged
         </span>
-
-        <button
-          type="button"
-          disabled={allSelected}
-          onClick={() => setSelected(new Set(positions.map(key)))}
-          className="text-xs text-ink-500 transition hover:text-accent disabled:text-ink-700 disabled:hover:text-ink-700 motion-reduce:transition-none"
-        >
-          Select all {positions.length}
-        </button>
-        {/* Only offered when there is something to select — "Select the 0
-            untagged" was a button whose whole effect was to select nothing. */}
-        {untagged.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setSelected(new Set(untagged.map(key)))}
-            className="text-xs text-ink-500 transition hover:text-accent motion-reduce:transition-none"
-          >
-            Select the {untagged.length} untagged
-          </button>
-        )}
-        {selected.size > 0 && (
-          <button
-            type="button"
-            onClick={() => setSelected(new Set())}
-            className="text-xs text-ink-500 transition hover:text-accent motion-reduce:transition-none"
-          >
-            Clear selection
-          </button>
-        )}
-
-        {selected.size > 0 && (
-          <span className="flex flex-wrap items-center gap-2">
-            <div className="w-48">
-              <TagSelect
-                dense
-                value={batchTag}
-                options={options}
-                onChange={setBatchTag}
-                onCommit={setBatchTag}
-                ariaLabel="tag to apply to the selected holdings"
-                placeholder="Pick a tag…"
-              />
-            </div>
-            <button
-              type="button"
-              disabled={!batchTag.trim() || busy !== null}
-              onClick={() => applyToSelected(batchTag, "manual")}
-              className="btn-ghost px-2.5 py-1 text-xs"
-            >
-              Apply to {selected.size}
-            </button>
-            <button
-              type="button"
-              disabled={busy !== null}
-              onClick={() => applyToSelected("", "manual")}
-              className="text-xs text-ink-500 transition hover:text-loss motion-reduce:transition-none"
-            >
-              Untag selected
-            </button>
-          </span>
-        )}
 
         {suggestedRows.length > 0 && busy === null && (
           <button
@@ -308,7 +232,6 @@ export default function SectorTagEditor({
       </div>
 
       <div className={HEAD}>
-        <span />
         <span className="text-[10px] uppercase tracking-wide text-ink-500">Instrument</span>
         <span className="text-right text-[10px] uppercase tracking-wide text-ink-500">Value</span>
         <span className="text-right text-[10px] uppercase tracking-wide text-ink-500">Wt</span>
@@ -333,16 +256,6 @@ export default function SectorTagEditor({
               }}
               className={ROW}
             >
-              <span className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={selected.has(id)}
-                  onChange={() => toggle(id)}
-                  aria-label={`Select ${position.ticker} for a batch tag`}
-                  className="h-3.5 w-3.5 accent-accent"
-                />
-              </span>
-
               <span className="min-w-[7rem] flex-1 md:min-w-0">
                 <span className="num block truncate text-xs text-ink-100" title={position.ticker}>
                   {position.ticker}

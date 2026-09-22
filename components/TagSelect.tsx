@@ -20,8 +20,7 @@ export interface TagSelectProps {
   ariaLabel: string;
   /** Disabled while a save is in flight. */
   busy?: boolean;
-  /** Narrower control for the batch bar. */
-  dense?: boolean;
+
   /** Longest option list rendered in the popup before it scrolls. */
   maxVisible?: number;
 }
@@ -53,7 +52,6 @@ export default function TagSelect({
   placeholder,
   ariaLabel,
   busy = false,
-  dense = false,
   maxVisible = 8,
 }: TagSelectProps) {
   const [open, setOpen] = useState(false);
@@ -138,7 +136,7 @@ export default function TagSelect({
           aria-controls={open ? listId : undefined}
           aria-autocomplete="list"
           role="combobox"
-          className={`field min-w-0 px-2 ${dense ? "py-1 text-xs" : "py-1.5 text-xs"}`}
+          className="field min-w-0 px-2 py-1.5 text-xs"
         />
         <button
           type="button"

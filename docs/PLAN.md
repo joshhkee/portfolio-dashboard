@@ -2043,3 +2043,23 @@ the D05 chip opened a focused editor with its dropdown, and Enter committed the
 same value and returned the chip (no row was left dirty, no data changed).
 `/money` no longer contains the late-deposit sentence (`grep` of the rendered
 body: 0 matches) and still renders its seven clock badges.
+
+**Owner follow-up (2026-09-23): "remove the checkboxes from positions >
+exposure, they dont fit the site".** The selection column is gone, along with the
+machinery it fed: `selected`/`batchTag` state, `toggle`, `applyToSelected`,
+Select all / Select the N untagged / Clear selection, the batch tag picker,
+Apply-to-N and Untag selected. `TagSelect` keeps no `dense` variant, since the
+only caller of it was that toolbar. What remains of the bar is one line —
+`0 of 18 untagged` — plus the one batch action that was never about selection
+(Accept the N suggestions). Grouping is now done by TAG rather than by
+tick-boxes, which is the same outcome: two instruments in one trade get the same
+tag, one row after the other.
+
+The column template was re-balanced in the same pass, because removing the
+leading 1.5rem column left the instrument column at `1fr` in a 1230px panel —
+~690px wide, so a row read `name ……… S$19,061.00` across a hand-span of empty
+space. The name is now capped at 20rem and the tag column takes the slack, which
+puts the figures beside their instrument and moves the leftover room to the one
+cell whose contents vary in width. Header and body measured identical
+(`x = 53, 385, 485, 545, 621, 1166` for both), 6 cells per row, no document or
+row overflow, and no chip is clipped.
