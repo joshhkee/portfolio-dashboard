@@ -45,11 +45,13 @@ every checkpoint keeps it green:
 - Branch: `freebuff/analyse-my-current-portfolio-dashboard-project-and-29b0adb2-a864-46b1-9352-6fb3fcb2b204`
   (`origin` -> `github.com/joshhkee/portfolio-dashboard`).
 - A batch of work rides ONE long-lived pull request (same branch -> `main`).
-  #3–#8 are all merged. **The open PR is #9**
-  (https://github.com/joshhkee/portfolio-dashboard/pull/9), carrying parts 12–14a
-  plus the Prisma build fix. Nothing should open a second PR while one is
-  already open for this branch — but DO open a new one when the previous batch
-  was merged, because a merged PR cannot be reopened to carry later work.
+  #3–#10 are all merged. **The open PR is #11**
+  (https://github.com/joshhkee/portfolio-dashboard/pull/11), carrying Part 20.
+  Nothing should open a second PR while one is already open for this branch —
+  but DO open a new one when the previous batch was merged, because a merged PR
+  cannot be reopened to carry later work. This happens every time: the owner
+  merges each PR between checkpoints, so check for an open PR before pushing
+  rather than assuming yesterday's is still the one to update.
 - Push normally. **Never** force-push, switch branches, or change git config.
 - A clean `git push` is NOT proof the PR is conflict-free — re-read the PR and
   check `mergeable` / `mergeable_state` explicitly.
