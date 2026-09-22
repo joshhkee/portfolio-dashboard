@@ -39,10 +39,29 @@ function datasourceUrl(): string | undefined {
   return `${withoutLimit}${separator}connection_limit=${limit}&pool_timeout=30`;
 }
 
+/**
+ * Build the client, overriding the pool only when there is a URL to override
+ * it with.
+ *
+ * Prisma rejects an explicit `undefined` for a datasource — `new
+ * PrismaClient({ datasources: { db: { url: undefined } } })` throws "Invalid
+ * value undefined for datasource \"db\"" — whereas the bare `new
+ * PrismaClient()` simply resolves DATABASE_URL later, at connect time. That
+ * difference is fatal exactly where the client is constructed without the
+ * variable set: `next build` imports every route module to collect metadata,
+ * so a build machine with no DATABASE_URL (a Vercel preview deployment, say)
+ * fails the BUILD instead of failing a query at runtime. This override must
+ * therefore be additive: no URL, no override, and the default behaviour —
+ * which is what every environment had before this file grew a pool override.
+ */
+function createPrismaClient(): PrismaClient {
+  const url = datasourceUrl();
+  return url ? new PrismaClient({ datasources: { db: { url } } }) : new PrismaClient();
+}
+
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
-export const prisma =
-  globalForPrisma.prisma || new PrismaClient({ datasources: { db: { url: datasourceUrl() } } });
+export const prisma = globalForPrisma.prisma || createPrismaClient();
 
 // Kept in every environment, not just dev: a Next server process can re-evaluate
 // this module (dev HMR, or a second worker), and each new client would open its
