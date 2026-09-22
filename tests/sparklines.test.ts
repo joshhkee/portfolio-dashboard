@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { mapWithConcurrency, toSparklinePoints, trendOf } from "@/lib/sparklines";
+import { mapWithConcurrency } from "@/lib/concurrency";
+import { toSparklinePoints, trendOf } from "@/lib/sparklines";
 
 describe("trendOf", () => {
   it("reports an upward move", () => {

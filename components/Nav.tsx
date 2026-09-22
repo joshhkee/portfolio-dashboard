@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { OPEN_PALETTE_EVENT } from "@/lib/command-search";
@@ -17,6 +18,16 @@ const links = [
 export default function Nav() {
   const pathname = usePathname();
   const router = useRouter();
+
+  // The shortcut label is platform-specific so Windows users aren't told to
+  // press ⌘. Starts as the non-Mac label and is corrected after mount:
+  // `navigator` doesn't exist during SSR, and defaulting to one label keeps the
+  // server HTML and the first client render identical (no hydration mismatch).
+  const [isMac, setIsMac] = useState(false);
+  useEffect(() => {
+    setIsMac(/Mac|iPhone|iPad|iPod/.test(navigator.userAgent));
+  }, []);
+  const shortcutLabel = isMac ? "⌘K" : "Ctrl K";
 
   // The login page has nothing to navigate to yet — skip the bar
   // rather than show links that would just bounce back here.
@@ -57,12 +68,12 @@ export default function Nav() {
       <button
         type="button"
         onClick={() => window.dispatchEvent(new Event(OPEN_PALETTE_EVENT))}
-        title="Search tickers, pages and actions (Cmd/Ctrl+K)"
+        title={`Search tickers, pages and actions (${isMac ? "⌘K" : "Ctrl+K"})`}
         aria-label="Open command palette"
         className="ml-auto flex items-center gap-2 rounded-md border border-ink-700 px-2.5 py-1 text-xs text-ink-300 transition hover:border-ink-500 hover:text-ink-100 motion-reduce:transition-none"
       >
         <Search size={13} strokeWidth={1.75} />
-        <span className="text-ink-500">⌘K</span>
+        <span className="text-ink-500">{shortcutLabel}</span>
       </button>
       <button
         onClick={handleLogout}

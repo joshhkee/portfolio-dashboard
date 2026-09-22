@@ -9,10 +9,25 @@ import { formatShortDate } from "@/lib/dates";
 import { xirr } from "@/lib/xirr";
 import RegionFlag from "@/components/RegionFlag";
 import { recordTodaySnapshot, getSnapshots, maxDrawdown } from "@/lib/snapshots";
-import { annualizeReturn, timeWeightedReturn, yearlyReturns } from "@/lib/performance";
-import { BENCHMARKS, alignCloses, getBenchmarkCloses } from "@/lib/benchmarks";
+import {
+  annualizeReturn,
+  portfolioDailyReturns,
+  timeWeightedReturn,
+  yearlyReturns,
+} from "@/lib/performance";
+import {
+  RISK_FREE_RATE,
+  annualizedVolatility,
+  concentration,
+  largestMove,
+  rollingAnnualizedReturn,
+  sharpeRatio,
+} from "@/lib/risk";
+import { BENCHMARKS, getBenchmarkCloses } from "@/lib/benchmarks";
+import { alignCloses, priceKey } from "@/lib/prices";
 import PortfolioPerformance from "@/components/PortfolioPerformance";
 import YearlyReturnsTable from "@/components/YearlyReturnsTable";
+import RiskPanel from "@/components/RiskPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -125,6 +140,38 @@ export default async function HomePage() {
       ? annualizeReturn(twrTotal, snapshots[0].date, snapshots[snapshots.length - 1].date)
       : null;
   const yearReturns = yearlyReturns(snapshots);
+
+  // --- Risk & concentration ---
+  // Computed over ALL history rather than the chart range picker above:
+  // volatility and the Sharpe ratio are estimates, and a one-month window
+  // makes them swing wildly without meaning anything. The rolling line inside
+  // the panel is what shows how the statistic has moved over time.
+  //
+  // Concentration counts positions only, never cash — cash genuinely lowers
+  // the risk of the portfolio, but it is not a position, and folding it in
+  // would flatter every concentration number.
+  const riskSlices = allPositions.map((p) => ({
+    key: priceKey(p.region, p.ticker),
+    ticker: p.ticker,
+    name: p.name,
+    value: p.totalHoldingsConverted,
+    weight: p.portfolioPct,
+  }));
+  const concentrationStats = concentration(riskSlices.map((s) => s.value));
+  const dailyReturns = portfolioDailyReturns(snapshots);
+  const volatility = annualizedVolatility(dailyReturns);
+  const sharpe = sharpeRatio(twrAnnualized, volatility);
+  // Returns are between consecutive snapshots, so they align with snapshots
+  // from the second one onwards.
+  const biggestDay = largestMove(
+    dailyReturns,
+    snapshots.slice(1).map((s) => s.date)
+  );
+  // Drop the leading nulls (no full year behind them yet) so the line starts
+  // on the first day the window is actually complete.
+  const rollingPoints = rollingAnnualizedReturn(snapshots).flatMap((value, i) =>
+    value === null ? [] : [{ date: snapshots[i].date, value }]
+  );
 
   // --- Completed trades, last 6 months (SGD) ---
   const { completedTrades } = computeLedger(fromDbRows(allTransactions));
@@ -278,6 +325,27 @@ export default async function HomePage() {
         benchmarks={BENCHMARKS}
         benchmarkSeries={benchmarkSeries}
       />
+
+      {/* Concentration, risk-adjusted return and the correlation matrix */}
+      {concentrationStats && snapshots.length >= 2 ? (
+        <RiskPanel
+          concentration={concentrationStats}
+          slices={riskSlices.slice(0, 8)}
+          hiddenCount={Math.max(0, riskSlices.length - 8)}
+          volatility={volatility}
+          sharpe={sharpe}
+          annualReturn={twrAnnualized}
+          riskFreeRate={RISK_FREE_RATE}
+          largestMove={biggestDay}
+          rolling={rollingPoints}
+          rollingWindowDays={365}
+          windowLabel={`${formatShortDate(new Date(snapshots[0].date))} – ${formatShortDate(
+            new Date(snapshots[snapshots.length - 1].date)
+          )}`}
+          days={snapshots.length}
+          totalSgd={holdingsValueSgd}
+        />
+      ) : null}
 
       {/* Sub-page summary cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

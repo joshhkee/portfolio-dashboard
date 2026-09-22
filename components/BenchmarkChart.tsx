@@ -11,14 +11,13 @@ import {
   Tooltip,
   ReferenceLine,
 } from "recharts";
+import { alphaBeta, benchmarkVerdict, growthIndex, rebaseTo100 } from "@/lib/benchmarks";
 import {
-  alphaBeta,
-  benchmarkDailyReturns,
-  growthIndex,
   portfolioDailyReturns,
-  rebaseTo100,
-} from "@/lib/benchmarks";
-import type { PerfPoint } from "@/lib/performance";
+  priceReturns,
+  type PerfPoint,
+} from "@/lib/performance";
+import BenchmarkExplainer from "@/components/BenchmarkExplainer";
 
 /** Same order as the value chart's series so the two read consistently: the
  * portfolio keeps the gold it has everywhere else, the benchmark takes the
@@ -153,10 +152,14 @@ export default function BenchmarkChart({
     }));
 
     const stats = hasBenchmark
-      ? alphaBeta(portfolioDailyReturns(points), benchmarkDailyReturns(aligned))
+      ? alphaBeta(portfolioDailyReturns(points), priceReturns(aligned))
       : null;
 
-    return { chartData, stats, hasBenchmark };
+    // The plain-language answer, derived from the same two series the chart
+    // draws, so the explanation below can never contradict the lines above it.
+    const verdict = stats ? benchmarkVerdict(portfolioIndex, benchmarkIndex, stats.beta) : null;
+
+    return { chartData, stats, verdict, hasBenchmark };
   }, [points, series, selected]);
 
   if (points.length < 2) return null;
@@ -223,6 +226,15 @@ export default function BenchmarkChart({
             title="Overlapping trading days actually used in the regression."
           />
         </div>
+      )}
+
+      {model?.stats && model.verdict && (
+        <BenchmarkExplainer
+          verdict={model.verdict}
+          stats={model.stats}
+          benchmarkLabel={benchmarkLabel}
+          windowLabel={windowLabel}
+        />
       )}
 
       <div className="h-64 w-full">

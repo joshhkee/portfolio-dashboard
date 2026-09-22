@@ -76,34 +76,34 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 6 | Per-stakeholder performance view | **DONE** |
 | 7 | Sparklines + command palette | **DONE** |
 | 8 | Notes redesign (auto factual half + structured context) | TODO — owner picks an option first |
-| 9 | Concentration & risk analytics (HHI, Sharpe, correlation) | TODO — **start here** (first unblocked part) |
-| 10 | Exposure analytics (sector tags, currency + FX attribution) | TODO |
+| 9 | Concentration & risk analytics (HHI, Sharpe, correlation, rolling 1Y) | **DONE** |
+| 10 | Exposure analytics (sector tags, currency + FX attribution) | TODO — **start here**; needs a Prisma migration |
 | 11 | Contribution attribution (per position, per period) | TODO |
 | 12 | Responsive & loading polish (mobile tables, skeletons) | TODO |
 
 ---
 
-## Resume checkpoint — 2026-09-22 (end of session)
+## Resume checkpoint — 2026-09-22 (after Part 9)
 
-**State:** parts 1–4 finished and verified. Next action: **Part 5 (benchmark
-comparison + alpha/beta)**.
+**State:** parts 1–7 and 9 finished and verified. Next action: **Part 10
+(exposure analytics)** — the first remaining unblocked part, but it needs a
+Prisma migration for the sector tag, so give it its own session.
 
-**Git:** parts 1–4 are committed, pushed, and **merged into `main`** through
-pull requests #3, #4 and #5 (merge commits `6a357af`, `c166bf0`, `c6071c5`).
-The branch head `5ccabf0` is an ancestor of `origin/main`, so the branch was
-fully integrated; it has since been fast-forwarded to `origin/main` and the
-backlog below was added on top. **A pull request is now opened for every
-checkpoint** (see "Pull-request workflow"). Part 5 starts from `main`'s tip, so
-begin by checking the PR is still mergeable before writing code.
+**Git:** parts 1–4 merged into `main` through pull requests #3, #4 and #5
+(`6a357af`, `c166bf0`, `c6071c5`); parts 5–7 through #6; the Ctrl+K /
+benchmark-explainer notes plus the parts 8–12 backlog through #7. Part 9 is
+committed on top. **One pull request per checkpoint** (see "Pull-request
+workflow") — never force-push, and re-read the PR's `mergeable_state` after
+every push, because GitHub computes it asynchronously and it reads `unstable`
+while CI runs.
 
-**Verification on the current tree (all four ran green at the end of this
-session):**
+**Verification on the current tree (all green at the end of this session):**
 
 ```
-npm test                            -> 6 files, 72 tests passed
+npm test                            -> 11 files, 159 tests passed
 npx tsc --noEmit                    -> clean
 npx eslint app components lib tests -> clean
-npm run build                      -> succeeded (all routes compiled)
+npx next build                      -> succeeded (see the build note below)
 ```
 
 **Live preview:** a dev server runs from this worktree, but **Next picks the
@@ -121,15 +121,31 @@ procedures are in `.freebuff/run.md`.
    from the main checkout) and that `DATABASE_URL` is quoted **around** the
    whole URL including any query string — see the env note below, this cost
    real debugging time.
-2. `npm run dev` and confirm the home page renders (TWR, drawdown chart, and
-   the calendar-year table should all show).
-3. Read the Part 5 section, follow its acceptance criteria, then run the
+2. `npm run dev` and confirm the home page renders: hero, value/drawdown
+   charts, benchmark panel, calendar-year table and the **risk & concentration
+   panel** (HHI 14, volatility 14.1%, Sharpe 0.40, rolling-1Y line, an 18×18
+   correlation matrix once the client fetch returns).
+3. Read the Part 10 section, follow its acceptance criteria, then run the
    checkpoint protocol.
 
-**Open items deliberately not done:** part 3b's six-colour multi-series palette
-(unused until Part 5 adds a second chart series — add it as part of Part 5).
-Parts 8–12 are the feature/design backlog captured from the research pass on
-this date; none of them are started, and Part 8 needs an owner decision first.
+**Build note:** `npm run build` runs `prisma generate` first, which fails with
+`EPERM` while a dev server holds Prisma's engine DLL. `npx next build` is the
+same build minus that step (the dev server has already generated the client).
+Both rewrite the tracked `next-env.d.ts` between dev and prod paths — revert that
+churn so the tree stays clean.
+
+**Open items deliberately not done:** Part 8 (notes redesign) is still blocked on
+an owner decision — see that section. Part 3b's six-colour `data` palette is
+shipped and in use (benchmark chart, stakeholder chart, correlation heatmap);
+the **bars** stay gold by the owner's explicit choice.
+
+**Known data-quality issue — read before touching volatility or TWR:** the
+`DailySnapshot` for **2025-03-05** is ~S$1,150 low, and that one day carries
+**32.4% of the portfolio's total variance** (volatility 14.11% vs 11.61% without
+it, Sharpe 0.38 vs 0.47, annualized TWR 9.19% vs 16.82%). It is genuinely in the
+stored data, not a clamp or an arithmetic bug, so nothing filters it — the risk
+panel reports it rather than dropping it. See the Part 9 section for the full
+measurement.
 
 ---
 
@@ -384,6 +400,24 @@ What was actually done:
 interesting part: this portfolio moves roughly a third as much as the S&P,
 which is what a large cash balance plus SG/HK holdings should look like.
 
+**The verdict genuinely splits both ways, which is why the explainer reports
+two answers:** the portfolio returned **+14.7%** contribution-neutral against
+the S&P's **+30.4%** (so it LAGGED the index by 15.7 points), while beta 0.35
+means the index's move alone predicted only **+10.7%** — so **+4.0 points came
+from something other than market exposure**, in the portfolio's favour. "Behind
+the index, ahead of its risk" is the honest reading, and a single flag would
+have hidden it.
+
+**Owner follow-up (2026-09-22):** added `components/BenchmarkExplainer.tsx` — a
+collapsible write-up under the statistics, answering "am I outperforming?" in
+plain words. It is a disclosure with `aria-expanded`, not a hover tooltip
+(unreachable on touch, impossible to re-read). `benchmarkVerdict()` in
+`lib/benchmarks.ts` derives it from the same two series the chart draws, and
+deliberately reports TWO answers, because they can disagree:
+`outperformedBenchmark` (cumulative vs the index) and `beatBetaExpectation`
+(versus what the fitted beta predicts). On this portfolio they DO disagree —
+see the Part 5 measured note below.
+
 **Acceptance met:** both series rebased to 100 at range start (verified in the
 rendered page), alpha/beta labelled with their window, and the extra Yahoo
 calls are bounded to three per 15 minutes.
@@ -470,9 +504,14 @@ What was actually done:
   `role=listbox`/`option` with `aria-activedescendant`. Tickers come from
   **`app/api/palette/route.ts`**, which is DB-only (names from the `TickerMeta`
   cache, no Yahoo), fetched once on first open and memoized in state.
-- **Discoverability:** `components/Nav.tsx` gained a small ⌘K chip that fires
-  `OPEN_PALETTE_EVENT` — a custom event instead of shared React state, so the
-  trigger and the palette need no context provider or prop drilling.
+- **Discoverability:** `components/Nav.tsx` gained a small shortcut chip that
+  fires `OPEN_PALETTE_EVENT` — a custom event instead of shared React state, so
+  the trigger and the palette need no context provider or prop drilling. The
+  label is platform-aware (owner is on Windows, asked for Ctrl+K): it renders
+  "Ctrl K" and switches to "⌘K" after mount on a Mac. Defaulting to the
+  non-Mac label server-side is deliberate — `navigator` doesn't exist during
+  SSR, and a stable default keeps the server HTML and first client render
+  identical.
 - **Real "jump to a ticker":** the palette links to
   `/holdings/<region>?ticker=…`, and `PositionsTable` reads that param to
   highlight the row and scroll it into view (honouring reduced-motion for the
@@ -543,7 +582,79 @@ context remain byte-identical unless option (b) was explicitly approved.
 
 ---
 
-## Part 9 — Concentration & risk analytics
+## Part 9 — Concentration & risk analytics — DONE
+
+A risk & concentration panel on the home page: how few names the money sits in,
+what the volatility and risk-adjusted return have been, how the holdings move
+together, and how the trailing year has changed over time.
+
+What was actually done:
+
+- **`lib/risk.ts`** (new, pure): `concentration` (largest weight, top-5 weight,
+  HHI, `effectiveN = 1/HHI`, banded low/moderate/high at the conventional
+  0.15/0.25 cut-offs), `annualizedVolatility`, `sharpeRatio`, `largestMove`,
+  `correlationMatrix` and `rollingAnnualizedReturn`. No I/O, so each definition
+  has one implementation and is testable against known arithmetic.
+- **`lib/performance.ts`** now owns the return primitives:
+  `portfolioDailyReturns` and `priceReturns` (was `benchmarkDailyReturns`) moved
+  there from `lib/benchmarks.ts`, and `alignCloses` moved to `lib/prices.ts` —
+  the module that owns `HistoricalCloses`. That keeps the dependency arrows
+  pointing out of the risk module rather than through the benchmark one.
+- **`lib/concurrency.ts`** (new): `mapWithConcurrency` moved out of
+  `lib/sparklines.ts` so the sparkline fetcher and the correlation fetcher share
+  one implementation instead of importing each other's module.
+- **`components/RiskPanel.tsx`**: concentration bars (gold, per the owner's
+  choice) + Positions/Largest/Top 5/Effective N; volatility, Sharpe and
+  annualized TWR; the rolling-1Y line; and the largest single day with its share
+  of variance. Stats arrive as props computed on the server, so the numbers are
+  in the server HTML and can be checked without a browser.
+- **`components/CorrelationHeatmap.tsx`** + **`app/api/correlation/route.ts`**:
+  an 18×18 matrix fetched on the client (18 symbols is real upstream work, and
+  the panel sits far enough down the page that blocking the overview on it would
+  be the wrong trade). The route derives the ticker list from the ledger itself
+  via `computeLedger` — there is no stored position table to read, and there
+  should not be. Pairwise correlation uses **pairwise-complete** overlapping days
+  after aligning on the union of dates, because US/SG/HK holidays differ; a flat
+  series reports `null` rather than 0 ("no variance" is not "uncorrelated").
+
+**Deliberate deviations from the original scope, and why:**
+
+- The rolling window is its **own chart inside the panel**, not a second series
+  on the value chart. The value chart's reading is "what is the portfolio
+  worth"; a rolling return has a different unit and axis, and overlaying it made
+  both harder to read.
+- Everything is computed over **all history**, not the chart range picker.
+  Volatility and Sharpe are estimates; a one-month window makes them swing
+  without meaning anything. The rolling line is what shows movement over time
+  while keeping the estimate's sample long, and the panel says so in its header.
+- Volatility annualizes by **sqrt(365)**, not sqrt(252): `DailySnapshot` rows are
+  calendar-daily while markets trade ~252 days a year, so weekend and holiday
+  observations are genuine zeros in the series. sqrt(365) is exactly what undoes
+  that dilution; measured on real data, 403 of 569 days have a non-zero return,
+  i.e. the expected 5/7. The basis is a documented parameter.
+- Risk-free rate is a **stated constant** (3.5%) shown beside the Sharpe ratio,
+  not a fetched rate — the number is an assumption and is labelled as one.
+
+**Verified on the real ledger** (02 Mar 2025 – 22 Sep 2026, 570 snapshots): HHI
+14 of 100 (diversified), largest 30.8% (D05), top 5 67.5%, effective N 7.0,
+volatility 14.1%, Sharpe 0.40, annualized TWR +9.19%, rolling 1Y now +18.2%
+(range 0.0% to 24.1%), 18×18 correlation over 131 trading days. Sharpe
+cross-checks against the hero: `0.40 × 0.141 + 0.035 = 0.0914`, i.e. the +9.19%
+TWR. `/api/correlation` without the session cookie returns 307, so the new route
+is behind the same middleware as everything else.
+
+**Data-quality finding — not a code bug, and deliberately not filtered:** the
+`DailySnapshot` for **2025-03-05** is ~S$1,150 low (10,835.78 → 9,753.82, cost
+basis unchanged, three days after inception). That single day carries **32.4% of
+the portfolio's total variance**: volatility 14.11% vs 11.61% without it, Sharpe
+0.38 vs 0.47, annualized TWR 9.19% vs 16.82%. It is really in the stored data
+(not the −100% clamp in `portfolioDailyReturns`), and the app's headline TWR
+already includes it, so the panel **reports** it — largest single day plus its
+variance share — instead of quietly dropping outliers, which would make
+volatility inconsistent with TWR and hide the error. Fixing it means correcting
+the stored snapshot.
+
+Original scope and acceptance criteria (kept for reference):
 
 Pure arithmetic on data the app already loads; no new provider. Add a
 risk/composition panel on the home page.
