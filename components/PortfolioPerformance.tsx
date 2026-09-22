@@ -20,6 +20,7 @@ export default function PortfolioPerformance({
   data,
   benchmarks = [],
   benchmarkSeries = {},
+  charts = "all",
 }: {
   data: PerfPoint[];
   /** Indices available to compare against, already fetched server-side. */
@@ -27,6 +28,17 @@ export default function PortfolioPerformance({
   /** Benchmark closes aligned 1:1 with `data` (see alignCloses), so the
    * window slice below lines up with the portfolio series index for index. */
   benchmarkSeries?: Record<string, (number | null)[]>;
+  /**
+   * Which charts this instance owns.
+   *
+   * `"value"` renders the portfolio line alone, for the dashboard, where the
+   * job is "what is it worth and which way is it going" and one chart is the
+   * whole budget. `"all"` is the performance page's version, where the drawdown
+   * and the index comparison are the subject rather than a footnote. Same
+   * component, same range state, same data — so the two pages cannot disagree
+   * about what a window means.
+   */
+  charts?: "all" | "value";
 }) {
   const [range, setRange] = useState<RangeKey>("ALL");
   const filtered = filterByRange(data, range);
@@ -59,13 +71,17 @@ export default function PortfolioPerformance({
           only gave the eye two things to watch.) */}
       <div className="flex flex-col gap-4">
         <PortfolioValueChart data={filtered} />
-        <DrawdownChart data={filtered} />
-        {benchmarks.length > 0 && (
-          <BenchmarkChart
-            points={filtered}
-            benchmarks={benchmarks}
-            series={filteredBenchmarks}
-          />
+        {charts === "all" && (
+          <>
+            <DrawdownChart data={filtered} />
+            {benchmarks.length > 0 && (
+              <BenchmarkChart
+                points={filtered}
+                benchmarks={benchmarks}
+                series={filteredBenchmarks}
+              />
+            )}
+          </>
         )}
       </div>
     </div>

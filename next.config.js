@@ -17,12 +17,16 @@ const nextConfig = {
   reactStrictMode: true,
   async redirects() {
     return [
+      // Cash is money, not a position — and this has to be listed BEFORE the
+      // /holdings/:path* rule below, because that rule would otherwise send
+      // /holdings/cash to a /positions/cash that does not exist. Order matters:
+      // Next matches these top to bottom.
+      { source: "/holdings/cash", destination: "/money/cash", permanent: false },
+      { source: "/cash", destination: "/money/cash", permanent: false },
       // Holdings -> Positions. The bare path opens on the US tab, exactly as
       // the old index page did.
       { source: "/holdings", destination: "/positions/us", permanent: false },
       { source: "/holdings/:path*", destination: "/positions/:path*", permanent: false },
-      // Cash is money, not a position.
-      { source: "/cash", destination: "/money/cash", permanent: false },
       // The two lenses, which used to be top-level peers of the objects they
       // are a view of.
       { source: "/exposure", destination: "/positions/exposure", permanent: false },

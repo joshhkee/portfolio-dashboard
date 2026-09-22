@@ -86,28 +86,43 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 13 | Range-selector transitions + load-time optimisation | **DONE** |
 | 14a | Deposit schedule: `Contribution.paidOn` + a quiet late flag | **DONE** |
 | 14b | Currency reporting: price-only P&L, realized FX, foreign cash | **REMOVAL DONE** (purchase-date FX split deleted); the two replacement panels are still TODO — see the Part 14b section |
+| 15 | IA: five objects, lenses nested, old URLs redirected | **DONE** |
+| 16 | Accounts: username + password, per-account `lastSeenAt` | **DONE** — no account created yet; run `npm run user:add` (the shared-password gate still works) |
+| 17 | Today: hero + since-last-visit, needs-attention, schedule line, one chart, largest positions | **DONE** |
+| 18 | Activity: the four ledgers merged into one filterable timeline | TODO — proposed, not built |
 
 ---
 
-## Resume checkpoint — 2026-09-22 (after Part 14b)
+## Resume checkpoint — 2026-09-22 (after Part 17)
 
-**State:** parts 1–7 and 9–14a finished and verified, plus the **removal half of
-14b** — the `/exposure` purchase-date FX split is gone, along with the machinery
-and tests behind it, and every SGD figure in the app now carries an `S$` instead
-of a bare `$`. The four smaller fixes from the same round are in too: the
-attribution table's pinned Instrument column no longer scrolls away, its Total
-column carries the symbol, Keng's S$3,900 top-up is attributed to April 2025,
-and the late-deposit flag is a dim clock glyph whose tooltip names the month and
-the date it landed.
+**State:** parts 1–7 and 9–17 finished and verified. This round: the **14b
+removal** (the `/exposure` purchase-date FX split and its machinery are gone),
+consistent `S$` labelling, the **five-object IA** with the old URLs redirected,
+**accounts** (`npm run user:add`; the shared gate still works and no account has
+been created yet), and the **dashboard rebuilt as Today** — 12 panels to 4,
+4 charts to 1, 448 rendered figures to 31.
 
-**Next action:** whichever of these the owner picks —
-**14b's two remaining panels** (realized FX on the 25 conversions; unrealized FX
-on the foreign cash), **Part 8** (notes redesign, still blocked on an owner
-decision), or part 15 onward from the backlog. Part 12's responsive work and
-part 13's load-time fix are both done and merged into this branch's open PR.
-(This heading said "after Part 11" until 14a landed, and "after Part 14a" until
-the 14b removal landed; the body below is kept because its environment notes and
-data-quality findings are still current.)
+**Next action:** whichever the owner picks —
+**Part 18 the `/activity` ledger**, **14b's two remaining panels** (realized FX
+on the 25 conversions; unrealized FX on the foreign cash), the **monolith split**
+(`app/page.tsx` and `lib/portfolio-engine.ts` are both large enough that a
+maintainer would flag them), or **Part 8** (notes redesign, still blocked on an
+owner decision).
+
+**Environment notes that are easy to lose:**
+- The database is SHARED with the main checkout, so a migration or an account
+  created here is already live for the deployed app.
+- `AUTH_SECRET` is optional. With it unset the signing secret falls back to
+  `SITE_PASSWORD` (so changing the shared password signs every account out);
+  set it before rotating the shared password if that matters.
+- `npm run user:add` can run with the dev server up — it uses its own Prisma
+  client. Only `npm run build` collides with a running server (the Windows
+  Prisma engine DLL lock documented in the run doc).
+- `npx tsc --noEmit` reads generated route types from `.next`, so it reports
+  phantom errors about deleted routes until `.next` is rebuilt after a move.
+(This heading has tracked each batch — "after Part 11", "after Part 14a", "after
+Part 14b" — and the body below is kept because its data-quality findings are
+still current.)
 
 **Part 10 needs no further action on the database:** migration
 `20260922140000_add_ticker_sector` is applied and the column exists. No sector
@@ -130,14 +145,15 @@ while CI runs.
 **Verification on the current tree (all green at the end of this session):**
 
 ```
-npm test                                     -> 14 files, 216 tests passed
+npm test                                     -> 15 files, 229 tests passed
 npx tsc --noEmit                             -> clean
-npx eslint app components lib tests          -> clean
+npx eslint app components lib tests scripts  -> clean
 npm run build                                -> succeeded (see the build note below)
 ```
 
-(The count fell 230 -> 216 because the 14 FX-split tests were deleted with the
-code they covered — not because tests stopped running.)
+(The count went 230 -> 216 when the 14 FX-split tests left with their code, then
+216 -> 229 with Part 16's 13 auth tests. Note `scripts/` is now in the eslint
+target — the create-user script is app code and should be linted like the rest.)
 
 **Live preview:** a dev server runs from this worktree, but **Next picks the
 port** — 3000 when it is free, otherwise a random high one (it landed on 59495
@@ -1288,3 +1304,178 @@ owner has not asked for either panel):
 symbol removed above is referenced anywhere (checked with a repo-wide grep),
 `tsc` / `eslint` / `npm test` (216) / `npm run build` all pass, and `/exposure`
 still renders its two donuts with the same totals as before the removal.
+
+---
+
+## Part 15 — the five objects (DONE)
+
+**The diagnosis, measured.** The nav was eight entries in the order the app was
+built (Home, Outlay, Transactions, Holdings, Exposure, Attribution, Watchlist,
+Completed Trades) — a list of *reports*, four of which were views of the same
+positions and the same money, each holding a top-level slot away from the object
+it described. The dashboard had grown to **12 panels, 3.3 screens and 448
+rendered numeric values**, and only 4 of its 12 panels carried a heading, so its
+structure was invisible.
+
+**The rule now:** each nav entry is something the owner HAS.
+
+| Object | Tabs / lenses |
+|---|---|
+| Today `/` | the dashboard, rebuilt in Part 17 |
+| Positions `/positions` | US · SG · HK · **Exposure** · Trades |
+| Performance `/performance` | Returns & risk · **Attribution** · Realized |
+| Money `/money` | Deposits · Cash |
+| Watchlist `/watchlist` | unchanged |
+
+**Moves were `git mv`, not rewrites**, so history follows the files. Cash moved
+from Holdings to Money: it is not a position and never fed a holdings figure,
+and every page that had to say "holdings only, cash excluded" was working around
+where it used to live.
+
+**Redirection lives in `next.config.js`, not in stub pages.** Only the config
+can forward a path SUFFIX and the query string: `/holdings/us?ticker=D05` has to
+arrive at `/positions/us?ticker=D05`, which a redirect page cannot do without
+hand-parsing the query. Verified with real requests (307s):
+
+```
+/holdings              -> /positions/us
+/holdings/us?ticker=X  -> /positions/us?ticker=X
+/holdings/cash         -> /money/cash
+/exposure              -> /positions/exposure
+/attribution           -> /performance/attribution
+/outlay                -> /money
+/transactions?add=1    -> /positions/trades?add=1
+/completed-trades      -> /performance/realized
+```
+
+**Gotcha worth keeping:** `/holdings/cash` had to be listed BEFORE
+`/holdings/:path*`, because Next matches these top to bottom and the wildcard
+would otherwise send cash to a `/positions/cash` that does not exist. That bug
+was live for one build and caught by requesting every old path, not by reading
+the config.
+
+**One `SectionTabs` component** replaces the sub-nav that used to exist only
+inside Holdings, and it marks active by the LONGEST matching href: with nesting,
+the naive prefix rule lights up the section's own tab while the reader is inside
+a lens (`/performance/attribution` matches both `/performance` and
+`/performance/attribution`).
+
+---
+
+## Part 16 — accounts (DONE)
+
+**Why.** One shared password answers "may this person in" and nothing else — it
+carries no identity, so anything that needs to remember something PER PERSON had
+nowhere to keep it. The first consumer is the dashboard's "since you last
+looked" line.
+
+**Schema:** `User { id, username @unique, passwordHash, createdAt, lastSeenAt }`,
+migration `20260922210000_add_users`, applied with `npx prisma migrate deploy`.
+`username` is stored already normalised (lowercased, trimmed) so one person
+cannot end up with two accounts by capitalising their own name differently.
+
+**Two kinds of session, one cookie**, and the gate still works:
+
+| | shape | identity |
+|---|---|---|
+| gate | `sha256(SITE_PASSWORD)` | none — everyone is the same visitor |
+| account | `username.issuedAt.HMAC-style hash` | who is signed in |
+
+Middleware accepts either, so adding accounts could never lock the owner out of
+their own dashboard, and with zero accounts created the app behaves exactly as
+before. Signing secret is `AUTH_SECRET ?? SITE_PASSWORD`; with neither set the
+app reports "protection isn't set up" rather than locking anyone out, as it
+always has.
+
+**The edge/server split is load-bearing:** `middleware.ts` runs on the Edge
+runtime, which has no `node:crypto`. So token parsing (WebCrypto SHA-256) lives
+in `lib/auth.ts`, password hashing (scrypt, per-user salt, parameters stored IN
+the hash so the cost can be raised later without invalidating anything) lives in
+`lib/password.ts`, and resolving a token to a person (`lib/session.ts`, which
+needs Prisma) is server-only. 13 tests cover normalisation, hashing and token
+verification, including the two forgery shapes that matter: a valid signature
+with a swapped username, and a session signed by another deployment's secret.
+
+**Creating an account:** `npm run user:add` (or `npm run user:add -- keng`),
+which prompts for a password with the terminal's echo OFF and never prints it,
+never takes it as an argument (arguments land in shell history and the process
+list) and stores only the hash.
+
+**Verified end to end** with a temporary account, created and then deleted,
+whose password was generated randomly and written only to a temp file outside
+the repo:
+
+- `POST /api/login {username, password}` -> **200 `{"ok":true,"username":"…"}`**
+  with a session cookie set; a wrong password -> **401**.
+- `GET /` with that cookie -> the dashboard renders **"signed in as …"**.
+- `lastSeenAt` is seeded by sign-in; with it forced back two days, the dashboard
+  read **"since your last visit on 20 Sep 26"** and the stored value then moved
+  to ~now, i.e. the throttled touch fired exactly once.
+- After deleting the account, the visit degrades to the no-identity fallback
+  rather than erroring.
+
+**Honest gap:** the interactive prompt itself (raw-mode keystroke handling) is
+the one part a non-interactive shell cannot drive, so it is covered by reading
+it rather than by running it. Everything it calls is tested.
+
+**Deliberately NOT built:** per-account scoping. Every account sees the whole
+dashboard — the owner chose identity, not access control — so no page gained a
+permission check, and `User` carries no link to a `Contributor`.
+
+---
+
+## Part 17 — Today (DONE)
+
+The dashboard is now built around three questions — *what is it worth, am I on
+schedule, does anything need me* — and nothing else.
+
+| | before | after |
+|---|---|---|
+| panels | 12 | **4** |
+| charts | 4 | **1** |
+| page height | 3.3 screens | **2.2 screens** |
+| rendered numeric values | 448 | **31** |
+
+**The five blocks**, top to bottom:
+
+1. **Hero** — total value, then the change since this person was last here.
+2. **Needs attention** — real data, each item a link to the page that fixes it:
+   an overdue month, months that arrived late, untagged sectors, positions with
+   no live quote, cash idle for 45+ days. An empty list is a real state and
+   says so ("Nothing needs you today").
+3. **The deposit schedule in one line** — what arrived, when the next month is
+   due, how many months were late. The late flag stays quiet, per the owner.
+4. **One chart** — the value line with the contributed reference, via
+   `PortfolioPerformance charts="value"`; the drawdown and index comparison are
+   the performance page's subject, not this page's.
+5. **Largest positions** — the top five with sparklines, each row a link into
+   that region's table with the ticker preselected.
+
+**The "since you last looked" baseline is a STORED daily value, not a live one**,
+because a live value from a previous visit was never recorded and cannot be
+invented. So the comparison is deliberately day-precise — "since your last visit
+on 20 Sep" — and without an account (the gate carries no identity) it falls back
+to the previous recorded day and says so. **New money is named separately**: when
+deposits landed since the baseline, the caption says how much of the change is
+simply contributions, so a deposit month cannot read as a good month.
+
+**A real contradiction fixed on the way:** the value chart's header advertised
+"+506.8% since 02 Mar" — the change in VALUE, which is almost entirely deposits —
+sitting two hundred pixels under a hero saying "+21.5% since inception". Same
+number, two meanings. The header now names the deposits inside the window and
+what is left is the market's part.
+
+**Everything that left this page still exists**, on the page that owns it: the
+statistics, risk panel, correlation matrix and calendar-year table to
+`/performance`, attribution to `/performance/attribution`, the stakeholder split
+and deposit schedule to `/money`, the full ledger to `/positions/trades`. Nothing
+was deleted, and all of it is in the command palette.
+
+**Acceptance:** `npm test` 15 files / 229 tests, `tsc` clean, `eslint` clean,
+`npm run build` succeeded, every old URL redirects (checked with real requests),
+and the four dashboard blocks were read back from the running page rather than
+assumed.
+
+**Still open:** Part 18, the `/activity` merged ledger (specified, not built).
+Until it exists, the newest entries live on `/positions/trades`, which is where
+the old "Recent activity" panel pointed anyway.
