@@ -134,15 +134,13 @@ export default function PortfolioValueChart({
               figure it reads as one — a +506% next to "+21.5% since
               inception" is the same number meaning two different things. So
               the deposits inside the window are named, and what is left is the
-              market's part. */}
+              market's part. Stated in as few words as the fact allows: this
+              line is read once, next to the figure it qualifies. */}
           {windowDeposits > 1 && (
             <p className="text-xs text-ink-500">
-              Value change, not return — {compactSgd(windowDeposits)} of it is deposits paid in over
-              this window
+              Value change, not return — {compactSgd(windowDeposits)} deposits in
               {Math.abs(windowMarket) > 1
-                ? `, and ${windowMarket < 0 ? "−" : ""}${compactSgd(
-                    Math.abs(windowMarket)
-                  )} is the market`
+                ? `, ${windowMarket < 0 ? "−" : ""}${compactSgd(Math.abs(windowMarket))} from the market`
                 : ""}
               .
             </p>

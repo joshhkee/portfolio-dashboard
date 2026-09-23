@@ -399,7 +399,7 @@ function TradeSection({
                       half that truncates, because the arithmetic is the half
                       that has to survive a narrow cell. */}
                   <td className="max-w-[16rem] truncate text-left text-ink-500" title={cell.text}>
-                    <LedgerLine row={row} symbol={symbol} note={cell.appended} />
+                    <LedgerLine parts={cell.derived.parts} note={cell.appended} />
                   </td>
                 </tr>
               );

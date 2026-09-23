@@ -124,8 +124,11 @@ export default async function TodayPage() {
   // looked at.
   await recordTodaySnapshot();
 
-  // Admin work surfaces here, because this is the page the owner opens first:
-  // an "Add account" button, and a line when somebody is waiting to be let in.
+  // Admin work surfaces here as a LINE when somebody is waiting to be let in.
+  // There used to be an "Add account" button beside the header actions as well;
+  // it is gone from this page because adding an account is not a daily act —
+  // the accounts page and the nav chip both reach it, and a one-snapshot home
+  // screen should carry only what is used on a normal visit.
   //
   // The role comes from the visit ALREADY resolved above rather than from a
   // second `accountAdminContext()` call, which would be another round trip to a
@@ -339,12 +342,6 @@ export default async function TodayPage() {
             <Plus size={14} strokeWidth={2.5} />
             Record a deposit
           </Link>
-          {canManageAccounts && (
-            <Link href="/accounts" className="btn-ghost flex items-center gap-1.5">
-              <UserPlus size={14} strokeWidth={2.5} />
-              Add account
-            </Link>
-          )}
         </div>
       </div>
 

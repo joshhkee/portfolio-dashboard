@@ -108,10 +108,48 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 30 | Accounts: roles, a request-and-approve queue with josh as admin, and "Add account" on Today | **DONE** |
 | 31 | Login asks for an account (three named ways in, the shared password while you wait); the ledger is renamed Transactions and every P/L figure in the history modal sits under its own label | **DONE** |
 | 32 | Notes become structured: the derived facts first (`Opened` / `Added · avg ↑↓` / `Partial sell (n of m)` / `Closed`), the owner's note appended after them instead of replacing them, and a wider Note column | **DONE** |
+| 33 | A DCA buy reads `DCA (month) · avg ↑` (a checkbox in the log form writes the marker); a search chip you can find; no Add-account button on Today; the watchlist explainer wraps in 2×2; the text pass on Returns & risk | **DONE** |
 
 ---
 
-## Resume checkpoint — 2026-09-23 (after Part 32)
+## Resume checkpoint — 2026-09-23 (after Part 33)
+
+**State:** parts 1–17, 19–30 and 33 are done. **Part 33** is six fixes the owner
+sent as one list, and four of them change what a **word** means rather than what
+a screen does:
+
+- **A DCA buy now reads `DCA (May 2026) · avg ↑ US$153.80`**, not `Added · avg ↑
+  … · DCA · May 2026`. That was the open question at the end of Part 32 ("a DCA
+  row that opens a position reads `Opened · DCA · May 2026`") and the owner
+  answered it: the marker replaces the action word, the month goes in
+  parentheses, no `Added`. The month is the one the note names, or the row's own
+  when it names none — derived, so editing a date cannot leave a stale month.
+- **The log form has a `DCA buy` checkbox**, shown only for a Buy, and it is the
+  whole storage cost of the feature: it writes `DCA` (or `DCA · <your words>`)
+  into the note, because `DCA` is still a **text convention**, not a column. That
+  remains the first place a `kind` field would pay — see the gap below.
+- **The command palette lost its gold top edge** (it read as a warning stripe,
+  not emphasis) and the nav's search affordance became findable: a filled chip
+  reading `Search… Ctrl K`, 14px text in a 34px box, measured 146×34 where it
+  was ~85×26 at 12px.
+- **The watchlist's "How to read these" was a real CSS bug, not a layout taste.**
+  `.ledger-table td`'s `nowrap` **outranked** the `whitespace-normal` utility on
+  the expanded cell — a class *and* an element in the selector beats a plain
+  class inside the same layer — so four paragraphs laid themselves out on **one
+  2559px line inside a 1215px cell**. Fixed with `.ledger-table td.cell-wrap` in
+  that same layer (the `.cell-pin` pattern), and the four measures are now a 2×2
+  grid: columns 575.7/575.7px, `scrollWidth == clientWidth`, 0 document overflow.
+- **`Add account` is off Today** (it lives on `/accounts` and behind the nav's
+  account chip), the username example is `josh`, and **the text on Returns & risk
+  was cut back** — the full before/after table is in the Part 33 section.
+
+**Known gaps carried forward:** the row editor marks a DCA only by editing the
+note text (there is no checkbox there — the owner asked for the log form); four
+long notes still truncate in the ledger; `DCA` is still a text convention.
+
+---
+
+## Resume checkpoint — 2026-09-23 (after Part 32) — kept for reference
 
 **State:** parts 1–17 and 19–30 are done. **Part 31** closed the loop Part 30
 opened: an account could be *requested* only from inside the app, which meant
@@ -3036,3 +3074,140 @@ that is a one-line rule in `noteCell` and a one-row decision.
   recognised by its note text, and a typo in that text is a mis-classification.
   The owner asked about a `kind` column during the re-prompt and the answer was
   "not yet"; this is the first place it would pay.
+
+---
+
+## Part 33 — a DCA says DCA, a search box you can find, and the text pass on
+Returns & risk (DONE)
+
+Six fixes from the owner in one message. They divide into one behavioural change
+(DCA), three UI corrections, and two passes over text.
+
+### 1. A DCA buy says DCA — and the marker is still just a word
+
+The owner: *"for DCA buys, the notes should read: DCA (Sept 2026) · avg up
+US$xx. no need for 'added'"*, and separately: *"under log a transaction, add the
+checkbox option for DCA buy, to recognise when to use 'DCA' instead of
+'added'"*.
+
+So the action word itself changes, which is the one thing Part 32 left open. The
+five real DCA rows already carried `DCA · May 2026` (the notes cleanup put them
+there), and the ledger now renders them as facts:
+
+| row | reads |
+|---|---|
+| DCA that added to a position | `DCA (Sep 2026) · avg ↑ US$157.01` |
+| DCA that opened it | `DCA (May 2026)` — no average, because the Price column is the average |
+| DCA with something written after it | `DCA (Sep 2026) · avg ↓ US$151.52 · temp verify` |
+
+**The month is the note's if it names one, otherwise the row's own** —
+`formatMonthYear(row.date)`, so a DCA logged with the checkbox and nothing typed
+still reads `DCA (Sep 2026)`, and editing the date later cannot leave a stale
+month behind. That is the same "derive, never store" rule the rest of the column
+follows.
+
+**The storage cost is zero.** The checkbox composes the note the form already
+sends — `DCA` or `DCA · <whatever you typed>` — and `dcaFromNote()` recognises a
+note whose **first word** is the marker. Three consequences are deliberate:
+
+- A note that only *mentions* a DCA (`VT - Monthly DCA ($865)`) is not a marker.
+  The marker is leading, because that is what the form writes and what the
+  cleanup left in storage; reading it anywhere in the note would eat sentences
+  the owner wrote by hand.
+- A note with non-month words after the marker keeps them:
+  `DCA · Brought forward` → `DCA (Sep 2026) · avg ↑ … · Brought forward`.
+  Dropping them would be data loss, and `noteCell`'s asymmetry is the same one
+  Part 25 established.
+- A marker on a **Sale** is ignored, and the form's checkbox is hidden on a sale.
+  A scheduled-buy marker on a sale is a note about something else.
+
+### 2. Three UI corrections
+
+- **The command palette lost its gold top edge.** Two classes
+  (`border-t-2 border-t-accent`); the owner's word was "jarring", and the comment
+  now records why it is gone rather than leaving the next reader to re-add it.
+- **The nav's search affordance is findable.** It was a 12px ghost button reading
+  `⌘K`/`Ctrl K` with a 13px icon — present, but easy to read as chrome. It is now
+  a filled chip at the bar's own text size (14px) reading **`Search… Ctrl K`**,
+  measured **146×34** against roughly **85×26**. The label drops out below `sm`,
+  where the icon still carries it.
+- **`Add account` left Today.** The button was admin-only but on the page whose
+  rule is one snapshot, and adding an account is not a daily act — `/accounts`
+  (reachable from the nav's account chip) still owns it, and the attention line
+  for a **waiting** request stays, because that one is time-sensitive. The
+  username example is now `josh`.
+
+### 3. The watchlist explainer was a CSS bug, not a layout opinion
+
+The owner: *"'how to read these' expanded dialog box is broken, text overflows on
+the right side. try to make it a in a grid shape (2x2)"*.
+
+Both halves were real, and the first was worse than it looked. The expanded cell
+carried `whitespace-normal`, with a comment claiming it reset the table's nowrap
+— but `.ledger-table td` sets `whitespace-nowrap` in the **same `@layer
+utilities`**, and its selector (`.ledger-table` + `td` = 0-1-1) outranks the
+plain utility class (0-1-0). Measured before the fix: `white-space: nowrap` on
+the cell, four `dd`s of 1183px each with `scrollWidth` 1954–2543 — **the prose
+was one line 2559px wide inside a 1215px box.**
+
+This is the third time this codebase has hit the same trap (`.field`'s `w-full`,
+`.panel`'s border, `.ledger-table`'s own z-index), so the fix is the pattern the
+file already had for it: a real selector in the layer,
+`.ledger-table td.cell-wrap { white-space: normal }`, next to `.cell-pin`. The
+four measures are then a **2×2 grid** (`sm:grid-cols-2`, `gap-x-8`), which is the
+owner's request and also the right reading: they are four answers to one
+question, not four paragraphs. Measured after: columns 575.7/575.7px,
+`scrollWidth == clientWidth == 1215`, 0 document overflow.
+
+### 4. The text pass on Returns & risk
+
+Owner: *"evaluate all the text and see which points are necessary and which are
+not. for explanations of technical terms, be concise and simple to understand."*
+The rule applied: a hover that explains a term keeps one clause; a sentence that
+narrates the app's own data hygiene or repeats a date goes.
+
+| where | before | after |
+|---|---|---|
+| XIRR tooltip | "Accounts for WHEN each contribution landed, so it moves with the deposit schedule." | "Money-weighted: counts when each contribution landed." |
+| TWR tooltip | "Contribution timing removed, so this reflects the strategy rather than the deposit schedule." | "Time-weighted: deposit timing removed, so it reflects the strategy." |
+| Volatility | "Standard deviation of daily returns, annualised. An estimate — read it with the rolling line below." | "How much the daily value swings, annualised." |
+| Max drawdown | "The worst peak-to-trough fall in the stored daily values." | "The worst fall from a peak to the trough that followed." |
+| Holdings value | "The base every concentration figure below is a share of." | "What the concentration figures below are shares of." |
+| Concentration footer | "Holdings only, not cash — cash lowers the portfolio's risk but it is not a position. HHI: …" | "Holdings only, not cash. HHI: …" |
+| Largest single day | "… that one day carries 29% of the variance above, so if the snapshot behind it looks wrong, this is why the risk figures read high." | "… on its own it explains 29% of the volatility above." |
+| Rolling footer | "The trailing year's return, recalculated daily — a single cumulative number hides an uneven year. Starts 02 Mar 26, the first day with a full year behind it." | "The trailing year's return, recalculated each day. Starts 02 Mar 26 — the first day with a full year behind it." |
+| Value chart footer | "Value change, not return — S$45.9k of it is deposits paid in over this window, and S$9.5k is the market." | "Value change, not return — S$45.9k deposits in, S$9.5k from the market." |
+| Benchmark subtitle | "Both rebased to 100 at 2 Mar 2025 · 2 Mar 2025 – 23 Sep 2026" | "Both lines start at 100 · 2 Mar 2025 – 23 Sep 2026" |
+
+**Kept, because they are the page's glossary and it had none:** the XIRR/TWR
+line under the heading, `Effective N` ("1/HHI — behaves like this many equally
+sized positions"), the HHI bands, the correlation legend, and
+`Time-weighted: money added during the year does not count as growth.` The
+distinction drawn while cutting: **a term the reader may not know stays; a
+sentence about the app's own snapshots or a date printed twice goes.**
+
+### Verification
+
+- `npx tsc --noEmit` clean, `npm run lint` clean, `npm test` **22 files / 376
+tests** (10 new: `dcaFromNote` incl. the five stored notes, the DCA line, the
+month fallback, words kept after the marker, and a sale's note not being a
+marker), `npm run build` clean.
+- **Live, on the real ledger** (64 rows): the five DCA rows read as above, 0px
+document overflow.
+- **Live, the write path, end to end:** a VT buy submitted with the box ticked
+  and `temp verify` typed stored `DCA · temp verify` and rendered
+  `DCA (Sep 2026) · avg ↓ US$151.52 · temp verify`. The probe row was deleted
+  afterwards — the table is back to **64 rows**.
+- **Live:** the box appears for Buy and disappears on Sell; the palette opens with
+  no gold edge; Today shows no `Add account` as an admin; `/accounts` shows
+  `e.g. josh`; the explainer is 2×2 with `scrollWidth == clientWidth`.
+
+### Known gaps
+
+- **The row editor has no DCA checkbox.** The owner asked for it on the log form;
+  the ledger's `Edit` still marks a DCA by the note's first word, and its hint now
+  says so ("Marks this buy as a DCA — the ledger shows it as: DCA (May 2026) · avg
+  ↑ US$157.01"). Half an hour of work if the owner wants it symmetric.
+- **The four long notes still truncate** (Part 32's gap, unchanged).
+- **`DCA` is still a text convention**, so a mistyped marker is a
+  mis-classification rather than a validation error.

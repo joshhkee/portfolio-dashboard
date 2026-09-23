@@ -233,16 +233,17 @@ export default function CommandPalette() {
           role="presentation"
         >
           {/* Sized and lit to read as the primary control it is: wider than a
-              dialog needs to be for text, a taller input, a gold top edge that
-              ties it to the app's accent, and a heavier shadow so it sits ON
-              the page rather than in it. `swap-in` is the app's one entrance
-              motion, under prefers-reduced-motion it simply appears. */}
+              dialog needs to be for text, a taller input, and a heavier shadow
+              so it sits ON the page rather than in it. The gold top edge it
+              used to carry was removed — at a glance it read as a warning
+              stripe rather than as emphasis. `swap-in` is the app's one
+              entrance motion, under prefers-reduced-motion it simply appears. */}
           <div
             role="dialog"
             aria-modal="true"
             aria-label="Command palette"
             onClick={(event) => event.stopPropagation()}
-            className="swap-in w-full max-w-2xl overflow-hidden rounded-xl border border-ink-600 border-t-2 border-t-accent bg-ink-850 shadow-[0_24px_64px_rgba(0,0,0,0.65)]"
+            className="swap-in w-full max-w-2xl overflow-hidden rounded-xl border border-ink-600 bg-ink-850 shadow-[0_24px_64px_rgba(0,0,0,0.65)]"
           >
             <div className="flex items-center gap-3 border-b border-ink-700 px-5 py-4">
               <Search size={18} className="shrink-0 text-accent" />
