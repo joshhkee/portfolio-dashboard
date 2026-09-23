@@ -61,6 +61,12 @@ interface CycleStats {
   /** What the sold shares cost — the denominator of `realizedPLPct`, kept
    *  rather than recovered from it so cycles can be combined exactly. */
   costBasisSold: number;
+  /** What those shares SOLD for. Together with `costBasisSold` it is the two
+   *  terms the realised figure is the difference of, which is why the footer
+   *  shows all three: the return can then be checked rather than believed. */
+  proceeds: number;
+  /** How many shares were sold across the cycle — the "of" in "10 of 15". */
+  soldQty: number;
   remainingQty: number;
 }
 
@@ -89,6 +95,8 @@ function computeCycleStats(rows: HistoryRow[]): CycleStats {
     realizedPLNative: totalRealizedPL,
     realizedPLPct: totalCostBasisSold > 0 ? totalRealizedPL / totalCostBasisSold : 0,
     costBasisSold: totalCostBasisSold,
+    proceeds: totalSellValue,
+    soldQty: totalSellQty,
     remainingQty: last?.runningQty ?? 0,
   };
 }
@@ -101,6 +109,29 @@ function plTone(pct: number): string {
 
 function signedPct(pct: number): string {
   return `${pct >= 0 ? "+" : ""}${(pct * 100).toFixed(2)}%`;
+}
+
+/**
+ * The second line under a profit/loss figure: the return it is, then the same
+ * money in SGD where that is a different currency from the one the trade
+ * settled in.
+ *
+ * Two facts on one line, in that order, because the percentage is the answer to
+ * "how did this do" and the conversion is the footnote to it. For SG holdings
+ * the conversion is the same number twice, so it is dropped rather than shown
+ * beside itself.
+ */
+function plHint(
+  pct: number,
+  native: number,
+  { region, rates, nativeIsSgd }: { region: string; rates: FxRates | null; nativeIsSgd: boolean }
+): string {
+  const parts = [signedPct(pct)];
+  if (!nativeIsSgd && rates) {
+    const sgd = convertCurrency(native, region, "SGD", rates);
+    parts.push(`${sgd < 0 ? "-" : "+"}${currencySymbol.SGD}${formatAmount(Math.abs(sgd))}`);
+  }
+  return parts.join(" · ");
 }
 
 /** One label/value pair in the summary strip. */
@@ -124,23 +155,33 @@ function SummaryStat({
   );
 }
 
-function CostBox({ label, symbol, value }: { label: string; symbol: string; value: number }) {
+/**
+ * One figure in a trade's breakdown, label directly above its value.
+ *
+ * The layout this replaced put the label on the left edge of the panel and the
+ * figure on the right, justified apart — "Realised P/L (USD)" and its amount
+ * sat roughly 800px from each other on a desktop, so pairing them meant reading
+ * across an empty row, and the eye lost the connection on the way. Stacking is
+ * the same pattern the summary strip and the chart stat rows already use, so it
+ * is also the consistent one: the label is the heading of the number under it,
+ * and the distance between them is a few pixels at any width.
+ *
+ * `hint` is the second line — a percentage or the SGD equivalent — which is
+ * what the freed-up horizontal room is spent on rather than whitespace. */
+function Metric({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: React.ReactNode;
+  hint?: string | null;
+}) {
   return (
-    <div>
+    <div className="flex flex-col gap-1">
       <p className="text-xs text-ink-300">{label}</p>
-      <p className="num text-base">
-        {symbol}
-        {formatAmount(value)}
-      </p>
-    </div>
-  );
-}
-
-function SubStat({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 text-sm">
-      <dt className="text-ink-300">{label}</dt>
-      <dd className="num">{children}</dd>
+      <p className="num text-base">{value}</p>
+      {hint && <p className="num text-xs text-ink-500">{hint}</p>}
     </div>
   );
 }
@@ -281,7 +322,6 @@ function TradeSection({
   companyName: string | null;
 }) {
   const stats = computeCycleStats(trade.cycle);
-  const sgdSymbol = currencySymbol.SGD;
   const currency = currencyForRegion(region);
   // SG stocks are already natively SGD — showing both the "native" and
   // "SGD" P/L lines would just repeat the same number twice.
@@ -369,53 +409,58 @@ function TradeSection({
       </div>
 
       <div className="border-t border-ink-700 px-4 py-3">
-        {/* Buy vs sell cost, side by side so the gap between them is easy
-            to read at a glance. */}
-        <div className="flex gap-8">
-          <CostBox label="Avg buy cost" symbol={symbol} value={stats.avgBuyCost} />
-          {stats.hasSells && <CostBox label="Avg sell cost" symbol={symbol} value={stats.avgSellCost} />}
+        {/* What the trade cost, what it brought in, and what that leaves. The
+            two figures in the middle are not decoration: they are the two terms
+            the Realised P/L is the difference of, so the return can be checked
+            rather than taken on trust — proceeds minus cost basis sold is the
+            number beside them, to the cent. Before this, the footer asserted a
+            realised figure and gave you nothing to check it against. */}
+        <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-4">
+          <Metric
+            label="Avg buy cost"
+            value={`${symbol}${formatAmount(stats.avgBuyCost)}`}
+          />
+          {stats.hasSells && (
+            <Metric
+              label="Avg sell cost"
+              value={`${symbol}${formatAmount(stats.avgSellCost)}`}
+              hint={`${formatQty(stats.soldQty)} sold`}
+            />
+          )}
+          {stats.hasSells && (
+            <Metric
+              label="Cost basis sold"
+              value={`${symbol}${formatAmount(stats.costBasisSold)}`}
+            />
+          )}
+          {stats.hasSells && (
+            <Metric label="Proceeds" value={`${symbol}${formatAmount(stats.proceeds)}`} />
+          )}
+          {stats.hasSells && (
+            <Metric
+              label="Realised P/L"
+              value={<NativeMoney value={stats.realizedPLNative} symbol={symbol} showPlus />}
+              hint={plHint(stats.realizedPLPct, stats.realizedPLNative, {
+                region,
+                rates,
+                nativeIsSgd,
+              })}
+            />
+          )}
+          {trade.isOpen && (
+            <Metric
+              label="Unrealised P/L"
+              value={<NativeMoney value={unrealizedPLNative} symbol={symbol} showPlus />}
+              hint={plHint(unrealizedPLPct, unrealizedPLNative, { region, rates, nativeIsSgd })}
+            />
+          )}
         </div>
 
-        {stats.hasSells && (
-          <dl className="mt-3 flex flex-col gap-1">
-            {!nativeIsSgd && (
-              <SubStat label={`Realised P/L (${currency})`}>
-                <NativeMoney value={stats.realizedPLNative} symbol={symbol} showPlus />
-              </SubStat>
-            )}
-            <SubStat label="Realised P/L (SGD)">
-              {rates ? (
-                <NativeMoney
-                  value={convertCurrency(stats.realizedPLNative, region, "SGD", rates)}
-                  symbol={sgdSymbol}
-                  showPlus
-                />
-              ) : (
-                "—"
-              )}
-            </SubStat>
-          </dl>
-        )}
-
-        {trade.isOpen && (
-          <dl className="mt-3 flex flex-col gap-1">
-            {!nativeIsSgd && (
-              <SubStat label={`Unrealised P/L (${currency})`}>
-                <NativeMoney value={unrealizedPLNative} symbol={symbol} showPlus />
-              </SubStat>
-            )}
-            <SubStat label="Unrealised P/L (SGD)">
-              {rates ? (
-                <NativeMoney
-                  value={convertCurrency(unrealizedPLNative, region, "SGD", rates)}
-                  symbol={sgdSymbol}
-                  showPlus
-                />
-              ) : (
-                "—"
-              )}
-            </SubStat>
-          </dl>
+        {!nativeIsSgd && (stats.hasSells || trade.isOpen) && (
+          <p className="mt-3 text-xs text-ink-500">
+            Amounts in {currency} are the trade currency; the SGD line converts at the current
+            rate, so it is a present-day comparison rather than what the trade settled at.
+          </p>
         )}
       </div>
     </section>

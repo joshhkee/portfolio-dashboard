@@ -13,7 +13,7 @@
 
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { AUTH_COOKIE_NAME, readSessionToken } from "@/lib/auth";
+import { AUTH_COOKIE_NAME, expectedAuthToken, readSessionToken } from "@/lib/auth";
 
 /** How stale the stored last-seen has to be before a visit rewrites it.
  *
@@ -79,8 +79,34 @@ async function resolveAccount(): Promise<{
 }
 
 /**
- * Who is signed in, without touching anything.
+ * Is this request carrying the shared-password gate?
  *
+ * Middleware already answers this for every ordinary page — it is a plain
+ * string comparison, which is why it lives on the Edge side. This exists for the
+ * ONE endpoint that middleware deliberately lets through without a session
+ * (`POST /api/users`, so the login page can ask for an account): the request
+ * path may be anonymous, but the decision that creates an ADMIN — the bootstrap
+ * on an empty database — must not be. Without this, a stranger reaching a fresh
+ * deployment could mint themselves the first admin through the same door that
+ * exists to let them knock.
+ *
+ * A live account session is NOT checked here: an account holder is a distinct
+ * case the route resolves from the database already, and conflating the two
+ * would make this look like an authentication helper rather than what it is.
+ */
+export async function hasSharedGate(): Promise<boolean> {
+  try {
+    const token = (await cookies()).get(AUTH_COOKIE_NAME)?.value;
+    const gate = await expectedAuthToken();
+    return Boolean(gate && token === gate);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Who is signed in, without touching anything.
+
  * This is the read the CHROME uses (the nav's greeting, the accounts page), and
  * it must not record a visit: the dashboard's "since you last looked" line is
  * the only writer of lastSeenAt, and if the layout recorded a visit on every

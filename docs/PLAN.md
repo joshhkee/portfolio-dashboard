@@ -106,10 +106,46 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 28 | Watchlist entry-level chart (price + 1y low/high + 50-day average), a gauge-style range bar, and "How to read these" | **DONE** |
 | 29 | Today's movers show the current price beside the day's change | **DONE** |
 | 30 | Accounts: roles, a request-and-approve queue with josh as admin, and "Add account" on Today | **DONE** |
+| 31 | Login asks for an account (three named ways in, the shared password while you wait); the ledger is renamed Transactions and every P/L figure in the history modal sits under its own label | **DONE** |
 
 ---
 
-## Resume checkpoint — 2026-09-23 (after Part 30)
+## Resume checkpoint — 2026-09-23 (after Part 31)
+
+**State:** parts 1–17 and 19–30 are done. **Part 31** closed the loop Part 30
+opened: an account could be *requested* only from inside the app, which meant
+the people the queue exists for could not reach it. The login page now has three
+named ways in — sign in, **request an account**, and the **shared password** —
+and the request is reachable **without a session**, because that is the only
+moment it is useful. The shared password still opens the whole dashboard while a
+request waits, and the page says so rather than implying the waiting person is
+shut out.
+
+That change is a real, deliberate re-statement of what approval means here,
+confirmed by the owner against the alternative: **approval is not access
+control.** The connection is already gated by the shared password, so a pending
+person being able to look at the dashboard adds no exposure — what approval
+decides is whose *name* the visits are recorded against. If access were meant to
+be the gate, the shared password would have to be the thing that changes; see the
+Part 31 section and the honest feedback in it.
+
+The three ways in are also the whole of what changed in the security boundary:
+`POST /api/users` is let past middleware so a stranger can **ask**, the route
+re-checks the shared gate for the one outcome that grants (the bootstrap, which
+mints a live admin), and the unauthenticated path is charged to the address and
+capped by a finite queue (`MAX_PENDING_REQUESTS`). `/api/users` GET stays behind
+the gate.
+
+**Also in Part 31:** the ledger is **Transactions** (tab, palette, and the URL —
+with `/positions/trades` redirecting, so nothing bookmarked breaks), the history
+modal's realised/unrealised P/L figures moved from opposite ends of a row to
+**directly under their labels** (measured: 4px apart, was ~800px), with **Cost
+basis sold** and **Proceeds** added so the realised figure can be checked rather
+than believed — `1,440 − 1,020 = 420` on the live NOW cycle.
+
+---
+
+## Resume checkpoint — 2026-09-23 (after Part 30) — kept for reference
 
 **State:** parts 1–7, 9–17 and 19–21 were already done, plus **Part 22** (Today's
 movers, the colour rule, a shorter attention list), **Part 23** (a prominent
@@ -2675,3 +2711,195 @@ queue-bypass rule).
 opening Today or the accounts page. That is deliberate for now (this is a
 three-person portfolio, not a service), and it is the first thing to add if a
 request ever sits unapproved for long enough to matter.
+
+---
+
+## Part 31 — the login page asks for an account, the modal pairs every figure
+with its label, and the ledger is renamed (DONE)
+
+Three requests, one of them with a question inside it — *think about how this
+flow would be like for users, and give me honest feedback if it's bad* — so the
+feedback comes first, because it decides what was built.
+
+### The honest feedback: approval here is a name, not a door
+
+The owner asked for this flow: a person can **request** an account from the
+login page, and **while waiting** can sign in with the **shared password** with
+no personalised account. That is coherent, but only under one reading, and the
+reading is worth stating plainly because it is easy to build the other one by
+accident:
+
+- **The shared password already opens the entire dashboard.** So letting a
+  pending person use it adds *no exposure at all*. Approval therefore does not
+  control access; it decides **whose name the visits are recorded against** —
+  which is what `lastSeenAt` and "since you last looked" need, and the only thing
+  accounts have ever been for in this app (see Part 16's schema note).
+- The bad version of this feature is the one where the owner *believes* the
+  queue is a gate. It is not, and it cannot be while a shared password exists: a
+  waiting person sees the identical portfolio, just anonymously. If access is
+  what should be gated, the shared password is the thing to retire or rotate —
+  not the queue.
+- The flow's one genuine dead end is removed by the design below: a pending
+  person has no way to learn they were approved (no email, and the shared-password
+  session carries no identity), so the login page tells them where the request
+  went, and signing in with their username is how they discover it landed.
+
+### The login page: three ways in, named
+
+One form whose behaviour changed with whether a username was typed is a rule the
+**server** has, not something a person should have to infer from a footnote —
+which is exactly how the old page handled the shared password ("leave the
+username blank"). There are now three modes, each asking only the questions it
+needs:
+
+| mode | fields | who it is for |
+|---|---|---|
+| **Sign in** | username + password | an account that can sign in |
+| **Request an account** | username + password + confirm | anyone who has not been let in yet |
+| **Shared password** | password | the original gate, no name recorded |
+
+Three details are deliberate. The **username field is absent** in shared mode
+rather than left blank, because the page is not asking a question it would
+ignore. The rules (**`USERNAME_RULE`**, **`MIN_PASSWORD_LENGTH`**) are passed in
+from the server page, the way `/accounts` already hands them to
+`AccountManager`, so the hint under a field cannot disagree with the validator
+that answers it. And a request that comes back **`approved`** — only reachable as
+the bootstrap, or as an admin — signs the person straight in, because there is
+nothing to wait for in that case.
+
+### Making "ask for an account" reachable without a session
+
+Part 30 built the queue but left `POST /api/users` behind the gate, which meant
+the people the feature exists for could not reach it: you had to be inside to
+ask to come in. Three changes make the public path safe without opening the
+gate:
+
+1. **Middleware lets exactly one request through** — `POST /api/users`, with the
+   GET on the same path still gated (verified: `307 → /login?redirect=%2Fapi%2Fusers`).
+   It is also no longer the door: what that request can produce is decided in the
+   route.
+2. **The one outcome that grants is re-checked** — `accountCreationDecision`
+   returns `because: "bootstrap"` when the database is empty, and that is a
+   **live admin**. Reachable anonymously it would let a stranger claim a fresh
+   deployment, so the route now requires the **shared gate** for exactly that
+   case (`hasSharedGate()` in `lib/session.ts`). Everything else a stranger can
+   create is a `pending` row, which cannot sign in.
+3. **The public path is throttled and finite** — `lib/rate-limit.ts` (below) and
+   `guardRequestAccount`, because an unthrottled public endpoint that writes rows
+   is a way to fill an admin's queue. Every attempt counts, not just the failed
+   ones: a queue is filled by successes.
+
+**`lib/rate-limit.ts`** is the login route's private sliding-window limiter,
+extracted because the second public endpoint needed the same thing and two
+copies of a rate limiter would drift — the copy nobody touched being the one
+guarding the newer hole. It is unchanged in behaviour (in-memory, per-process,
+`Date.now` injectable so tests do not sleep) and now shared by `/api/login` and
+`/api/users`. `app/api/login/route.ts` lost ~60 lines to it.
+
+### `Status: 429` is not a failed login
+
+The request path's refusal is its **own sentence** — *"Too many account requests
+from this address — try again in 60 min"* — and the full queue says how to drain
+it (*"Ask an admin to clear the queue"*). Neither is a wrong-password answer,
+for the same reason Part 30 gave a pending account its own sentence: the person
+is not guessing.
+
+### The history modal: every figure under its own label
+
+The complaint was exact and measurable: in the per-trade footer the label sat at
+the left edge and the figure at the right, so **"Realised P/L (USD)" and
+`+US$420.00` were about 800px apart**, and pairing them meant reading across an
+empty row. The `justify-between` `<dl>` is gone. Each figure is now a **`Metric`
+cell** — label, figure, optional second line — in a responsive grid, which is
+the same pattern the summary strip and the chart stat rows already use.
+
+**Measured on the live NOW cycle: every label is 4px above its value**, in cells
+187–190px wide, at a 896px modal, with **0** inner vertical scroll containers.
+
+What the freed room is spent on is not filler: **Cost basis sold** and
+**Proceeds**, the two terms the realised figure is the difference *of*. Before,
+the footer asserted a number and gave you nothing to check it against. Now the
+live cycle reads `Proceeds US$1,440.00 − Cost basis sold US$1,020.00 =
+Realised +US$420.00`, to the cent, and the same for `Avg sell cost · 10 sold`.
+The percentage and the SGD equivalent moved into the cell's second line
+(`+41.18% · +S$535.92`), so a single P/L cell answers "what, and how much"
+without a second glance — and for SG holdings the SGD repeat is dropped rather
+than printed beside itself.
+
+### The rename
+
+"Trades" named the ledger after **one of the two things it holds** (every row is
+a transaction; a trade is one kind), and it read like a report of completed
+trades — which is a different page (*Performance · Realized*). So:
+
+- the Positions tab is **Transactions** (`/positions/transactions`);
+- `/positions/trades` **redirects**, so no bookmark, browser tab or shared link
+  breaks — verified in the running app, not just in the config;
+- the command palette entry is **Transaction ledger** (and still matches
+  "trades", which is what people type);
+- Today's button is **Log a transaction**, because you can log a sell;
+- the ledger column **`Running avg` → `Avg cost`** (the title says "average cost
+  basis per share after this transaction"), and `Running qty` keeps its name —
+  it *is* the running quantity.
+
+### Verification — against the running app, against the real database
+
+- **The anonymous ask, with no cookie:** `POST /api/users` →
+  `201 {"status":"pending"}`; the same name again → `409 "…has already been
+  requested and is waiting for approval."`; that account signing in →
+  `403 "That account is waiting to be approved by an admin."`
+- **The throttle, without polluting anything:** four invalid payloads (refused
+  **after** the throttle, before any write) spent the budget, and the sixth
+  attempt → `429`. `GET /api/users` → `307 → /login?redirect=%2Fapi%2Fusers`.
+- **The flow in the browser, signed out:** *No account yet? Request one* →
+  mismatch caught client-side with no request → **"Request sent"** naming the
+  username, with *"Nothing is locked while you wait — the shared password opens
+  the same dashboard."* The row really was in the queue afterwards
+  (`zz-preview-request2 · member · PENDING`).
+- **The shared password still works:** `POST /api/login {password}` → **200 with
+  a session cookie** (the value read from `.env` inside the script, never
+  printed). The mode renders one field and says what it costs you.
+- **A signed-in visit to `/login` lands on the dashboard** — middleware now
+  sends it onward, which also closes the oddity that an admin could fill in
+  "request an account" and silently mint a live one (that is how the first probe
+  account in this pass got created, and why the redirect exists).
+- **The ledger:** header reads `Date · Action · Ticker · Region · Qty · Price ·
+  Running qty · **Avg cost** · Txn value · Note`, tab reads **Transactions**,
+  document overflow **0px** at 1440×900.
+- **The modal:** the eight `Metric` cells above, plus **0** inner vertical
+  scrollers (Part 27's single-scroll-container rule still holds).
+- Every probe row was deleted afterwards; the database is back to **one**
+  account (`josh · admin · approved`), and all four throwaway scripts are gone
+  from the tree.
+
+**Checks:** `npx tsc --noEmit` clean, `npx eslint .` clean, `npm test` **22 files
+/ 357 tests** (`tests/rate-limit.test.ts` new — 9 cases pinning the window, the
+lockout, the success-reset, key isolation and the sweep; `tests/accounts.test.ts`
++3 for the finite queue), `npm run build` clean with `/positions/transactions`
+registered.
+
+**Files:** `components/LoginForm.tsx`, `app/login/page.tsx`, `lib/rate-limit.ts`
+(new), `lib/accounts.ts`, `lib/session.ts`, `middleware.ts`,
+`app/api/users/route.ts`, `app/api/login/route.ts`,
+`components/TransactionHistoryModal.tsx`, `components/TransactionsTable.tsx`,
+`components/CommandPalette.tsx`, `app/positions/layout.tsx`,
+`app/positions/transactions/*` (moved), `app/page.tsx`, `next.config.js`,
+`lib/notes-cleanup.ts` (comment), `tests/accounts.test.ts`,
+`tests/rate-limit.test.ts`.
+
+**Known gaps, stated rather than implied:**
+
+- **The bootstrap re-check (`hasSharedGate`) has no automated test.** It is the
+  one branch on the public path that grants, and exercising it needs an empty
+  database plus a cookie — verified by reading, not by running. That is the
+  first thing to pin if the account rules change again.
+- **A pending person cannot check their own status** without trying to sign in:
+  the shared-password session carries no identity, so nothing can be shown about
+  a request in the nav. The login page carries the whole burden of that — which
+  is why its copy about approval is specific rather than reassuring.
+- The rate limiter is **per process**: a restart forgets it and two instances do
+  not share it. Deliberate (see the module header), but it means the throttle is
+  a speed bump, not a wall.
+- The request queue still has **no notification** — carried over from Part 30.
+  The next thing worth building is a line in the nav's account chip when the
+  queue is not empty.

@@ -106,6 +106,39 @@ export function guardManageAccounts({
 }
 
 /**
+ * How many requests may sit unanswered at once.
+ *
+ * A queue has to be finite: the request endpoint is reachable WITHOUT a session
+ * (that is the whole point — you cannot sign in to ask to sign in), so an
+ * unbounded queue is an unbounded table and an admin page nobody can read. Ten
+ * is far above what a household needs and far below what a script produces.
+ *
+ * Reaching it costs somebody a try rather than corrupting anything, and the
+ * remedy is a sentence in the refusal: an admin refusing requests drains the
+ * queue.
+ */
+export const MAX_PENDING_REQUESTS = 10;
+
+/**
+ * May another request join the queue?
+ *
+ * The only refusal in this file that is about capacity rather than permission,
+ * and it is checked AFTER the decision that the attempt is a request at all —
+ * an admin's create is live and never queues, so it must not be blocked by a
+ * full queue.
+ */
+export function guardRequestAccount({ pendingCount }: { pendingCount: number }): Guard {
+  if (pendingCount >= MAX_PENDING_REQUESTS) {
+    return {
+      ok: false,
+      status: 429,
+      error: `There are already ${MAX_PENDING_REQUESTS} account requests waiting. Ask an admin to clear the queue, then try again.`,
+    };
+  }
+  return { ok: true };
+}
+
+/**
  * What a new account is, given who is asking.
  *
  *   admin      an admin added someone directly, so it is live immediately.

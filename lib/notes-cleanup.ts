@@ -24,7 +24,7 @@
 //   - A partial sell's FRACTION is derived (`Sold 8 of 15`), so a note that only
 //     restates it goes.
 //   - `Avg down to x10@$263.25` is the average actually achieved, not a target,
-//     so it is derived too (the Running avg column holds it) and the note goes.
+//     so it is derived too (the Avg cost column holds it) and the note goes.
 //   - DCA notes collapse to one consistent form naming the ALLOCATION MONTH,
 //     which is the part the app cannot derive from the trade date. "Brought
 //     forward" is dropped: the owner wants the month on every DCA row, nothing
@@ -106,7 +106,7 @@ const RESTATEMENT_WORDS = new Set([
 ]);
 
 /** `Avg Down to x10@$263.25` — a share count the Running qty column already
- *  holds and an average the Running avg column already holds. */
+ *  holds and an average the Avg cost column already holds. */
 const ACHIEVED_AVERAGE = /\bavg(?:erage)?\s+down\s+to\b/i;
 
 function words(text: string): string[] {

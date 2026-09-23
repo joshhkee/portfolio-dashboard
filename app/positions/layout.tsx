@@ -30,9 +30,14 @@ export default function PositionsLayout({ children }: { children: React.ReactNod
           // The ledger that built these positions, and the only place an entry
           // can be edited. It used to be a top-level page in its own right,
           // which read as if it were a peer of the positions it produced.
+          //
+          // Named for what it is: every row here is one transaction, and a
+          // "trade" is only one of the two kinds it holds. The old name made
+          // the page sound like a report of completed trades, which is a
+          // different page (Performance · Realized).
           {
-            href: "/positions/trades",
-            label: "Trades",
+            href: "/positions/transactions",
+            label: "Transactions",
             icon: <ListOrdered size={14} strokeWidth={1.75} className="text-ink-500" />,
           },
         ]}

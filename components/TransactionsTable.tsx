@@ -71,8 +71,8 @@ export default function TransactionsTable({
               className="hidden lg:table-cell"
             />
             <SortableTh
-              label="Running avg"
-              title="Running average cost basis per share after this transaction."
+              label="Avg cost"
+              title="Average cost basis per share after this transaction."
               active={sortKey === "runningAvgCost"}
               direction={sortDir}
               onClick={() => toggleSort("runningAvgCost")}
@@ -110,7 +110,9 @@ export default function TransactionsTable({
           {sorted.length === 0 && (
             <tr>
               <td colSpan={11} className="py-6 text-center text-ink-300">
-                {ledger.length === 0 ? "No transactions yet — log the first trade above." : "No transactions match your search."}
+                {ledger.length === 0
+                  ? "No transactions yet — log the first one above."
+                  : "No transactions match your search."}
               </td>
             </tr>
           )}

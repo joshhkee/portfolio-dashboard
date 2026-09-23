@@ -109,7 +109,7 @@ function MoverColumn({ label, rows }: { label: string; rows: MoverRow[] }) {
  * Everything that used to be here still exists — it moved to the page that owns
  * it: the statistics and risk panel to /performance, attribution to
  * /performance/attribution, the stakeholder split and deposit schedule to
- * /money, the full ledger to /positions/trades. Nothing was deleted, and all of
+ * /money, the full ledger to /positions/transactions. Nothing was deleted, and all of
  * it is a keystroke away in the command palette.
  */
 export default async function TodayPage() {
@@ -328,9 +328,12 @@ export default async function TodayPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/positions/trades?add=1" className="btn-primary flex items-center gap-1.5">
+          <Link
+            href="/positions/transactions?add=1"
+            className="btn-primary flex items-center gap-1.5"
+          >
             <Plus size={14} strokeWidth={2.5} />
-            Log a trade
+            Log a transaction
           </Link>
           <Link href="/money?add=1" className="btn-ghost flex items-center gap-1.5">
             <Plus size={14} strokeWidth={2.5} />
