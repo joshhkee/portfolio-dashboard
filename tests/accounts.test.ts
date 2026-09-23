@@ -3,10 +3,12 @@ import {
   accountCreationDecision,
   guardDeleteAccount,
   guardManageAccounts,
+  guardRequestAccount,
   guardReviewRequest,
   guardSetPassword,
   guardViewAccounts,
   isAdmin,
+  MAX_PENDING_REQUESTS,
   parseNewAccount,
   USERNAME_RULE,
   type Guard,
@@ -100,6 +102,26 @@ describe("accountCreationDecision", () => {
     expect(accountCreationDecision({ actorRole: null, accountCount: 1 })).toMatchObject({
       status: "pending",
     });
+  });
+});
+
+describe("guardRequestAccount", () => {
+  it("lets a request join an empty queue", () => {
+    expect(guardRequestAccount({ pendingCount: 0 }).ok).toBe(true);
+  });
+
+  it("lets the last slot be taken", () => {
+    expect(guardRequestAccount({ pendingCount: MAX_PENDING_REQUESTS - 1 }).ok).toBe(true);
+  });
+
+  it("refuses a full queue, and says how to drain it", () => {
+    // The request endpoint is reachable without a session, so the queue has to
+    // be finite. The refusal has to name the remedy: an admin refusing requests
+    // is what empties it.
+    const guard = guardRequestAccount({ pendingCount: MAX_PENDING_REQUESTS });
+    expect(guard).toMatchObject({ ok: false, status: 429 });
+    expect(refusal(guard)).toContain("admin");
+    expect(refusal(guard)).toContain(String(MAX_PENDING_REQUESTS));
   });
 });
 

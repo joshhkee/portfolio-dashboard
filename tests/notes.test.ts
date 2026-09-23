@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { classifyNote, isNameOnly, ledgerSummary, ledgerSummaryParts } from "@/lib/notes";
+import {
+  averageDirection,
+  classifyNote,
+  isNameOnly,
+  ledgerSummary,
+  ledgerSummaryParts,
+  noteCell,
+} from "@/lib/notes";
 
 /** Every row in the real ledger, read from the shared database on 2026-09-23:
  *  (ticker, cached name, note). All 64 are here, duplicates included, so the
@@ -238,105 +245,90 @@ describe("isNameOnly", () => {
   });
 });
 
-describe("ledgerSummary", () => {
+describe("ledgerSummary — the action word first", () => {
   const base = { price: 546, qtyBefore: 0, avgCostBefore: 0, runningQty: 0, runningAvgCost: 0 };
+  const openingBuy = { ...base, action: "Buy", qty: 5, runningQty: 5, runningAvgCost: 546 };
+  const addingBuy = {
+    action: "Buy",
+    qty: 5,
+    price: 520,
+    qtyBefore: 10,
+    avgCostBefore: 546,
+    runningQty: 15,
+    runningAvgCost: 537.33,
+  };
+  const partialSell = {
+    action: "Sell",
+    qty: 8,
+    price: 188,
+    qtyBefore: 15,
+    avgCostBefore: 168.5,
+    runningQty: 7,
+    runningAvgCost: 168.5,
+  };
+  const closingSell = {
+    action: "Sell",
+    qty: 20,
+    price: 207.12,
+    qtyBefore: 20,
+    avgCostBefore: 250,
+    runningQty: 0,
+    runningAvgCost: 250,
+  };
 
-  it("states the average an opening buy left behind", () => {
-    expect(
-      ledgerSummary({ ...base, action: "Buy", qty: 5, runningQty: 5, runningAvgCost: 546 }, "US$")
-    ).toBe("Opened · avg US$546.00");
+  it("says only `Opened` for a position this row opened", () => {
+    // The average of a freshly opened position is the price just paid, and the
+    // Price column already shows it. Repeating it said nothing and made the
+    // longest line longer.
+    expect(ledgerSummary(openingBuy, "US$")).toBe("Opened");
   });
 
-  it("keeps every line short enough to read without a hover", () => {
-    // The Note column is ~165px of 12px type, about 24 characters. If a line
-    // grows past this, the amount is what gets cut — which is the bug this
-    // length limit exists to prevent.
-    const lines = [
-      ledgerSummary({ ...base, action: "Buy", qty: 5, runningQty: 5, runningAvgCost: 546 }, "US$"),
-      ledgerSummary(
-        { action: "Buy", qty: 5, price: 520, qtyBefore: 10, avgCostBefore: 546, runningQty: 15, runningAvgCost: 537.33 },
-        "US$"
-      ),
-      ledgerSummary(
-        { action: "Sell", qty: 8, price: 188, qtyBefore: 15, avgCostBefore: 168.5, runningQty: 7, runningAvgCost: 168.5 },
-        "US$"
-      ),
-      ledgerSummary(
-        { action: "Sell", qty: 20, price: 207.12, qtyBefore: 20, avgCostBefore: 250, runningQty: 0, runningAvgCost: 250 },
-        "US$"
-      ),
-    ];
-    for (const line of lines) expect(line.length, line).toBeLessThanOrEqual(26);
+  it("points DOWN when a buy lowered the average cost", () => {
+    expect(ledgerSummary(addingBuy, "US$")).toBe("Added · avg ↓ US$537.33");
   });
 
-  it("colours a realized result and leaves an average cost plain", () => {
-    const sold = ledgerSummaryParts(
-      { action: "Sell", qty: 8, price: 188, qtyBefore: 15, avgCostBefore: 168.5, runningQty: 7, runningAvgCost: 168.5 },
-      "US$"
-    );
-    expect(sold.parts.at(-1)).toEqual({ text: "+US$156.00", tone: "gain" });
-    const lost = ledgerSummaryParts(
-      { action: "Sell", qty: 20, price: 207.12, qtyBefore: 20, avgCostBefore: 250, runningQty: 0, runningAvgCost: 250 },
-      "US$"
-    );
-    expect(lost.parts.at(-1)).toEqual({ text: "-US$857.60", tone: "loss" });
-    // A buy states a cost, which is a value rather than a result: no tone.
-    const bought = ledgerSummaryParts(
-      { action: "Buy", qty: 5, price: 520, qtyBefore: 10, avgCostBefore: 546, runningQty: 15, runningAvgCost: 537.33 },
-      "US$"
-    );
-    expect(bought.parts.at(-1)).toEqual({ text: "US$537.33" });
-  });
-
-  it("states the NEW average on a buy that added to a position", () => {
+  it("points UP when a buy raised it", () => {
     expect(
       ledgerSummary(
         {
           action: "Buy",
           qty: 5,
-          price: 520,
+          price: 600,
           qtyBefore: 10,
-          avgCostBefore: 546,
+          avgCostBefore: 500,
           runningQty: 15,
-          runningAvgCost: 537.33,
+          runningAvgCost: 533.33,
         },
         "US$"
       )
-    ).toBe("Added · avg now US$537.33");
+    ).toBe("Added · avg ↑ US$533.33");
   });
 
-  it("gives a partial sell as a fraction of the position, with the amount realized", () => {
+  it("omits the arrow when there is no previous average to compare against", () => {
+    // A buy against a position the engine carries no basis for: an arrow is a
+    // claim about a comparison, so no comparison means no arrow.
     expect(
       ledgerSummary(
         {
-          action: "Sell",
-          qty: 8,
-          price: 188,
-          qtyBefore: 15,
-          avgCostBefore: 168.5,
-          runningQty: 7,
-          runningAvgCost: 168.5,
+          action: "Buy",
+          qty: 5,
+          price: 600,
+          qtyBefore: 10,
+          avgCostBefore: 0,
+          runningQty: 15,
+          runningAvgCost: 600,
         },
         "US$"
       )
-    ).toBe("Sold 8 of 15 · +US$156.00");
+    ).toBe("Added · avg US$600.00");
   });
 
-  it("describes a closing sell, and signs a realized loss", () => {
-    expect(
-      ledgerSummary(
-        {
-          action: "Sell",
-          qty: 20,
-          price: 207.12,
-          qtyBefore: 20,
-          avgCostBefore: 250,
-          runningQty: 0,
-          runningAvgCost: 250,
-        },
-        "US$"
-      )
-    ).toBe("Closed · -US$857.60");
+  it("names the fraction a partial sell took, then the amount realized", () => {
+    expect(ledgerSummary(partialSell, "US$")).toBe("Partial sell (8 of 15) · +US$156.00");
+  });
+
+  it("marks a closing sell, and signs a realized loss", () => {
+    expect(ledgerSummary(closingSell, "US$")).toBe("Closed · -US$857.60");
   });
 
   it("omits the realized amount when there is no cost basis to realize against", () => {
@@ -346,22 +338,137 @@ describe("ledgerSummary", () => {
         "US$"
       )
     ).toBe("Closed · 3 sold");
+    // And the partial form never ends on a dangling separator.
+    expect(
+      ledgerSummary(
+        { action: "Sell", qty: 3, price: 10, qtyBefore: 10, avgCostBefore: 0, runningQty: 7, runningAvgCost: 0 },
+        "US$"
+      )
+    ).toBe("Partial sell (3 of 10)");
+  });
+
+  it("keeps every line short enough to read without a hover", () => {
+    // The Note column was widened for this pass (11rem → 16rem, the ledger's
+    // own measured budget), which is about 37 characters of 12px type. A line
+    // that grows past it is truncated — and the amount is what a reader misses
+    // when that happens, because it is the part worth reading.
+    const lines = [
+      ledgerSummary(openingBuy, "US$"),
+      ledgerSummary(addingBuy, "US$"),
+      ledgerSummary(partialSell, "US$"),
+      ledgerSummary(closingSell, "US$"),
+      ledgerSummary({ ...base, action: "Sell", qty: 3, price: 10, qtyBefore: 10, avgCostBefore: 0, runningQty: 7, runningAvgCost: 0 }, "US$"),
+    ];
+    for (const line of lines) expect(line.length, line).toBeLessThanOrEqual(37);
+  });
+
+  it("colours a realized result and leaves a cost plain", () => {
+    expect(ledgerSummaryParts(partialSell, "US$").parts.at(-1)).toEqual({
+      text: "+US$156.00",
+      tone: "gain",
+    });
+    expect(ledgerSummaryParts(closingSell, "US$").parts.at(-1)).toEqual({
+      text: "-US$857.60",
+      tone: "loss",
+    });
+    // A buy states a cost, which is a value rather than a result: no tone.
+    expect(ledgerSummaryParts(addingBuy, "US$").parts.at(-1)).toEqual({ text: "US$537.33" });
+  });
+
+  it("puts no colour on the arrow, so the column keeps one meaning for colour", () => {
+    // The owner asked whether averaging down should be green and averaging up
+    // red. It should not: red already means "this sale realized a loss" in this
+    // same column, and green would additionally claim averaging down was a good
+    // decision — a judgement the ledger is not entitled to. Direction is a
+    // glyph, and neither arrow nor the cost beside it carries a tone.
+    const down = ledgerSummaryParts(addingBuy, "US$").parts;
+    expect(down[0]).toEqual({ text: "Added · avg ↓ " });
+    expect(down[1]).toEqual({ text: "US$537.33" });
+
+    const up = ledgerSummaryParts(
+      { ...addingBuy, price: 600, avgCostBefore: 500, runningAvgCost: 533.33 },
+      "US$"
+    ).parts;
+    expect(up[0]).toEqual({ text: "Added · avg ↑ " });
+    expect(up[1]).toEqual({ text: "US$533.33" });
+
+    for (const part of [...down, ...up]) expect(part.tone, part.text).toBeUndefined();
   });
 
   it("never puts two currency figures on one line", () => {
     // The owner's rule: the price, the quantity and the running average are
     // columns on the row, so a line that repeats them reads as one number
     // misprinted. At most one money amount, and the buy's price is never it.
-    const rows = [
-      { ...base, action: "Buy", qty: 5, runningQty: 5, runningAvgCost: 546 },
-      { action: "Buy", qty: 5, price: 520, qtyBefore: 10, avgCostBefore: 546, runningQty: 15, runningAvgCost: 537.33 },
-      { action: "Sell", qty: 8, price: 188, qtyBefore: 15, avgCostBefore: 168.5, runningQty: 7, runningAvgCost: 168.5 },
-      { action: "Sell", qty: 20, price: 207.12, qtyBefore: 20, avgCostBefore: 250, runningQty: 0, runningAvgCost: 250 },
-    ];
+    const rows = [openingBuy, addingBuy, partialSell, closingSell];
     for (const row of rows) {
       const line = ledgerSummary(row, "US$");
-      expect(line.match(/US\$/g), line).toHaveLength(1);
+      expect(line.match(/US\$/g) ?? [], line).toHaveLength(row.action === "Buy" && row.qtyBefore === 0 ? 0 : 1);
       expect(line, line).not.toContain("207.12 @");
     }
+  });
+});
+
+describe("averageDirection", () => {
+  it("reads the direction the average actually moved", () => {
+    expect(averageDirection(546, 537.33)).toBe("down");
+    expect(averageDirection(500, 533.33)).toBe("up");
+  });
+
+  it("returns null when there is nothing to compare, or nothing moved", () => {
+    // No previous basis: the engine has no average to move away from.
+    expect(averageDirection(0, 600)).toBeNull();
+    // A buy at exactly the average it already held did not move it. Inside
+    // float noise counts as unchanged rather than as a direction.
+    expect(averageDirection(546, 546)).toBeNull();
+    expect(averageDirection(546, 546 + 1e-9)).toBeNull();
+  });
+});
+
+describe("noteCell — the derived line first, the owner's words appended", () => {
+  const row = {
+    action: "Sell",
+    qty: 8,
+    price: 188,
+    qtyBefore: 15,
+    avgCostBefore: 168.5,
+    runningQty: 7,
+    runningAvgCost: 168.5,
+  };
+
+  it("always renders the derived line, note or no note", () => {
+    const bare = noteCell(row, "US$", null, { ticker: "ZS", name: "Zscaler, Inc." });
+    expect(bare.derived.text).toBe("Partial sell (8 of 15) · +US$156.00");
+    expect(bare.appended).toBeNull();
+    expect(bare.text).toBe("Partial sell (8 of 15) · +US$156.00");
+  });
+
+  it("appends the owner's words instead of substituting them for the line", () => {
+    // The bug this closes: `note ?? <LedgerLine/>` meant a row carrying a DCA
+    // month or a stop-loss level showed the note and lost the arithmetic.
+    const cell = noteCell(row, "US$", "ZS - Partial Sell (8 of 15 Shares)", {
+      ticker: "ZS",
+      name: "Zscaler, Inc.",
+    });
+    expect(cell.derived.text).toBe("Partial sell (8 of 15) · +US$156.00");
+    expect(cell.appended).toBe("ZS - Partial Sell (8 of 15 Shares)");
+    expect(cell.text).toBe(
+      "Partial sell (8 of 15) · +US$156.00 · ZS - Partial Sell (8 of 15 Shares)"
+    );
+  });
+
+  it("appends a DCA month after the facts rather than in place of them", () => {
+    const cell = noteCell(
+      { action: "Buy", qty: 2, price: 120, qtyBefore: 8, avgCostBefore: 130, runningQty: 10, runningAvgCost: 128 },
+      "S$",
+      "VT - Sept DCA",
+      { ticker: "VT", name: "Vanguard Total World Stock Index Fund ETF Shares" }
+    );
+    expect(cell.text).toBe("Added · avg ↓ S$128.00 · VT - Sept DCA");
+  });
+
+  it("appends nothing when the note only repeats the instrument's name", () => {
+    const cell = noteCell(row, "US$", "ZS - Zscaler", { ticker: "ZS", name: "Zscaler, Inc." });
+    expect(cell.appended).toBeNull();
+    expect(cell.text).toBe(cell.derived.text);
   });
 });

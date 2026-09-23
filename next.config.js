@@ -17,6 +17,12 @@ const nextConfig = {
   reactStrictMode: true,
   async redirects() {
     return [
+      // The ledger used to be named after one of the two things it holds. The
+      // rename is the tab's, but the path moved with it so the URL and the tab
+      // cannot disagree — and this rule is what keeps every existing bookmark,
+      // browser tab and shared link working. Listed first because a redirect to
+      // a path that is itself redirected is a second round trip.
+      { source: "/positions/trades", destination: "/positions/transactions", permanent: false },
       // Cash is money, not a position — and this has to be listed BEFORE the
       // /holdings/:path* rule below, because that rule would otherwise send
       // /holdings/cash to a /positions/cash that does not exist. Order matters:
@@ -31,9 +37,9 @@ const nextConfig = {
       // are a view of.
       { source: "/exposure", destination: "/positions/exposure", permanent: false },
       { source: "/attribution", destination: "/performance/attribution", permanent: false },
-      // The trade ledger is position history (it is what built the positions),
-      // and realized trades are a performance result.
-      { source: "/transactions", destination: "/positions/trades", permanent: false },
+      // The transaction ledger is position history (it is what built the
+      // positions), and realized trades are a performance result.
+      { source: "/transactions", destination: "/positions/transactions", permanent: false },
       { source: "/completed-trades", destination: "/performance/realized", permanent: false },
       // Outlay is the Money object under its old report-flavoured name, and the
       // two names before that.

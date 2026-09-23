@@ -24,6 +24,10 @@
 //     DISPLAY decision: the stored text is read back verbatim by the edit form
 //     and is not rewritten until the owner approves a cleanup, which is why
 //     `scripts/notes-dry-run.ts` prints the before/after first.
+//   - `noteCell()` composes the two for the cell that shows them: the derived
+//     line ALWAYS, then the owner's words appended after it. That order is the
+//     point — a stored note used to replace the derived line, so a row with a
+//     DCA or a stop-loss note silently lost what the row actually did.
 //
 // The bias is asymmetric on purpose. Showing a name that did not need showing
 // is noise; hiding something a person wrote is data loss. So a note is hidden
@@ -214,21 +218,31 @@ export function classifyNote(
 /** What a ledger row did to its position — the factual line the ledger renders
  *  instead of a hand-typed note. Derived every render, never stored.
  *
- * Three rules shape the wording, all of them deliberate:
+ * Four rules shape the wording, all of them deliberate:
  *
- * 1. **At most ONE currency figure per line.** The price, the quantity and the
+ * 1. **The action word comes first, and every row has one** — `Opened`,
+ *    `Added`, `Partial sell (8 of 15)`, `Closed`. The column becomes a column
+ *    you can read DOWN as a summary of what the ledger did, rather than a
+ *    sentence per row.
+ * 2. **At most ONE currency figure per line.** The price, the quantity and the
  *    running average are already columns on this row, so a line repeating them
  *    would put two or three near-identical dollar amounts side by side, which
  *    reads as one number misprinted. A buy states the average it left behind; a
  *    sell states the amount it realized. Nothing else on the line is money.
- * 2. **A fraction, not a remainder.** `Sold 8 of 15` says what `8 sold, 7 left`
- *    says without repeating the position size the row already shows.
- * 3. **Short enough to read without a hover.** The Note column is ~165px of
- *    12px type — about 24 characters. The figure goes as early in the line as
- *    the grammar allows, because it is the part worth reading and it is exactly
- *    the part truncation used to eat. That is also why the quantity and the
- *    ordinal are absent from buy lines: the Qty column has the first, and the
- *    row's own history implies the second.
+ * 3. **A fraction, not a remainder.** `Partial sell (8 of 15)` says what
+ *    `8 sold, 7 left` says without repeating the position size the row already
+ *    shows.
+ * 4. **Direction is a glyph, never a colour.** `Added · avg ↓ US$537.33` — the
+ *    arrow states which way this row moved the average cost, which is a fact
+ *    about a COST, not a result. Colouring it green would put two meanings on
+ *    one colour in the same column (red already means "this sale realised a
+ *    loss"), and it would claim averaging down is good, which is a judgement
+ *    the ledger has no business making. Only a realised amount is coloured.
+ *
+ * The line is kept short deliberately — the Note column is the one cell whose
+ * width is contested (see the caller), and the figure sits as early in the line
+ * as the grammar allows, because it is the part worth reading and exactly the
+ * part truncation used to eat.
  */
 export function ledgerSummaryParts(
   row: {
@@ -248,34 +262,104 @@ export function ledgerSummaryParts(
     // Opening versus adding to something already held: the first case has no
     // previous average to have moved away from.
     const opening = row.qtyBefore <= EPSILON;
+    if (opening) {
+      // The average of a position opened by this row IS the price just paid,
+      // which the Price column already shows. Repeating it made the longest
+      // line in the column longer to say nothing.
+      const parts: LedgerLinePart[] = [{ text: "Opened" }];
+      return { parts, text: parts.map((p) => p.text).join("") };
+    }
+    const direction = averageDirection(row.avgCostBefore, row.runningAvgCost);
     const parts: LedgerLinePart[] = [
-      { text: opening ? "Opened · avg " : "Added · avg now " },
-      { text: money(opening ? row.price : row.runningAvgCost) },
+      { text: direction === "down" ? "Added · avg ↓ " : direction === "up" ? "Added · avg ↑ " : "Added · avg " },
+      { text: money(row.runningAvgCost) },
     ];
     return { parts, text: parts.map((p) => p.text).join("") };
   }
 
+  // Closing versus reducing: `Closed` says the position ended, and a sale that
+  // left shares names the fraction it took.
   const closing = row.runningQty <= EPSILON;
-  const parts: LedgerLinePart[] = [
-    {
-      text: closing
-        ? "Closed · "
-        : `Sold ${formatQty(row.qty)} of ${formatQty(row.qtyBefore)} · `,
-    },
-  ];
-  // A sale with no cost basis to realize against (a position that was negative
-  // before this row) has no meaningful P/L, so the line stops at the quantity.
   if (row.avgCostBefore <= EPSILON) {
-    // `Closed · ` on its own would read as a dangling separator.
-    parts[0] = { text: closing ? `Closed · ${formatQty(row.qty)} sold` : parts[0].text };
+    // A sale with no cost basis to realize against (a position that was negative
+    // before this row) has no meaningful P/L, so the line states only what the
+    // row did — and never ends on a dangling separator.
+    const parts: LedgerLinePart[] = [
+      { text: closing ? `Closed · ${formatQty(row.qty)} sold` : `Partial sell (${formatQty(row.qty)} of ${formatQty(row.qtyBefore)})` },
+    ];
     return { parts, text: parts.map((p) => p.text).join("") };
   }
+  const action = closing
+    ? "Closed"
+    : `Partial sell (${formatQty(row.qty)} of ${formatQty(row.qtyBefore)})`;
   const realized = (row.price - row.avgCostBefore) * row.qty;
-  parts.push({
-    text: `${realized < 0 ? "-" : "+"}${money(realized)}`,
-    tone: realized < 0 ? "loss" : "gain",
-  });
+  const parts: LedgerLinePart[] = [
+    { text: `${action} · ` },
+    {
+      text: `${realized < 0 ? "-" : "+"}${money(realized)}`,
+      tone: realized < 0 ? "loss" : "gain",
+    },
+  ];
   return { parts, text: parts.map((p) => p.text).join("") };
+}
+
+/**
+ * Which way a row moved the average cost — the direction the arrow states.
+ *
+ * Null means "no arrow", and it is returned in two different situations that
+ * both have to stay silent rather than guess: a row with no previous average to
+ * have moved away from (a position opened or covered, where the engine carries
+ * no basis), and a buy at exactly the average it already held. An arrow is a
+ * claim about a comparison, so no comparison means no arrow.
+ */
+export function averageDirection(before: number, after: number): "down" | "up" | null {
+  if (before <= EPSILON) return null;
+  if (after < before - EPSILON) return "down";
+  if (after > before + EPSILON) return "up";
+  return null;
+}
+
+/**
+ * The whole Note cell: what the ledger derived, and the owner's own words
+ * after it.
+ *
+ * The relationship between the two is the point, and it is the opposite of
+ * what it used to be. A stored note used to REPLACE the derived line
+ * (`note ?? <LedgerLine/>`), so a row carrying a DCA or a stop-loss note lost
+ * the arithmetic entirely — the one thing the owner now wants to read. Here the
+ * derived line is unconditional and the note is APPENDED, which also means a
+ * long note truncates (the facts stay) instead of a long fact truncating (the
+ * note hiding it).
+ *
+ * Classification still decides whether a stored note shows at all: a note that
+ * is only the instrument's name is hidden because the ticker lookup already
+ * renders that name, and hiding is a DISPLAY decision — the stored text is read
+ * back verbatim by the edit form and never rewritten (see `classifyNote`).
+ */
+export interface NoteCell {
+  /** The derived line. Always rendered. */
+  derived: LedgerLine;
+  /** The owner's note, appended after the derived line. Null when there is
+   *  nothing to append — no note, or one that is only reference data. */
+  appended: string | null;
+  /** The whole cell as plain text, for the hover title: derived, then the
+   *  note the ledger is not allowed to truncate out of significance. */
+  text: string;
+}
+
+export function noteCell(
+  row: Parameters<typeof ledgerSummaryParts>[0],
+  symbol: string,
+  rawNote: string | null | undefined,
+  subject: { ticker: string; name?: string | null }
+): NoteCell {
+  const derived = ledgerSummaryParts(row, symbol);
+  const appended = classifyNote(rawNote, subject).note;
+  return {
+    derived,
+    appended,
+    text: appended ? `${derived.text} · ${appended}` : derived.text,
+  };
 }
 
 /** The same line as plain text, for tooltips and tests. */

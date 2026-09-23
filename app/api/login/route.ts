@@ -9,60 +9,22 @@ import {
 import { verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { markSeen } from "@/lib/session";
+import { clientIp, createRateLimiter } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 // --- Rate limiting ---
-// In-memory per-IP attempt tracker: after MAX_ATTEMPTS failed logins within
-// WINDOW_MS, the IP is locked out for LOCKOUT_MS. Good enough for a private
-// portfolio app — it just needs to make brute-force impractical, not survive a
-// server restart. Different Next.js dev / prod instances each keep their own
-// map, which is fine for this.
-const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 5 * 60 * 1000; // sliding 5-minute window
-const LOCKOUT_MS = 15 * 60 * 1000; // locked for 15 minutes after 5 failures
-
-const attempts = new Map<string, { count: number; firstAt: number; lockedUntil: number }>();
-
-function clientIp(req: NextRequest): string {
-  return (
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    req.headers.get("x-real-ip") ||
-    "unknown"
-  );
-}
-
-function checkRateLimit(ip: string): { allowed: boolean; retryAfterSec: number } {
-  const now = Date.now();
-  const entry = attempts.get(ip);
-
-  if (!entry) return { allowed: true, retryAfterSec: 0 };
-
-  if (entry.lockedUntil > now) {
-    return { allowed: false, retryAfterSec: Math.ceil((entry.lockedUntil - now) / 1000) };
-  }
-
-  // Reset the sliding window if the last failure was long ago.
-  if (now - entry.firstAt > WINDOW_MS) {
-    attempts.delete(ip);
-    return { allowed: true, retryAfterSec: 0 };
-  }
-
-  return { allowed: true, retryAfterSec: 0 };
-}
-
-function recordFailure(ip: string) {
-  const now = Date.now();
-  const entry = attempts.get(ip);
-  if (!entry || now - entry.firstAt > WINDOW_MS) {
-    attempts.set(ip, { count: 1, firstAt: now, lockedUntil: 0 });
-    return;
-  }
-  entry.count += 1;
-  if (entry.count >= MAX_ATTEMPTS) {
-    entry.lockedUntil = now + LOCKOUT_MS;
-  }
-}
+// After 5 failed logins within 5 minutes, the address is locked out for 15
+// minutes. The sliding window itself lives in lib/rate-limit.ts, because the
+// account-request endpoint needs the same protection and two copies of it
+// would drift. Failures are charged to the ADDRESS rather than the username:
+// username-based lockout would let anyone freeze a real person's account by
+// guessing at it.
+const loginLimiter = createRateLimiter({
+  maxAttempts: 5,
+  windowMs: 5 * 60 * 1000,
+  lockoutMs: 15 * 60 * 1000,
+});
 
 /** Constant-time string comparison so login response timing doesn't
  * leak how much of the password matched. Falls back to == for
@@ -76,14 +38,6 @@ function timingSafeEqualStr(a: string, b: string): boolean {
   }
   return diff === 0;
 }
-
-// Periodically drop stale entries so the map doesn't grow forever.
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, entry] of attempts) {
-    if (entry.lockedUntil < now && now - entry.firstAt > WINDOW_MS) attempts.delete(ip);
-  }
-}, 60_000).unref?.();
 
 function setSessionCookie(res: NextResponse, token: string) {
   res.cookies.set(AUTH_COOKIE_NAME, token, {
@@ -114,7 +68,7 @@ function setSessionCookie(res: NextResponse, token: string) {
  */
 export async function POST(req: NextRequest) {
   const ip = clientIp(req);
-  const rate = checkRateLimit(ip);
+  const rate = loginLimiter.check(ip);
   if (!rate.allowed) {
     return NextResponse.json(
       { error: `Too many attempts — try again in ${Math.ceil(rate.retryAfterSec / 60)} min` },
@@ -132,13 +86,13 @@ export async function POST(req: NextRequest) {
     // A malformed username is answered exactly like a wrong password: telling
     // the caller which part was wrong narrows their search for free.
     if (!username) {
-      recordFailure(ip);
+      loginLimiter.recordFailure(ip);
       return NextResponse.json({ error: "Incorrect username or password" }, { status: 401 });
     }
 
     const user = await prisma.user.findUnique({ where: { username } });
     if (!user || !verifyPassword(password, user.passwordHash)) {
-      recordFailure(ip);
+      loginLimiter.recordFailure(ip);
       return NextResponse.json({ error: "Incorrect username or password" }, { status: 401 });
     }
 
@@ -162,7 +116,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    attempts.delete(ip);
+    loginLimiter.reset(ip);
     // Seed the baseline: the first thing this person sees after signing in is
     // what changed since they were last here, not since some previous session.
     await markSeen(user.id);
@@ -178,11 +132,11 @@ export async function POST(req: NextRequest) {
     );
   }
   if (!timingSafeEqualStr(password, configuredPassword)) {
-    recordFailure(ip);
+    loginLimiter.recordFailure(ip);
     return NextResponse.json({ error: "Incorrect password" }, { status: 401 });
   }
 
-  attempts.delete(ip);
+  loginLimiter.reset(ip);
 
   const token = await expectedAuthToken();
   return setSessionCookie(NextResponse.json({ ok: true }), token!);

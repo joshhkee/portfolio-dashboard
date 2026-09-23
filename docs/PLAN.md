@@ -106,10 +106,63 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 28 | Watchlist entry-level chart (price + 1y low/high + 50-day average), a gauge-style range bar, and "How to read these" | **DONE** |
 | 29 | Today's movers show the current price beside the day's change | **DONE** |
 | 30 | Accounts: roles, a request-and-approve queue with josh as admin, and "Add account" on Today | **DONE** |
+| 31 | Login asks for an account (three named ways in, the shared password while you wait); the ledger is renamed Transactions and every P/L figure in the history modal sits under its own label | **DONE** |
+| 32 | Notes become structured: the derived facts first (`Opened` / `Added · avg ↑↓` / `Partial sell (n of m)` / `Closed`), the owner's note appended after them instead of replacing them, and a wider Note column | **DONE** |
 
 ---
 
-## Resume checkpoint — 2026-09-23 (after Part 30)
+## Resume checkpoint — 2026-09-23 (after Part 32)
+
+**State:** parts 1–17 and 19–30 are done. **Part 31** closed the loop Part 30
+opened: an account could be *requested* only from inside the app, which meant
+the people the queue exists for could not reach it. The login page now has three
+named ways in — sign in, **request an account**, and the **shared password** —
+and the request is reachable **without a session**, because that is the only
+moment it is useful. The shared password still opens the whole dashboard while a
+request waits, and the page says so rather than implying the waiting person is
+shut out.
+
+That change is a real, deliberate re-statement of what approval means here,
+confirmed by the owner against the alternative: **approval is not access
+control.** The connection is already gated by the shared password, so a pending
+person being able to look at the dashboard adds no exposure — what approval
+decides is whose *name* the visits are recorded against. If access were meant to
+be the gate, the shared password would have to be the thing that changes; see the
+Part 31 section and the honest feedback in it.
+
+The three ways in are also the whole of what changed in the security boundary:
+`POST /api/users` is let past middleware so a stranger can **ask**, the route
+re-checks the shared gate for the one outcome that grants (the bootstrap, which
+mints a live admin), and the unauthenticated path is charged to the address and
+capped by a finite queue (`MAX_PENDING_REQUESTS`). `/api/users` GET stays behind
+the gate.
+
+**Also in Part 31:** the ledger is **Transactions** (tab, palette, and the URL —
+with `/positions/trades` redirecting, so nothing bookmarked breaks), the history
+modal's realised/unrealised P/L figures moved from opposite ends of a row to
+**directly under their labels** (measured: 4px apart, was ~800px), with **Cost
+basis sold** and **Proceeds** added so the realised figure can be checked rather
+than believed — `1,440 − 1,020 = 420` on the live NOW cycle.
+
+**Part 32** then made the ledger's Note column **structured**, which is the
+third shape that column has had. It was 64 duplicated names (Part 25), then a
+derived line that a stored note *replaced* — so a row carrying a `DCA · Sep 2026`
+or a stop-loss plan silently lost the arithmetic it had just been given. Now the
+derived line renders **unconditionally** and the owner's words are **appended**
+after it: `Partial sell (10 of 15) · +US$420.00 · NOW - 1st TP`, `Added · avg ↑
+US$157.01 · DCA · Sep 2026`, `Opened`, `Closed · +US$253.80`. Direction is an
+**arrow, never a colour** (the owner asked; the answer is in the Part 32
+section), and the Note column grew from 11rem to 16rem — paid for by `Txn value`
+above 1400px, a measurement rather than a preference.
+
+The distinction that survived: the derived half stays 12px and `ink-500`,
+because it is generated; the appended note is `ink-300`, because it was written.
+The consequence worth knowing is that **truncation now eats the note, not the
+facts** — which is the opposite of the bug Part 25 was fixing.
+
+---
+
+## Resume checkpoint — 2026-09-23 (after Part 30) — kept for reference
 
 **State:** parts 1–7, 9–17 and 19–21 were already done, plus **Part 22** (Today's
 movers, the colour rule, a shorter attention list), **Part 23** (a prominent
@@ -160,15 +213,22 @@ not a gain or a loss.
 
 - `.ledger-table td` is `whitespace-nowrap`. A cell that must wrap or truncate
   opts in with its own width (`TickerName`'s `max-w-[13rem]`, the notes cells'
-  `max-w-[11rem]`). Without this, "16 Sep 26" broke across three lines in a 67px
-  column and tripled the row height.
+  `max-w-[16rem]` since Part 32 — it was `11rem` before, which could fit the old
+  ~24-character derived line and nothing longer). Without this, "16 Sep 26"
+  broke across three lines in a 67px column and tripled the row height.
 - Ledger padding is `px-2` (was `px-3`) — 8px a cell times ten columns was ~90px
   spent on nothing, and it was what pushed the trades ledger (1531px) past its
   1218px container.
 - `.table-compact` is for a table whose **column count is unbounded** (the
   attribution matrix grows a column per month), not a style preference.
 - Column headers may be abbreviated to keep a table inside its container
-  (`P/L (%)`, `Running avg`); the full wording goes in `SortableTh`'s `title`.
+  (`P/L (%)`, `Txn value`); the full wording goes in `SortableTh`'s `title`.
+- **A column's width comes out of another column's.** The ledger's Note column
+  is the one cell whose contents vary in width, so Part 32 paid for its extra
+  room with `Txn value` (`hidden min-[1400px]:table-cell`): pure arithmetic on
+  two columns that stay on the row, so a narrow window loses width rather than
+  information. Measured minimum window for the full table: **1374px** — hence
+  the 1400 threshold, which is a measurement, not a round number.
 
 **Kept on purpose through the text pass** (each one changes how a figure above
 it should be read, so none of them is decoration): the value chart's "value
@@ -2675,3 +2735,304 @@ queue-bypass rule).
 opening Today or the accounts page. That is deliberate for now (this is a
 three-person portfolio, not a service), and it is the first thing to add if a
 request ever sits unapproved for long enough to matter.
+
+---
+
+## Part 31 — the login page asks for an account, the modal pairs every figure
+with its label, and the ledger is renamed (DONE)
+
+Three requests, one of them with a question inside it — *think about how this
+flow would be like for users, and give me honest feedback if it's bad* — so the
+feedback comes first, because it decides what was built.
+
+### The honest feedback: approval here is a name, not a door
+
+The owner asked for this flow: a person can **request** an account from the
+login page, and **while waiting** can sign in with the **shared password** with
+no personalised account. That is coherent, but only under one reading, and the
+reading is worth stating plainly because it is easy to build the other one by
+accident:
+
+- **The shared password already opens the entire dashboard.** So letting a
+  pending person use it adds *no exposure at all*. Approval therefore does not
+  control access; it decides **whose name the visits are recorded against** —
+  which is what `lastSeenAt` and "since you last looked" need, and the only thing
+  accounts have ever been for in this app (see Part 16's schema note).
+- The bad version of this feature is the one where the owner *believes* the
+  queue is a gate. It is not, and it cannot be while a shared password exists: a
+  waiting person sees the identical portfolio, just anonymously. If access is
+  what should be gated, the shared password is the thing to retire or rotate —
+  not the queue.
+- The flow's one genuine dead end is removed by the design below: a pending
+  person has no way to learn they were approved (no email, and the shared-password
+  session carries no identity), so the login page tells them where the request
+  went, and signing in with their username is how they discover it landed.
+
+### The login page: three ways in, named
+
+One form whose behaviour changed with whether a username was typed is a rule the
+**server** has, not something a person should have to infer from a footnote —
+which is exactly how the old page handled the shared password ("leave the
+username blank"). There are now three modes, each asking only the questions it
+needs:
+
+| mode | fields | who it is for |
+|---|---|---|
+| **Sign in** | username + password | an account that can sign in |
+| **Request an account** | username + password + confirm | anyone who has not been let in yet |
+| **Shared password** | password | the original gate, no name recorded |
+
+Three details are deliberate. The **username field is absent** in shared mode
+rather than left blank, because the page is not asking a question it would
+ignore. The rules (**`USERNAME_RULE`**, **`MIN_PASSWORD_LENGTH`**) are passed in
+from the server page, the way `/accounts` already hands them to
+`AccountManager`, so the hint under a field cannot disagree with the validator
+that answers it. And a request that comes back **`approved`** — only reachable as
+the bootstrap, or as an admin — signs the person straight in, because there is
+nothing to wait for in that case.
+
+### Making "ask for an account" reachable without a session
+
+Part 30 built the queue but left `POST /api/users` behind the gate, which meant
+the people the feature exists for could not reach it: you had to be inside to
+ask to come in. Three changes make the public path safe without opening the
+gate:
+
+1. **Middleware lets exactly one request through** — `POST /api/users`, with the
+   GET on the same path still gated (verified: `307 → /login?redirect=%2Fapi%2Fusers`).
+   It is also no longer the door: what that request can produce is decided in the
+   route.
+2. **The one outcome that grants is re-checked** — `accountCreationDecision`
+   returns `because: "bootstrap"` when the database is empty, and that is a
+   **live admin**. Reachable anonymously it would let a stranger claim a fresh
+   deployment, so the route now requires the **shared gate** for exactly that
+   case (`hasSharedGate()` in `lib/session.ts`). Everything else a stranger can
+   create is a `pending` row, which cannot sign in.
+3. **The public path is throttled and finite** — `lib/rate-limit.ts` (below) and
+   `guardRequestAccount`, because an unthrottled public endpoint that writes rows
+   is a way to fill an admin's queue. Every attempt counts, not just the failed
+   ones: a queue is filled by successes.
+
+**`lib/rate-limit.ts`** is the login route's private sliding-window limiter,
+extracted because the second public endpoint needed the same thing and two
+copies of a rate limiter would drift — the copy nobody touched being the one
+guarding the newer hole. It is unchanged in behaviour (in-memory, per-process,
+`Date.now` injectable so tests do not sleep) and now shared by `/api/login` and
+`/api/users`. `app/api/login/route.ts` lost ~60 lines to it.
+
+### `Status: 429` is not a failed login
+
+The request path's refusal is its **own sentence** — *"Too many account requests
+from this address — try again in 60 min"* — and the full queue says how to drain
+it (*"Ask an admin to clear the queue"*). Neither is a wrong-password answer,
+for the same reason Part 30 gave a pending account its own sentence: the person
+is not guessing.
+
+### The history modal: every figure under its own label
+
+The complaint was exact and measurable: in the per-trade footer the label sat at
+the left edge and the figure at the right, so **"Realised P/L (USD)" and
+`+US$420.00` were about 800px apart**, and pairing them meant reading across an
+empty row. The `justify-between` `<dl>` is gone. Each figure is now a **`Metric`
+cell** — label, figure, optional second line — in a responsive grid, which is
+the same pattern the summary strip and the chart stat rows already use.
+
+**Measured on the live NOW cycle: every label is 4px above its value**, in cells
+187–190px wide, at a 896px modal, with **0** inner vertical scroll containers.
+
+What the freed room is spent on is not filler: **Cost basis sold** and
+**Proceeds**, the two terms the realised figure is the difference *of*. Before,
+the footer asserted a number and gave you nothing to check it against. Now the
+live cycle reads `Proceeds US$1,440.00 − Cost basis sold US$1,020.00 =
+Realised +US$420.00`, to the cent, and the same for `Avg sell cost · 10 sold`.
+The percentage and the SGD equivalent moved into the cell's second line
+(`+41.18% · +S$535.92`), so a single P/L cell answers "what, and how much"
+without a second glance — and for SG holdings the SGD repeat is dropped rather
+than printed beside itself.
+
+### The rename
+
+"Trades" named the ledger after **one of the two things it holds** (every row is
+a transaction; a trade is one kind), and it read like a report of completed
+trades — which is a different page (*Performance · Realized*). So:
+
+- the Positions tab is **Transactions** (`/positions/transactions`);
+- `/positions/trades` **redirects**, so no bookmark, browser tab or shared link
+  breaks — verified in the running app, not just in the config;
+- the command palette entry is **Transaction ledger** (and still matches
+  "trades", which is what people type);
+- Today's button is **Log a transaction**, because you can log a sell;
+- the ledger column **`Running avg` → `Avg cost`** (the title says "average cost
+  basis per share after this transaction"), and `Running qty` keeps its name —
+  it *is* the running quantity.
+
+### Verification — against the running app, against the real database
+
+- **The anonymous ask, with no cookie:** `POST /api/users` →
+  `201 {"status":"pending"}`; the same name again → `409 "…has already been
+  requested and is waiting for approval."`; that account signing in →
+  `403 "That account is waiting to be approved by an admin."`
+- **The throttle, without polluting anything:** four invalid payloads (refused
+  **after** the throttle, before any write) spent the budget, and the sixth
+  attempt → `429`. `GET /api/users` → `307 → /login?redirect=%2Fapi%2Fusers`.
+- **The flow in the browser, signed out:** *No account yet? Request one* →
+  mismatch caught client-side with no request → **"Request sent"** naming the
+  username, with *"Nothing is locked while you wait — the shared password opens
+  the same dashboard."* The row really was in the queue afterwards
+  (`zz-preview-request2 · member · PENDING`).
+- **The shared password still works:** `POST /api/login {password}` → **200 with
+  a session cookie** (the value read from `.env` inside the script, never
+  printed). The mode renders one field and says what it costs you.
+- **A signed-in visit to `/login` lands on the dashboard** — middleware now
+  sends it onward, which also closes the oddity that an admin could fill in
+  "request an account" and silently mint a live one (that is how the first probe
+  account in this pass got created, and why the redirect exists).
+- **The ledger:** header reads `Date · Action · Ticker · Region · Qty · Price ·
+  Running qty · **Avg cost** · Txn value · Note`, tab reads **Transactions**,
+  document overflow **0px** at 1440×900.
+- **The modal:** the eight `Metric` cells above, plus **0** inner vertical
+  scrollers (Part 27's single-scroll-container rule still holds).
+- Every probe row was deleted afterwards; the database is back to **one**
+  account (`josh · admin · approved`), and all four throwaway scripts are gone
+  from the tree.
+
+**Checks:** `npx tsc --noEmit` clean, `npx eslint .` clean, `npm test` **22 files
+/ 357 tests** (`tests/rate-limit.test.ts` new — 9 cases pinning the window, the
+lockout, the success-reset, key isolation and the sweep; `tests/accounts.test.ts`
++3 for the finite queue), `npm run build` clean with `/positions/transactions`
+registered.
+
+**Files:** `components/LoginForm.tsx`, `app/login/page.tsx`, `lib/rate-limit.ts`
+(new), `lib/accounts.ts`, `lib/session.ts`, `middleware.ts`,
+`app/api/users/route.ts`, `app/api/login/route.ts`,
+`components/TransactionHistoryModal.tsx`, `components/TransactionsTable.tsx`,
+`components/CommandPalette.tsx`, `app/positions/layout.tsx`,
+`app/positions/transactions/*` (moved), `app/page.tsx`, `next.config.js`,
+`lib/notes-cleanup.ts` (comment), `tests/accounts.test.ts`,
+`tests/rate-limit.test.ts`.
+
+**Known gaps, stated rather than implied:**
+
+- **The bootstrap re-check (`hasSharedGate`) has no automated test.** It is the
+  one branch on the public path that grants, and exercising it needs an empty
+  database plus a cookie — verified by reading, not by running. That is the
+  first thing to pin if the account rules change again.
+- **A pending person cannot check their own status** without trying to sign in:
+  the shared-password session carries no identity, so nothing can be shown about
+  a request in the nav. The login page carries the whole burden of that — which
+  is why its copy about approval is specific rather than reassuring.
+- The rate limiter is **per process**: a restart forgets it and two instances do
+  not share it. Deliberate (see the module header), but it means the throttle is
+  a speed bump, not a wall.
+- The request queue still has **no notification** — carried over from Part 30.
+  The next thing worth building is a line in the nav's account chip when the
+  queue is not empty.
+
+---
+
+## Part 32 — Notes become structured (DONE)
+
+*A second pass in the same session, on the same branch, so Part 31 above keeps its
+own verification and gaps.*
+
+The owner's request, in their words: each note should state the general action
+first — **opened, added, DCA, partial sell, closed** — then more information;
+opened needs no average cost (the table shows it), added wants a quick avg
+down/up arrow and the new average, closed wants the realised profit, partial
+sell wants the fraction and the realised profit, and after that there should be
+somewhere to add further notes. Plus the question: *"should these be colour
+coded, avg down is green and avg up is red? or will that violate the design
+rules of the site?"*
+
+**The answer to the colour question is no, and the reason is not only the rule.**
+Colour in this app means *a realised or unrealised gain or loss* — Part 25 put
+`tone` on `LedgerLinePart` for exactly that, and an average cost is deliberately
+left plain. Colouring an average would put two meanings on one colour in one
+column, because red already means "this sale realised a loss" in the same cell.
+It would also assert something the ledger cannot know: averaging down is a
+*decision*, not a gain, and it is sometimes the wrong one. Direction is a glyph
+(`↓`/`↑`), which states the fact without the verdict. The test pins it: neither
+arrow, nor the cost beside it, carries a tone.
+
+**The structural change is the one that matters.** The cell used to be
+`note.note ?? <LedgerLine/>` — a stored note *substituted* for the derived line,
+so the five DCA rows and the four stop-loss/take-profit rows showed no
+arithmetic at all. It is now `noteCell(row, symbol, rawNote, subject)`, which
+returns the derived line **always** plus the owner's note **appended**:
+classification still decides whether a stored note shows (a note that is only the
+instrument's name is still suppressed, because the ticker lookup already renders
+it), but it can no longer hide a fact. `LedgerLine` renders both halves, the
+derived one at 12px `ink-500` and the note at `ink-300`, so which half you are
+reading is legible without parsing it.
+
+**The wording, per category** (`lib/notes.ts`):
+
+| row | line |
+|---|---|
+| buy that opened the position | `Opened` — the average of a position opened by this row *is* the price beside it |
+| buy that added | `Added · avg ↓ US$537.33` / `↑`, the arrow comparing `avgCostBefore` with `runningAvgCost` |
+| buy with no prior basis | `Added · avg US$600.00` — no comparison, so no arrow (`averageDirection` returns null) |
+| sell that left shares | `Partial sell (8 of 15) · +US$156.00` |
+| sell that ended the position | `Closed · -US$857.60` |
+| sell with no cost basis | `Closed · 3 sold` / `Partial sell (3 of 10)` — never a dangling separator |
+
+**The width, argued from the live column rather than guessed.** Every one of the
+64 rows' cells was measured against the actual font (12px Source Serif 4, i.e.
+~5.1px/char) with a canvas:
+
+- longest **derived-only** line: `Partial sell (10 of 15) · +US$420.00`, 36
+  characters, ~184px;
+- longest **DCA** line: `Added · avg ↑ US$157.01 · DCA · Sep 2026`, ~231px;
+- the 3 stop-loss/take-profit plans and FLKR's long name: 271–360px, i.e.
+  unreachable at any sane column width.
+
+So **16rem** (256px) is the smallest cap that fits every derived line *and*
+every DCA month, and it is what shipped. At the old 11rem the derived lines
+themselves truncated — the Part 25 problem, one pass later.
+
+The 80px had to come from somewhere, and the table is content-sized, so it came
+from `Txn value` (`hidden min-[1400px]:table-cell`): pure arithmetic on two
+columns that stay visible, which is the rule this table already applies when it
+drops columns on a phone. **The threshold is measured, not chosen:** forcing the
+column visible at the widest reachable viewport gives a 1278px table, and the
+container is `window − 96px`, so the table needs **1374px** of window and 1400 is
+the next round number above it.
+
+**Measured after, in the running app** (ledger, 64 rows, real data):
+
+| viewport | available | table | inner horizontal scroll |
+|---|---|---|---|
+| 1314 (max the panel reaches) | 1218 | 1218 | **0px** |
+| 1168 | 1072 | 1161 | 89px — the same table already scrolled more than this at 11rem |
+
+And with every column forced visible at 1168: table 1278px → a 1374px window is
+the true minimum, which is where the 1400 threshold comes from. The column reads
+as a taxonomy on the real ledger: **31 `Opened`, 15 `Added`, 13 `Closed`, 5
+`Partial sell`** — all 64 rows, none left blank. **5 cells truncate** and all 5
+are the notes, never the arithmetic: the three stop-loss/take-profit plans,
+FLKR's long name, and `NOW - 1st TP`. In the modal, all of them fit: `Partial
+sell (10 of 15) · +US$420.00 · NOW - 1st TP` renders in full.
+
+**Adding a note** is still the ledger's own `Edit` (the note field holds only
+your words, and the hint now says where they land: *"Your own words, appended
+after the ledger line: Added · avg ↑ US$157.01"*). Clearing it remains possible
+without retyping a fact, because the facts were never in the field.
+
+**One honest wrinkle, kept rather than papered over:** the DCA rows read
+`Added · avg ↑ US$157.01 · DCA · Sep 2026`, which is right — but a DCA row that
+*opens* a position reads `Opened · DCA · May 2026`, where "Opened" earns its
+place only as the taxonomy's first word (the average it would have stated is the
+price in the next column). If the owner would rather see `DCA · May 2026` there,
+that is a one-line rule in `noteCell` and a one-row decision.
+
+### Known gaps
+
+- **Four long notes still truncate** in the ledger (three stop-loss/take-profit
+  plans and FLKR's name), and that is a width decision, not a bug: fitting a
+  64-character note needs a 22rem column, which would cost a column that carries
+  information no one can recompute. The full text is one hover away, and the
+  facts in front of it are never the part that gets cut.
+- **`DCA` is still a text convention**, not a stored kind — so a DCA row is
+  recognised by its note text, and a typo in that text is a mis-classification.
+  The owner asked about a `kind` column during the re-prompt and the answer was
+  "not yet"; this is the first place it would pay.
