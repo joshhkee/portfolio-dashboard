@@ -6,7 +6,7 @@ import { X } from "lucide-react";
 import RegionFlag from "@/components/RegionFlag";
 import { formatShortDate, formatHoldingPeriod } from "@/lib/dates";
 import { formatQty, formatAmount, NativeMoney } from "@/components/SignedNumber";
-import { classifyNote, ledgerSummary } from "@/lib/notes";
+import { noteCell } from "@/lib/notes";
 import LedgerLine from "@/components/LedgerLine";
 
 interface HistoryRow {
@@ -379,8 +379,12 @@ function TradeSection({
           </thead>
           <tbody>
             {trade.cycle.map((row) => {
-              const note = classifyNote(row.notes, { ticker: row.ticker, name: companyName });
-              const derived = ledgerSummary(row, symbol);
+              // Same rule as the ledger table: the derived line always, with the
+              // owner's note appended after it rather than instead of it.
+              const cell = noteCell(row, symbol, row.notes, {
+                ticker: row.ticker,
+                name: companyName,
+              });
               return (
                 <tr key={row.id}>
                   <td className="num text-ink-300">{formatShortDate(new Date(row.date))}</td>
@@ -391,15 +395,11 @@ function TradeSection({
                     {formatAmount(row.price)}
                   </td>
                   <td className="num text-right">{formatQty(row.runningQty)}</td>
-                  {/* Same rule as the ledger table: the owner's note if there is
-                      one, otherwise the line the ledger derives from the row. */}
-                  <td
-                    className={`max-w-[16rem] truncate text-left ${
-                      note.note ? "text-ink-300" : "text-ink-500"
-                    }`}
-                    title={note.note ? `${note.note} — ${derived}` : derived}
-                  >
-                    {note.note ?? <LedgerLine row={row} symbol={symbol} />}
+                  {/* Facts first, then the owner's words — and the note is the
+                      half that truncates, because the arithmetic is the half
+                      that has to survive a narrow cell. */}
+                  <td className="max-w-[16rem] truncate text-left text-ink-500" title={cell.text}>
+                    <LedgerLine row={row} symbol={symbol} note={cell.appended} />
                   </td>
                 </tr>
               );

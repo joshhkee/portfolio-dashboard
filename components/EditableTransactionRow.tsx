@@ -7,7 +7,7 @@ import { currencySymbol, currencyForRegion } from "@/lib/fx";
 import { formatQty, formatAmount } from "@/components/SignedNumber";
 import { formatShortDate } from "@/lib/dates";
 import TickerName from "@/components/TickerName";
-import { classifyNote, ledgerSummary } from "@/lib/notes";
+import { noteCell } from "@/lib/notes";
 import LedgerLine from "@/components/LedgerLine";
 
 export default function EditableTransactionRow({
@@ -24,14 +24,17 @@ export default function EditableTransactionRow({
   const [error, setError] = useState<string | null>(null);
 
   const dateStr = new Date(t.date).toISOString().slice(0, 10);
-  // What this row did to the position — derived from the ledger on every
-  // render, never stored. It is what the note column shows when there is no
-  // note, so a factual note never has to be typed.
-  const derived = ledgerSummary(t, currencySymbol[currencyForRegion(t.region)]);
-  // Reference-data notes (the instrument's name, hand-typed) are not shown: the
-  // name is already rendered under the ticker. Hiding is display only — the
-  // stored text comes back untouched in the edit row below.
-  const note = classifyNote(t.notes, { ticker: t.ticker, name });
+  // The Note cell: what this row did to the position — derived from the ledger
+  // on every render, never stored — with the owner's own words appended after
+  // it. The derived part is unconditional, so a row carrying a DCA month or a
+  // stop-loss level still shows its arithmetic instead of losing it to the
+  // note. Reference-data notes (the instrument's name, hand-typed) are not
+  // appended at all: the name is already rendered under the ticker. Hiding is
+  // display only — the stored text comes back untouched in the edit row below.
+  const cell = noteCell(t, currencySymbol[currencyForRegion(t.region)], t.notes, {
+    ticker: t.ticker,
+    name,
+  });
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -138,10 +141,14 @@ export default function EditableTransactionRow({
                 className="field w-56"
                 placeholder="Optional"
               />
+              {/* Says where the text lands, because the ledger line is not in
+                  this field and never was: it is derived, and whatever is
+                  typed here is appended to it. That is what makes clearing the
+                  field safe — nothing factual is lost by emptying it. */}
               <p className="max-w-xs text-xs text-ink-500">
-                {note.kind === "reference"
+                {cell.appended === null && t.notes?.trim()
                   ? "Just the instrument's name — the ledger shows that from the ticker lookup, so this can be cleared."
-                  : `Kept as typed. The ledger line is derived from the transaction: ${derived}`}
+                  : `Your own words, appended after the ledger line: ${cell.derived.text}`}
               </p>
             </div>
             <div className="flex gap-2">
@@ -195,23 +202,25 @@ export default function EditableTransactionRow({
         {symbol}
         {formatAmount(t.runningAvgCost)}
       </td>
-      <td className="num hidden text-right lg:table-cell">
+      {/* Matches the header's visibility: `Qty × Price`, so it is the column
+          that gives up its width first when the window is narrow. */}
+      <td className="num hidden text-right min-[1400px]:table-cell">
         {symbol}
         {formatAmount(t.transactionValue)}
       </td>
-      {/* One line, and its preferred content is the owner's own words. With no
-          note the column shows the derived ledger line instead (muted, since it
-          is generated rather than written). The 11rem cap is the width this
-          table was tuned to in Part 23 — widening it to fit the derived line
-          pushed a 1280px desktop into a horizontal scroll, so the line
-          truncates and the whole of it stays one hover away. */}
-      <td
-        className={`max-w-[11rem] truncate text-left ${
-          note.note ? "text-ink-300" : "text-ink-500"
-        }`}
-        title={note.note ? `${note.note} — ${derived}` : derived}
-      >
-        {note.note ?? <LedgerLine row={t} symbol={symbol} />}
+      {/* One line, facts first, the owner's words after. The cell is muted
+          because the derived part is generated; `LedgerLine` brightens the
+          note inside it, so which half you are reading is legible without
+          parsing the text.
+
+          The cap is what this column costs the table: `Date` through `Txn
+          value` are all content- or header-sized, so every pixel of the note
+          column comes out of the whole row's width, and this table has to fit a
+          desktop window without sideways scrolling. Long notes therefore
+          truncate with the full text one hover away — and because the note is
+          LAST, it is the note that gets cut, never the arithmetic. */}
+      <td className="max-w-[16rem] truncate text-left text-ink-500" title={cell.text}>
+        <LedgerLine row={t} symbol={symbol} note={cell.appended} />
       </td>
       <td>
         <div className="flex gap-3">

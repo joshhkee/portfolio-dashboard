@@ -58,10 +58,9 @@ export default function TransactionsTable({
             <SortableTh label="Region" active={sortKey === "region"} direction={sortDir} onClick={() => toggleSort("region")} />
             <SortableTh label="Qty" active={sortKey === "qty"} direction={sortDir} onClick={() => toggleSort("qty")} align="right" />
             <SortableTh label="Price" active={sortKey === "price"} direction={sortDir} onClick={() => toggleSort("price")} align="right" />
-            {/* Hidden below `lg`: both are recomputable from columns that stay
-                (running qty from the qty/action history, txn value from
-                qty times price), so a phone loses screen width rather than
-                information. */}
+            {/* Hidden below `lg`: recomputable from columns that stay (running
+                qty from the qty/action history), so a narrow window loses
+                screen width rather than information. */}
             <SortableTh
               label="Running qty"
               active={sortKey === "runningQty"}
@@ -78,21 +77,28 @@ export default function TransactionsTable({
               onClick={() => toggleSort("runningAvgCost")}
               align="right"
             />
+            {/* The one column that is pure arithmetic on two others on the same
+                row — `Qty × Price` — so it is what pays for the Note column's
+                width. `min-[1400px]` is not a breakpoint for its own sake: it
+                is the window width at which the table (with this column) still
+                fits without sideways scrolling, measured. Narrower, and the
+                note keeps its room and this value stays one multiplication
+                away; wider, and both are shown. */}
             <SortableTh
               label="Txn value"
               active={sortKey === "transactionValue"}
               direction={sortDir}
               onClick={() => toggleSort("transactionValue")}
               align="right"
-              className="hidden lg:table-cell"
+              className="hidden min-[1400px]:table-cell"
             />
-            {/* Shows the row's note, or the ledger line derived from the
-                transaction when there is none. Header tooltip carries that,
-                because a column whose content changes source needs explaining
-                once rather than per row. */}
+            {/* Two halves in one cell: what the ledger derived from the row,
+                then your own words. The tooltip says so once rather than per
+                row, because the relationship is the surprising part — a note
+                is added to the derived line, not written in place of it. */}
             <th
               className="text-left"
-              title="Your note for this row, or the ledger line derived from the transaction when you did not write one."
+              title="What the ledger derived from this row, then any note you wrote — appended after it. A note never replaces the derived facts."
             >
               Note
             </th>

@@ -107,10 +107,11 @@ commit it, and delete any temporary file immediately. Then read the PR through
 | 29 | Today's movers show the current price beside the day's change | **DONE** |
 | 30 | Accounts: roles, a request-and-approve queue with josh as admin, and "Add account" on Today | **DONE** |
 | 31 | Login asks for an account (three named ways in, the shared password while you wait); the ledger is renamed Transactions and every P/L figure in the history modal sits under its own label | **DONE** |
+| 32 | Notes become structured: the derived facts first (`Opened` / `Added · avg ↑↓` / `Partial sell (n of m)` / `Closed`), the owner's note appended after them instead of replacing them, and a wider Note column | **DONE** |
 
 ---
 
-## Resume checkpoint — 2026-09-23 (after Part 31)
+## Resume checkpoint — 2026-09-23 (after Part 32)
 
 **State:** parts 1–17 and 19–30 are done. **Part 31** closed the loop Part 30
 opened: an account could be *requested* only from inside the app, which meant
@@ -142,6 +143,22 @@ modal's realised/unrealised P/L figures moved from opposite ends of a row to
 **directly under their labels** (measured: 4px apart, was ~800px), with **Cost
 basis sold** and **Proceeds** added so the realised figure can be checked rather
 than believed — `1,440 − 1,020 = 420` on the live NOW cycle.
+
+**Part 32** then made the ledger's Note column **structured**, which is the
+third shape that column has had. It was 64 duplicated names (Part 25), then a
+derived line that a stored note *replaced* — so a row carrying a `DCA · Sep 2026`
+or a stop-loss plan silently lost the arithmetic it had just been given. Now the
+derived line renders **unconditionally** and the owner's words are **appended**
+after it: `Partial sell (10 of 15) · +US$420.00 · NOW - 1st TP`, `Added · avg ↑
+US$157.01 · DCA · Sep 2026`, `Opened`, `Closed · +US$253.80`. Direction is an
+**arrow, never a colour** (the owner asked; the answer is in the Part 32
+section), and the Note column grew from 11rem to 16rem — paid for by `Txn value`
+above 1400px, a measurement rather than a preference.
+
+The distinction that survived: the derived half stays 12px and `ink-500`,
+because it is generated; the appended note is `ink-300`, because it was written.
+The consequence worth knowing is that **truncation now eats the note, not the
+facts** — which is the opposite of the bug Part 25 was fixing.
 
 ---
 
@@ -196,15 +213,22 @@ not a gain or a loss.
 
 - `.ledger-table td` is `whitespace-nowrap`. A cell that must wrap or truncate
   opts in with its own width (`TickerName`'s `max-w-[13rem]`, the notes cells'
-  `max-w-[11rem]`). Without this, "16 Sep 26" broke across three lines in a 67px
-  column and tripled the row height.
+  `max-w-[16rem]` since Part 32 — it was `11rem` before, which could fit the old
+  ~24-character derived line and nothing longer). Without this, "16 Sep 26"
+  broke across three lines in a 67px column and tripled the row height.
 - Ledger padding is `px-2` (was `px-3`) — 8px a cell times ten columns was ~90px
   spent on nothing, and it was what pushed the trades ledger (1531px) past its
   1218px container.
 - `.table-compact` is for a table whose **column count is unbounded** (the
   attribution matrix grows a column per month), not a style preference.
 - Column headers may be abbreviated to keep a table inside its container
-  (`P/L (%)`, `Running avg`); the full wording goes in `SortableTh`'s `title`.
+  (`P/L (%)`, `Txn value`); the full wording goes in `SortableTh`'s `title`.
+- **A column's width comes out of another column's.** The ledger's Note column
+  is the one cell whose contents vary in width, so Part 32 paid for its extra
+  room with `Txn value` (`hidden min-[1400px]:table-cell`): pure arithmetic on
+  two columns that stay on the row, so a narrow window loses width rather than
+  information. Measured minimum window for the full table: **1374px** — hence
+  the 1400 threshold, which is a measurement, not a round number.
 
 **Kept on purpose through the text pass** (each one changes how a figure above
 it should be read, so none of them is decoration): the value chart's "value
@@ -2903,3 +2927,112 @@ registered.
 - The request queue still has **no notification** — carried over from Part 30.
   The next thing worth building is a line in the nav's account chip when the
   queue is not empty.
+
+---
+
+## Part 32 — Notes become structured (DONE)
+
+*A second pass in the same session, on the same branch, so Part 31 above keeps its
+own verification and gaps.*
+
+The owner's request, in their words: each note should state the general action
+first — **opened, added, DCA, partial sell, closed** — then more information;
+opened needs no average cost (the table shows it), added wants a quick avg
+down/up arrow and the new average, closed wants the realised profit, partial
+sell wants the fraction and the realised profit, and after that there should be
+somewhere to add further notes. Plus the question: *"should these be colour
+coded, avg down is green and avg up is red? or will that violate the design
+rules of the site?"*
+
+**The answer to the colour question is no, and the reason is not only the rule.**
+Colour in this app means *a realised or unrealised gain or loss* — Part 25 put
+`tone` on `LedgerLinePart` for exactly that, and an average cost is deliberately
+left plain. Colouring an average would put two meanings on one colour in one
+column, because red already means "this sale realised a loss" in the same cell.
+It would also assert something the ledger cannot know: averaging down is a
+*decision*, not a gain, and it is sometimes the wrong one. Direction is a glyph
+(`↓`/`↑`), which states the fact without the verdict. The test pins it: neither
+arrow, nor the cost beside it, carries a tone.
+
+**The structural change is the one that matters.** The cell used to be
+`note.note ?? <LedgerLine/>` — a stored note *substituted* for the derived line,
+so the five DCA rows and the four stop-loss/take-profit rows showed no
+arithmetic at all. It is now `noteCell(row, symbol, rawNote, subject)`, which
+returns the derived line **always** plus the owner's note **appended**:
+classification still decides whether a stored note shows (a note that is only the
+instrument's name is still suppressed, because the ticker lookup already renders
+it), but it can no longer hide a fact. `LedgerLine` renders both halves, the
+derived one at 12px `ink-500` and the note at `ink-300`, so which half you are
+reading is legible without parsing it.
+
+**The wording, per category** (`lib/notes.ts`):
+
+| row | line |
+|---|---|
+| buy that opened the position | `Opened` — the average of a position opened by this row *is* the price beside it |
+| buy that added | `Added · avg ↓ US$537.33` / `↑`, the arrow comparing `avgCostBefore` with `runningAvgCost` |
+| buy with no prior basis | `Added · avg US$600.00` — no comparison, so no arrow (`averageDirection` returns null) |
+| sell that left shares | `Partial sell (8 of 15) · +US$156.00` |
+| sell that ended the position | `Closed · -US$857.60` |
+| sell with no cost basis | `Closed · 3 sold` / `Partial sell (3 of 10)` — never a dangling separator |
+
+**The width, argued from the live column rather than guessed.** Every one of the
+64 rows' cells was measured against the actual font (12px Source Serif 4, i.e.
+~5.1px/char) with a canvas:
+
+- longest **derived-only** line: `Partial sell (10 of 15) · +US$420.00`, 36
+  characters, ~184px;
+- longest **DCA** line: `Added · avg ↑ US$157.01 · DCA · Sep 2026`, ~231px;
+- the 3 stop-loss/take-profit plans and FLKR's long name: 271–360px, i.e.
+  unreachable at any sane column width.
+
+So **16rem** (256px) is the smallest cap that fits every derived line *and*
+every DCA month, and it is what shipped. At the old 11rem the derived lines
+themselves truncated — the Part 25 problem, one pass later.
+
+The 80px had to come from somewhere, and the table is content-sized, so it came
+from `Txn value` (`hidden min-[1400px]:table-cell`): pure arithmetic on two
+columns that stay visible, which is the rule this table already applies when it
+drops columns on a phone. **The threshold is measured, not chosen:** forcing the
+column visible at the widest reachable viewport gives a 1278px table, and the
+container is `window − 96px`, so the table needs **1374px** of window and 1400 is
+the next round number above it.
+
+**Measured after, in the running app** (ledger, 64 rows, real data):
+
+| viewport | available | table | inner horizontal scroll |
+|---|---|---|---|
+| 1314 (max the panel reaches) | 1218 | 1218 | **0px** |
+| 1168 | 1072 | 1161 | 89px — the same table already scrolled more than this at 11rem |
+
+And with every column forced visible at 1168: table 1278px → a 1374px window is
+the true minimum, which is where the 1400 threshold comes from. The column reads
+as a taxonomy on the real ledger: **31 `Opened`, 15 `Added`, 13 `Closed`, 5
+`Partial sell`** — all 64 rows, none left blank. **5 cells truncate** and all 5
+are the notes, never the arithmetic: the three stop-loss/take-profit plans,
+FLKR's long name, and `NOW - 1st TP`. In the modal, all of them fit: `Partial
+sell (10 of 15) · +US$420.00 · NOW - 1st TP` renders in full.
+
+**Adding a note** is still the ledger's own `Edit` (the note field holds only
+your words, and the hint now says where they land: *"Your own words, appended
+after the ledger line: Added · avg ↑ US$157.01"*). Clearing it remains possible
+without retyping a fact, because the facts were never in the field.
+
+**One honest wrinkle, kept rather than papered over:** the DCA rows read
+`Added · avg ↑ US$157.01 · DCA · Sep 2026`, which is right — but a DCA row that
+*opens* a position reads `Opened · DCA · May 2026`, where "Opened" earns its
+place only as the taxonomy's first word (the average it would have stated is the
+price in the next column). If the owner would rather see `DCA · May 2026` there,
+that is a one-line rule in `noteCell` and a one-row decision.
+
+### Known gaps
+
+- **Four long notes still truncate** in the ledger (three stop-loss/take-profit
+  plans and FLKR's name), and that is a width decision, not a bug: fitting a
+  64-character note needs a 22rem column, which would cost a column that carries
+  information no one can recompute. The full text is one hover away, and the
+  facts in front of it are never the part that gets cut.
+- **`DCA` is still a text convention**, not a stored kind — so a DCA row is
+  recognised by its note text, and a typo in that text is a mis-classification.
+  The owner asked about a `kind` column during the re-prompt and the answer was
+  "not yet"; this is the first place it would pay.

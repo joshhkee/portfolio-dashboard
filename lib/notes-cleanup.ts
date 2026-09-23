@@ -21,8 +21,8 @@
 //     line says what the row did — including the new average cost, which is what
 //     the owner reads a "Second Buy" note for. `Odd Lot` is the exception and is
 //     kept, because which board a Singapore trade used is recorded nowhere else.
-//   - A partial sell's FRACTION is derived (`Sold 8 of 15`), so a note that only
-//     restates it goes.
+//   - A partial sell's FRACTION is derived (`Partial sell (8 of 15)`), so a note
+//     that only restates it goes.
 //   - `Avg down to x10@$263.25` is the average actually achieved, not a target,
 //     so it is derived too (the Avg cost column holds it) and the note goes.
 //   - DCA notes collapse to one consistent form naming the ALLOCATION MONTH,
