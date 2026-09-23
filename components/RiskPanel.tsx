@@ -194,7 +194,7 @@ export default function RiskPanel({
             <Stat
               label="Largest"
               value={`${(concentration.largestWeight * 100).toFixed(1)}%`}
-              title="Share of holdings value in the single biggest position."
+              title="The biggest single position's share of holdings."
             />
             <Stat
               label="Top 5"
@@ -209,8 +209,8 @@ export default function RiskPanel({
           </div>
 
           <p className="text-xs text-ink-500">
-            Holdings only, not cash — cash lowers the portfolio&apos;s risk but it is not a
-            position. HHI: under 15 diversified, 15–25 moderate, over 25 concentrated.
+            Holdings only, not cash. HHI: under 15 diversified, 15–25 moderate, over 25
+            concentrated.
           </p>
         </div>
 
@@ -222,7 +222,7 @@ export default function RiskPanel({
             <Stat
               label="Volatility"
               value={volatility === null ? "—" : `${(volatility * 100).toFixed(1)}%`}
-              title="Annualized standard deviation of daily portfolio returns, contributions removed."
+              title="How much the daily return varies, annualised."
             />
             <Stat
               label="Sharpe"
@@ -235,12 +235,12 @@ export default function RiskPanel({
                   </span>
                 )
               }
-              title={`Annualized return minus a ${(riskFreeRate * 100).toFixed(1)}% risk-free rate, divided by volatility.`}
+              title={`Return above the ${(riskFreeRate * 100).toFixed(1)}% risk-free rate, per unit of volatility.`}
             />
             <Stat
               label="Annualized"
               value={annualReturn === null ? "—" : <Percent value={annualReturn} />}
-              title="Time-weighted return over all history, annualized — the same figure as the overview hero."
+              title="Time-weighted return over all history, annualised."
             />
           </div>
 
@@ -251,12 +251,7 @@ export default function RiskPanel({
               </span>{" "}
               on {fullDate(largestMove.date)}
               {largestMove.varianceShare >= MATERIAL_VARIANCE_SHARE && (
-                <>
-                  {" "}
-                  — that one day carries {(largestMove.varianceShare * 100).toFixed(0)}% of the
-                  variance above, so if the snapshot behind it looks wrong, this is why the risk
-                  figures read high
-                </>
+                <> — on its own it explains {(largestMove.varianceShare * 100).toFixed(0)}% of the volatility above</>
               )}
               .
             </p>
@@ -318,9 +313,8 @@ export default function RiskPanel({
                 </ResponsiveContainer>
               </div>
               <p className="text-xs text-ink-500">
-                The trailing year&apos;s return, recalculated daily — a single cumulative number
-                hides an uneven year. Starts {fullDate(rollingStart!)}, the first day with a full
-                year behind it.
+                The trailing year&apos;s return, recalculated each day. Starts{" "}
+                {fullDate(rollingStart!)} — the first day with a full year behind it.
               </p>
             </div>
           ) : (

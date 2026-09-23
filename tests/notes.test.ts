@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   averageDirection,
   classifyNote,
+  dcaFromNote,
   isNameOnly,
   ledgerSummary,
   ledgerSummaryParts,
@@ -347,6 +348,23 @@ describe("ledgerSummary — the action word first", () => {
     ).toBe("Partial sell (3 of 10)");
   });
 
+  it("calls a marked buy a DCA, in the month the note names", () => {
+    // The owner's wording: the marker replaces "Added", because a scheduled buy
+    // is not an opportunity buy and "Added" said nothing about which it was.
+    expect(ledgerSummaryParts(addingBuy, "US$", "May 2026").text).toBe(
+      "DCA (May 2026) · avg ↓ US$537.33"
+    );
+    // A DCA that OPENS the position states only the marker: the average it would
+    // otherwise state is the price the row's own Price column shows.
+    expect(ledgerSummaryParts(openingBuy, "US$", "May 2026").text).toBe("DCA (May 2026)");
+    // No marker, no DCA — the buy is still an addition.
+    expect(ledgerSummaryParts(addingBuy, "US$", null).text).toBe("Added · avg ↓ US$537.33");
+    // And the cost after the arrow is still not coloured; only a realised amount is.
+    for (const part of ledgerSummaryParts(addingBuy, "US$", "May 2026").parts) {
+      expect(part.tone, part.text).toBeUndefined();
+    }
+  });
+
   it("keeps every line short enough to read without a hover", () => {
     // The Note column was widened for this pass (11rem → 16rem, the ledger's
     // own measured budget), which is about 37 characters of 12px type. A line
@@ -358,6 +376,8 @@ describe("ledgerSummary — the action word first", () => {
       ledgerSummary(partialSell, "US$"),
       ledgerSummary(closingSell, "US$"),
       ledgerSummary({ ...base, action: "Sell", qty: 3, price: 10, qtyBefore: 10, avgCostBefore: 0, runningQty: 7, runningAvgCost: 0 }, "US$"),
+      // The longest DCA line: four-character month, both the arrow and the money.
+      ledgerSummaryParts(addingBuy, "US$", "Sept 2026").text,
     ];
     for (const line of lines) expect(line.length, line).toBeLessThanOrEqual(37);
   });
@@ -424,6 +444,54 @@ describe("averageDirection", () => {
   });
 });
 
+describe("dcaFromNote — the leading word, and the month it names", () => {
+  it("reads the marker alone as a DCA with no month to name", () => {
+    expect(dcaFromNote("DCA")).toEqual({ month: null, remainder: "" });
+    expect(dcaFromNote("  dca ")).toEqual({ month: null, remainder: "" });
+  });
+
+  it("reads the month the note names, whatever separator it uses", () => {
+    for (const note of ["DCA · May 2026", "DCA - May 2026", "DCA: May 2026", "DCA — May 2026"]) {
+      expect(dcaFromNote(note), note).toEqual({ month: "May 2026", remainder: "" });
+    }
+  });
+
+  it("keeps words after the marker that are not a month", () => {
+    // The words are the owner's, and dropping them would be data loss; the
+    // month then falls back to the row's own (see noteCell).
+    expect(dcaFromNote("DCA · Brought forward")).toEqual({
+      month: null,
+      remainder: "Brought forward",
+    });
+  });
+
+  it("ignores a note that only mentions a DCA in passing", () => {
+    // The marker is a LEADING word — that is what the log form writes, and what
+    // every note the cleanup left in storage starts with. "VT - Monthly DCA" is
+    // the owner's own sentence about the trade, and stays one.
+    expect(dcaFromNote("Bought after the DCA")).toBeNull();
+    expect(dcaFromNote("VT - Monthly DCA ($865)")).toBeNull();
+    expect(dcaFromNote("")).toBeNull();
+    expect(dcaFromNote(null)).toBeNull();
+    expect(dcaFromNote(undefined)).toBeNull();
+  });
+
+  it("reads all five notes the ledger actually stores as markers", () => {
+    // Read from the shared database on 2026-09-23, after the notes cleanup:
+    // every DCA row carries the same shape, and its month is the row's month.
+    const stored: Array<[note: string, month: string]> = [
+      ["DCA · May 2026", "May 2026"],
+      ["DCA · Jun 2026", "Jun 2026"],
+      ["DCA · Jul 2026", "Jul 2026"],
+      ["DCA · Aug 2026", "Aug 2026"],
+      ["DCA · Sep 2026", "Sep 2026"],
+    ];
+    for (const [note, month] of stored) {
+      expect(dcaFromNote(note), note).toEqual({ month, remainder: "" });
+    }
+  });
+});
+
 describe("noteCell — the derived line first, the owner's words appended", () => {
   const row = {
     action: "Sell",
@@ -433,6 +501,17 @@ describe("noteCell — the derived line first, the owner's words appended", () =
     avgCostBefore: 168.5,
     runningQty: 7,
     runningAvgCost: 168.5,
+    date: "2026-09-15",
+  };
+  const buy = {
+    action: "Buy",
+    qty: 5.289,
+    price: 160.71,
+    qtyBefore: 25,
+    avgCostBefore: 158.5,
+    runningQty: 30.289,
+    runningAvgCost: 158.89,
+    date: "2026-09-09",
   };
 
   it("always renders the derived line, note or no note", () => {
@@ -456,14 +535,52 @@ describe("noteCell — the derived line first, the owner's words appended", () =
     );
   });
 
-  it("appends a DCA month after the facts rather than in place of them", () => {
+  it("appends a sentence that merely mentions a DCA rather than reading it as the marker", () => {
     const cell = noteCell(
-      { action: "Buy", qty: 2, price: 120, qtyBefore: 8, avgCostBefore: 130, runningQty: 10, runningAvgCost: 128 },
+      { action: "Buy", qty: 2, price: 120, qtyBefore: 8, avgCostBefore: 130, runningQty: 10, runningAvgCost: 128, date: "2026-05-04" },
       "S$",
       "VT - Sept DCA",
       { ticker: "VT", name: "Vanguard Total World Stock Index Fund ETF Shares" }
     );
+    expect(cell.dca).toBe(false);
     expect(cell.text).toBe("Added · avg ↓ S$128.00 · VT - Sept DCA");
+  });
+
+  it("shows a marked DCA from the note's own month, and consumes the marker", () => {
+    // The stored shape: `DCA · May 2026`. The marker is not appended a second
+    // time — it IS the derived line's first words, so the cell reads once.
+    const cell = noteCell(buy, "US$", "DCA · May 2026", {
+      ticker: "VT",
+      name: "Vanguard Total World Stock Index Fund ETF Shares",
+    });
+    expect(cell.dca).toBe(true);
+    expect(cell.derived.text).toBe("DCA (May 2026) · avg ↑ US$158.89");
+    expect(cell.appended).toBeNull();
+    expect(cell.text).toBe("DCA (May 2026) · avg ↑ US$158.89");
+  });
+
+  it("falls back to the row's own month when the marker names none", () => {
+    // What the log form writes when the box is ticked and the note is empty:
+    // the month comes from the row, derived rather than typed, so editing the
+    // date later cannot leave a stale month behind.
+    const cell = noteCell(buy, "US$", "DCA", { ticker: "VT", name: null });
+    expect(cell.derived.text).toBe("DCA (Sep 2026) · avg ↑ US$158.89");
+    expect(cell.appended).toBeNull();
+  });
+
+  it("keeps words written after the marker, and states the row's month", () => {
+    const cell = noteCell(buy, "US$", "DCA · Brought forward", { ticker: "VT", name: null });
+    expect(cell.derived.text).toBe("DCA (Sep 2026) · avg ↑ US$158.89");
+    expect(cell.appended).toBe("Brought forward");
+    expect(cell.text).toBe("DCA (Sep 2026) · avg ↑ US$158.89 · Brought forward");
+  });
+
+  it("does not read a sale's note as a DCA marker", () => {
+    // "DCA" on a sale is a note about something else; consuming it would eat a
+    // word the owner wrote, so it stays appended and the line stays a sell.
+    const cell = noteCell(row, "US$", "DCA · rollover note", { ticker: "ZS", name: "Zscaler, Inc." });
+    expect(cell.dca).toBe(false);
+    expect(cell.appended).toBe("DCA · rollover note");
   });
 
   it("appends nothing when the note only repeats the instrument's name", () => {

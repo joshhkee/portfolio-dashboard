@@ -174,8 +174,10 @@ export default function BenchmarkChart({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
           <p className="text-sm text-ink-300">Portfolio vs benchmark</p>
+          {/* The window already names both dates, so this line does not repeat
+              the first one: it says what the two lines are measured from. */}
           <p className="text-xs text-ink-500">
-            Both rebased to 100 at {longDate(first)} · {windowLabel}
+            Both lines start at 100 · {windowLabel}
           </p>
         </div>
         <SegmentedControl

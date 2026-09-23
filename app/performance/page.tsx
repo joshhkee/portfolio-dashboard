@@ -131,9 +131,9 @@ export default async function PerformancePage() {
         <p className="text-xs text-ink-500">
           {annualizedReturn !== null ? (
             <>
-              <span className="text-ink-100">XIRR</span> is what your money earned;{" "}
-              <span className="text-ink-100">TWR</span> is how the strategy did, with the deposit
-              schedule removed — the one to compare against an index.
+              <span className="text-ink-100">XIRR</span>: what your money earned.{" "}
+              <span className="text-ink-100">TWR</span>: how the strategy did, deposit timing
+              removed — the one to compare against an index.
             </>
           ) : (
             "Not enough history yet to annualise anything."
@@ -153,17 +153,17 @@ export default async function PerformancePage() {
       <div className="panel flex flex-wrap items-start gap-x-10 gap-y-4 p-6">
         <Stat
           label="XIRR (ann., money-weighted)"
-          title="Accounts for WHEN each contribution landed, so it moves with the deposit schedule."
+          title="Money-weighted: counts when each contribution landed."
           value={annualizedReturn !== null ? <Percent value={annualizedReturn} /> : "—"}
         />
         <Stat
           label="TWR (ann., time-weighted)"
-          title="Contribution timing removed, so this reflects the strategy rather than the deposit schedule."
+          title="Time-weighted: deposit timing removed, so it reflects the strategy."
           value={twrAnnualized !== null ? <Percent value={twrAnnualized} /> : "—"}
         />
         <Stat
           label="Volatility (ann.)"
-          title="Standard deviation of daily returns, annualised. An estimate — read it with the rolling line below."
+          title="How much the daily value swings, annualised."
           value={volatility !== null ? `${(volatility * 100).toFixed(1)}%` : "—"}
         />
         <Stat
@@ -174,7 +174,7 @@ export default async function PerformancePage() {
         />
         <Stat
           label="Max drawdown"
-          title="The worst peak-to-trough fall in the stored daily values."
+          title="The worst fall from a peak to the trough that followed."
           value={maxDrawdownPct !== null ? `${(maxDrawdownPct * 100).toFixed(1)}%` : "—"}
           tone="loss"
         />
@@ -194,7 +194,7 @@ export default async function PerformancePage() {
         />
         <Stat
           label="Holdings value"
-          title="The base every concentration figure below is a share of."
+          title="What the concentration figures below are shares of."
           // Neutral: a value held is not a gain. Only the return and risk
           // figures in this row carry a colour.
           value={`${sgd}${formatAmount(holdingsValueSgd)}`}

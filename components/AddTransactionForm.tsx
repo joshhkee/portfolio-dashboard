@@ -10,6 +10,9 @@ export default function AddTransactionForm() {
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Only the Buy branch carries a DCA marker, so the action is controlled: a
+  // "DCA buy" checkbox on a sale would be a control for a thing that cannot be.
+  const [action, setAction] = useState("Buy");
 
   const today = toLocalDateInputValue(new Date());
 
@@ -28,6 +31,12 @@ export default function AddTransactionForm() {
     e.preventDefault();
     setError(null);
     const form = new FormData(e.currentTarget);
+    // The DCA marker lives in the note, and that is the whole storage cost of
+    // the feature: the ledger already reads the note back, and a stored `kind`
+    // column would be a second source of truth for the same fact (see
+    // lib/notes.ts). Whatever the owner typed still lands after the marker.
+    const noteText = String(form.get("notes") ?? "").trim();
+    const dca = action === "Buy" && form.get("dca") === "on";
     const payload = {
       date: form.get("date"),
       action: form.get("action"),
@@ -35,7 +44,7 @@ export default function AddTransactionForm() {
       region: form.get("region"),
       qty: form.get("qty"),
       price: form.get("price"),
-      notes: form.get("notes"),
+      notes: dca ? (noteText ? `DCA · ${noteText}` : "DCA") : noteText,
     };
 
     setSubmitting(true);
@@ -75,7 +84,13 @@ export default function AddTransactionForm() {
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs text-ink-300">Action</label>
-        <select name="action" required className="field w-28">
+        <select
+          name="action"
+          required
+          className="field w-28"
+          value={action}
+          onChange={(event) => setAction(event.target.value)}
+        >
           <option value="Buy">Buy</option>
           <option value="Sell">Sell</option>
         </select>
@@ -120,6 +135,18 @@ export default function AddTransactionForm() {
         <label className="text-xs text-ink-300">Notes</label>
         <input name="notes" className="field w-56" placeholder="Optional" />
       </div>
+      {/* Sits with the note field because it WRITES one: the ledger recognises a
+          DCA by the note's own leading word, so this is the note being composed,
+          not a separate field. Hidden on a sale, where the marker cannot apply. */}
+      {action === "Buy" && (
+        <label
+          className="flex h-[34px] items-center gap-2 text-xs text-ink-300"
+          title="A scheduled buy — the ledger will show it as DCA (month) and the average it left behind."
+        >
+          <input type="checkbox" name="dca" className="h-3.5 w-3.5 accent-accent" />
+          DCA buy
+        </label>
+      )}
       <div className="flex gap-2">
         <button type="submit" className="btn-primary" disabled={submitting}>
           {submitting ? "Saving…" : "Save"}

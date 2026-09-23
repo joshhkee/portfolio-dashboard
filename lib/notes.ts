@@ -36,6 +36,7 @@
 // abbreviated note stays on screen (see `isNameOnly`).
 
 import { formatAmount, formatQty } from "@/lib/format";
+import { formatMonthYear } from "@/lib/dates";
 
 /** A piece of a ledger line. Everything is decided in this module — including
  *  whether a figure is a gain or a loss — so the components only pick a colour. */
@@ -215,6 +216,46 @@ export function classifyNote(
     : { kind: "context", note: raw, raw };
 }
 
+/** The first word that marks a buy as a DCA. A convention rather than a
+ *  column, and deliberately so: the owner's log form writes this word, the
+ *  ledger reads it back, and nothing else has to know — a stored `kind` field
+ *  would be a second source of truth for something the note already says, and
+ *  the 5 DCA rows in the real ledger already carry it. */
+const DCA_MARKER = /^dca\b/i;
+
+/** A month written the way the stored notes write one: `May 2026`, `Sept 2026`.
+ *  Anchored so the month can never be coined from words that are not one. */
+const MONTH_LABEL = /^[A-Z][a-z]{2,3}\.?\s+\d{4}$/;
+
+export interface DcaMark {
+  /** The month the note itself names, verbatim — `May 2026`. Null when the
+   *  note names none, and the row's own month stands in. */
+  month: string | null;
+  /** Whatever follows the marker, shown as the owner's words. "" when the
+   *  note was the marker alone. */
+  remainder: string;
+}
+
+/**
+ * Read a stored note as a DCA marker, or return null.
+ *
+ * `DCA`, `DCA · May 2026`, `DCA - May 2026` are markers; `DCA` with anything
+ * else after it is still a marker, and the rest of the note becomes the owner's
+ * words rather than being consumed — `DCA · Brought forward` shows
+ * `DCA (Sep 2026) · avg ↑ … · Brought forward`. A note that only mentions a DCA
+ * somewhere in the middle (`Bought after the DCA`) is not a marker, because the
+ * marker is a leading word, which is what the log form writes and what the
+ * cleanup left in storage.
+ */
+export function dcaFromNote(rawInput: string | null | undefined): DcaMark | null {
+  const raw = (rawInput ?? "").trim();
+  if (!DCA_MARKER.test(raw)) return null;
+  const rest = raw.slice(3).replace(/^[\s·:—–-]+/, "").trim();
+  if (!rest) return { month: null, remainder: "" };
+  if (MONTH_LABEL.test(rest)) return { month: rest, remainder: "" };
+  return { month: null, remainder: rest };
+}
+
 /** What a ledger row did to its position — the factual line the ledger renders
  *  instead of a hand-typed note. Derived every render, never stored.
  *
@@ -238,6 +279,11 @@ export function classifyNote(
  *    one colour in the same column (red already means "this sale realised a
  *    loss"), and it would claim averaging down is good, which is a judgement
  *    the ledger has no business making. Only a realised amount is coloured.
+ * 5. **A DCA says so in its own words** — `DCA (May 2026) · avg ↓ US$153.80`.
+ *    A scheduled buy is not an opportunity buy, and "Added" said nothing about
+ *    which it was. The month is the one the note names, or the row's own month
+ *    when it names none; see `dcaFromNote` for why the marker is text rather
+ *    than a column.
  *
  * The line is kept short deliberately — the Note column is the one cell whose
  * width is contested (see the caller), and the figure sits as early in the line
@@ -254,7 +300,12 @@ export function ledgerSummaryParts(
     runningQty: number;
     runningAvgCost: number;
   },
-  symbol: string
+  symbol: string,
+  /** Set for a buy the owner marked as a DCA (see `dcaFromNote`): the line
+   *  leads with `DCA (month)` instead of `Added`, and states the average it
+   *  left behind the same way. A DCA that opens the position states only the
+   *  marker, because the average it would state is the price the row shows. */
+  dcaMonth?: string | null
 ): LedgerLine {
   const money = (v: number) => `${symbol}${formatAmount(Math.abs(v))}`;
 
@@ -262,6 +313,17 @@ export function ledgerSummaryParts(
     // Opening versus adding to something already held: the first case has no
     // previous average to have moved away from.
     const opening = row.qtyBefore <= EPSILON;
+    if (dcaMonth) {
+      const parts: LedgerLinePart[] = [{ text: `DCA (${dcaMonth})` }];
+      if (!opening) {
+        const direction = averageDirection(row.avgCostBefore, row.runningAvgCost);
+        parts.push({
+          text: direction === "down" ? " · avg ↓ " : direction === "up" ? " · avg ↑ " : " · avg ",
+        });
+        parts.push({ text: money(row.runningAvgCost) });
+      }
+      return { parts, text: parts.map((p) => p.text).join("") };
+    }
     if (opening) {
       // The average of a position opened by this row IS the price just paid,
       // which the Price column already shows. Repeating it made the longest
@@ -342,22 +404,37 @@ export interface NoteCell {
   /** The owner's note, appended after the derived line. Null when there is
    *  nothing to append — no note, or one that is only reference data. */
   appended: string | null;
+  /** True when the stored note marks this buy as a DCA, so the note is shown
+   *  as the derived line's `DCA (month)` instead of being appended after it.
+   *  The edit form needs to know, because a consumed note and a hidden
+   *  reference note both leave `appended` null and mean different things. */
+  dca: boolean;
   /** The whole cell as plain text, for the hover title: derived, then the
    *  note the ledger is not allowed to truncate out of significance. */
   text: string;
 }
 
 export function noteCell(
-  row: Parameters<typeof ledgerSummaryParts>[0],
+  row: Parameters<typeof ledgerSummaryParts>[0] & { date: Date | string },
   symbol: string,
   rawNote: string | null | undefined,
   subject: { ticker: string; name?: string | null }
 ): NoteCell {
-  const derived = ledgerSummaryParts(row, symbol);
-  const appended = classifyNote(rawNote, subject).note;
+  // A DCA is a BUY: the marker on a sale would be a note about something else,
+  // and treating it as one would eat words the owner wrote.
+  const mark = row.action === "Buy" ? dcaFromNote(rawNote) : null;
+  const month = mark ? mark.month ?? formatMonthYear(new Date(row.date)) : null;
+  const derived = ledgerSummaryParts(row, symbol, month);
+  const remainder = mark?.remainder.trim() ?? "";
+  const appended = mark
+    ? remainder && !isNameOnly(remainder, subject.name)
+      ? remainder
+      : null
+    : classifyNote(rawNote, subject).note;
   return {
     derived,
     appended,
+    dca: mark !== null,
     text: appended ? `${derived.text} · ${appended}` : derived.text,
   };
 }

@@ -143,18 +143,21 @@ export default function Nav({ account }: { account: NavAccount }) {
           </button>
 
           {/* Keyboard is the fast path, but a palette nobody can discover is a
-              palette nobody uses — so it gets a visible affordance too. The
-              label is the affordance, so it drops out only at the narrowest
-              width, where the icon still carries the meaning. */}
+              palette nobody uses — so it gets a visible affordance too, and it
+              is sized and tinted to be FOUND rather than merely present: a
+              filled chip with the word "Search" on it, at the text size of the
+              bar around it. The label is the affordance, so it drops out only
+              at the narrowest width, where the icon still carries the meaning. */}
           <button
             type="button"
             onClick={() => window.dispatchEvent(new Event(OPEN_PALETTE_EVENT))}
             title={`Search tickers, pages and actions (${isMac ? "⌘K" : "Ctrl+K"})`}
             aria-label="Open command palette"
-            className="flex items-center gap-2 rounded-md border border-ink-700 px-2.5 py-1 text-xs text-ink-300 transition hover:border-ink-500 hover:text-ink-100 motion-reduce:transition-none"
+            className="flex items-center gap-2 rounded-md border border-ink-600 bg-ink-800/70 px-3 py-1.5 text-sm text-ink-100 transition hover:border-ink-500 hover:bg-ink-800 motion-reduce:transition-none"
           >
-            <Search size={13} strokeWidth={1.75} />
-            <span className="hidden text-ink-500 sm:inline">{shortcutLabel}</span>
+            <Search size={15} strokeWidth={1.75} className="text-accent" />
+            <span className="hidden sm:inline">Search…</span>
+            <span className="hidden text-xs text-ink-500 md:inline">{shortcutLabel}</span>
           </button>
 
           {/* Accounts is chrome, not one of the five objects, so it sits

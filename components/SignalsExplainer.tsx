@@ -41,10 +41,15 @@ export default function SignalsExplainer() {
           id="signals-explainer"
           className="flex flex-col gap-3 border-t border-ink-700 px-4 py-3 text-xs leading-relaxed text-ink-300"
         >
-          <dl className="flex flex-col gap-3">
-            <div>
+          {/* Two columns rather than a stack of four: each measure is a short
+              paragraph, and four paragraphs at the full panel width is a wall
+              of one-long-line prose. Two columns halve the line length and put
+              the measures side by side, which is also how they are read — as
+              four answers to one question. */}
+          <dl className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
+            <div className="min-w-0">
               <dt className="text-ink-100">Position in the 1-year range</dt>
-              <dd>
+              <dd className="mt-1">
                 Where today&apos;s price sits between the lowest and highest close of the past
                 year — the left end is the year&apos;s cheapest price, the right end its most
                 expensive. A low reading means you are buying nearer the bottom of the year than
@@ -54,9 +59,9 @@ export default function SignalsExplainer() {
               </dd>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <dt className="text-ink-100">Below the 1-year high</dt>
-              <dd>
+              <dd className="mt-1">
                 The same fact in the form most people quote it. Under about 5% means you are
                 buying at or near the year&apos;s high — the trend is with you, but there is no
                 cushion, so a stop has to sit close and will be hit by ordinary noise. Past 20% is
@@ -65,9 +70,9 @@ export default function SignalsExplainer() {
               </dd>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <dt className="text-ink-100">RSI (14)</dt>
-              <dd>
+              <dd className="mt-1">
                 How one-sided the last 14 sessions were, from 0 to 100. Below 30 is the
                 conventional &quot;sold off hard&quot; reading — often the better entry, provided
                 the business is intact — and above 70 is &quot;run up hard&quot;, which is not a
@@ -76,9 +81,9 @@ export default function SignalsExplainer() {
               </dd>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <dt className="text-ink-100">Trend (price vs the 50- and 200-day averages)</dt>
-              <dd>
+              <dd className="mt-1">
                 The average is what the price has averaged lately, so the two lines together say
                 which way it has been going. An <span className="text-ink-100">uptrend</span> means
                 price above a rising average — the classic &quot;buy the pullback&quot; setup, and

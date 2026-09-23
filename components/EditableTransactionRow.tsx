@@ -146,9 +146,11 @@ export default function EditableTransactionRow({
                   typed here is appended to it. That is what makes clearing the
                   field safe — nothing factual is lost by emptying it. */}
               <p className="max-w-xs text-xs text-ink-500">
-                {cell.appended === null && t.notes?.trim()
-                  ? "Just the instrument's name — the ledger shows that from the ticker lookup, so this can be cleared."
-                  : `Your own words, appended after the ledger line: ${cell.derived.text}`}
+                {cell.dca
+                  ? `Marks this buy as a DCA — the ledger shows it as: ${cell.derived.text}`
+                  : cell.appended === null && t.notes?.trim()
+                    ? "Just the instrument's name — the ledger shows that from the ticker lookup, so this can be cleared."
+                    : `Your own words, appended after the ledger line: ${cell.derived.text}`}
               </p>
             </div>
             <div className="flex gap-2">
@@ -220,7 +222,7 @@ export default function EditableTransactionRow({
           truncate with the full text one hover away — and because the note is
           LAST, it is the note that gets cut, never the arithmetic. */}
       <td className="max-w-[16rem] truncate text-left text-ink-500" title={cell.text}>
-        <LedgerLine row={t} symbol={symbol} note={cell.appended} />
+        <LedgerLine parts={cell.derived.parts} note={cell.appended} />
       </td>
       <td>
         <div className="flex gap-3">

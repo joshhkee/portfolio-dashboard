@@ -390,10 +390,13 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
                     </tr>
                     {isOpen && (
                       <tr className="bg-ink-850/60">
-                        {/* `whitespace-normal` because `.ledger-table td` is
-                            nowrap — without it the prose below cannot wrap and
-                            the detail row sets the width of the whole table. */}
-                        <td colSpan={8} className="whitespace-normal px-4 py-4">
+                        {/* `.cell-wrap` because `.ledger-table td` is nowrap —
+                            without it the prose below cannot wrap and the
+                            detail row sets the width of the whole table. It is
+                            a real class rather than the `whitespace-normal`
+                            utility, which `.ledger-table td` outranks on
+                            specificity (see app/globals.css). */}
+                        <td colSpan={8} className="cell-wrap px-4 py-4">
                           {signal ? (
                             <WatchlistSignals
                               signals={signal}

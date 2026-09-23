@@ -39,6 +39,16 @@
   .ledger-table td {
     @apply whitespace-nowrap border-b border-ink-700/60 px-2 py-2.5 align-middle;
   }
+  /* The one cell that opts back out of the nowrap above: an expanded detail row
+     full of prose. A `whitespace-normal` UTILITY does not do it, and that is not
+     obvious — this layer is emitted as utilities too, `.ledger-table td` carries
+     a class AND an element in its selector (0-1-1), and specificity beats the
+     plain class whatever the order. The symptom was prose laying itself out on
+     ONE line 2559px wide inside a 1215px cell. Same hazard `.cell-pin`
+     documents below, same fix: a real selector in this layer. */
+  .ledger-table td.cell-wrap {
+    @apply whitespace-normal;
+  }
   .ledger-table th {
     @apply px-2;
   }

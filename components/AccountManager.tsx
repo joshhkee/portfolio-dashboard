@@ -376,7 +376,7 @@ export default function AccountManager({
                   autoFocus
                   autoComplete="off"
                   className="field"
-                  placeholder="e.g. keng"
+                  placeholder="e.g. josh"
                   title={usernameRule}
                 />
               </div>
