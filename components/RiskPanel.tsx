@@ -166,8 +166,9 @@ export default function RiskPanel({
                   {s.ticker}
                 </span>
                 <div className="h-1 flex-1 overflow-hidden rounded-full bg-ink-800">
-                  {/* Gold by the owner's explicit choice — see the `data`
-                      palette note in docs/PLAN.md before changing this. */}
+                  {/* Gold by the owner's explicit choice — see "Two colours
+                      that are choices, not accidents" in docs/DESIGN.md before
+                      changing this. */}
                   <div
                     className="h-full rounded-full bg-accent/70"
                     style={{ width: `${(s.weight * 100).toFixed(1)}%` }}

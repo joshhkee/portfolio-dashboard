@@ -32,7 +32,7 @@ export default async function CompletedTradesPage() {
       <div>
         <p className="stat-label">Total realized P/L (SGD)</p>
         <p className="stat-value">
-          <NativeMoney value={totalRealizedSGD} symbol="S$" />
+          <NativeMoney value={totalRealizedSGD} symbol="S$" showPlus />
         </p>
         <p className="mt-1 text-xs text-ink-300">
           US and HK trades are converted at the current SGD/USD and SGD/HKD rate — not the

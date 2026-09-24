@@ -52,8 +52,8 @@ const config: Config = {
         // `data-gold` is deliberately the DESATURATED cousin of the chrome
         // gold: `accent` (#d4a94a) remains the brand/interactive colour and
         // the single-series portfolio line (the owner's explicit choice),
-        // while multi-series data draws from these. See the notes on the
-        // palette decision in docs/PLAN.md.
+        // while multi-series data draws from these. See "Colour" in
+        // docs/DESIGN.md for the rules and the ratios they were measured to.
         data: {
           steel: "#7d97b3",
           sage: "#7fa87a",

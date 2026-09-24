@@ -354,7 +354,7 @@ export default async function TodayPage() {
             {/* A total is not a gain, so it carries no green: colour in this
                 app means "up or down", and a figure that is simply the sum of
                 what you own would be green whatever happened to it. See the
-                colour rule in docs/PLAN.md. */}
+                colour rule in docs/DESIGN.md. */}
             <p className="num mt-1 text-4xl font-medium text-ink-100">
               <PlainMoney value={totalPortfolioValue} symbol={sgd} />
             </p>

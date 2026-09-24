@@ -90,6 +90,14 @@ Signs and labels carry meaning alongside colour, always — a gain reads `+S$420
 never merely green, so the figures survive a colour-blind reader and a
 monochrome screenshot.
 
+The mechanism is worth knowing because it is tested: `Percent` signs both
+directions itself, including a flat `+0.00%`; `NativeMoney` takes `showPlus`,
+which every P/L figure passes — and a loss is signed *without* it, because
+`showPlus` only ever adds the plus; `PlainMoney` and `PlainPercent` carry neither
+a sign nor a colour, since they render quantities rather than results. A P/L
+figure rendered without `showPlus` is the mistake `tests/colour-rule.test.ts`
+exists to catch, and it caught two.
+
 ---
 
 ## 3. Typography
