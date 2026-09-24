@@ -12,6 +12,11 @@
 .env
 .env*.local
 
+# local Freebuff workspace: preview logs, run notes, and the worktrees
+# themselves. Machine-local procedures (including how to read a credential)
+# belong in here rather than in a committed document, so this must stay ignored.
+/.freebuff/
+
 # misc
 .DS_Store
 *.pem
