@@ -334,7 +334,7 @@ export default function PositionsTable({
                     {r.priceUnavailable ? (
                       <span className="text-ink-500">N/A</span>
                     ) : (
-                      <NativeMoney value={r.unrealizedPL} symbol={symbol} />
+                      <NativeMoney value={r.unrealizedPL} symbol={symbol} showPlus />
                     )}
                   </td>
                 </tr>
