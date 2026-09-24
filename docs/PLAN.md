@@ -1,13 +1,23 @@
 # Build plan — portfolio dashboard improvements
 
+> **This file is the record, not the rulebook.** It keeps the status of every
+> part and the measurements and decisions behind each one. The rules that still
+> hold live in `AGENTS.md` (architecture invariants, non-goals, verification,
+> conventions) and `docs/DESIGN.md` (colour, typography, tables, charts, copy).
+> Machine-local operations live in the untracked `.freebuff/run.md`. Anything
+> below that contradicts those three is history.
+>
+> Last entry: Part 33, 2026-09-23.
+
 Segmented so each part is independently verifiable and hand-offable. Work the
 parts in order; a part is DONE only when its checkpoint passes.
 
 ## How to hand this off
 
-Paste this into any coding agent: *"Read `docs/PLAN.md` in this repo. Follow its
-invariants and non-goals, then implement the first part whose status is not
-DONE. Run that part's checkpoint before moving on."*
+Paste this into any coding agent: *"Read `AGENTS.md` and `docs/DESIGN.md` in this
+repo, then `docs/PLAN.md`. Follow the invariants and non-goals, then implement the
+first part whose status is not DONE. Run that part's checkpoint before moving
+on."*
 
 Each part below is sized to finish in one sitting. Nothing later depends on
 anything not listed as a prerequisite, so stopping between parts is always safe.
@@ -17,7 +27,7 @@ anything not listed as a prerequisite, so stopping between parts is always safe.
 ```bash
 npm test                       # Vitest
 npx tsc --noEmit               # typecheck
-npx eslint app components lib tests
+npx eslint app components lib tests scripts
 npm run build                  # production build
 ```
 
@@ -42,13 +52,16 @@ checkpoint is "PR updated and mergeable", not "merged".
 One long-lived pull request is kept open for this branch against `main`, and
 every checkpoint keeps it green:
 
-- Branch: `freebuff/analyse-my-current-portfolio-dashboard-project-and-29b0adb2-a864-46b1-9352-6fb3fcb2b204`
-  (`origin` -> `github.com/joshhkee/portfolio-dashboard`).
+- Remote: `origin` -> `github.com/joshhkee/portfolio-dashboard`. The branch name
+  is session-owned and changes every time work is handed off, so it is not worth
+  recording here; what matters is that a batch rides ONE branch and ONE pull
+  request against `main`.
 - A batch of work rides ONE long-lived pull request (same branch -> `main`).
-  #3–#11 are all merged. **The open PR is #12**
-  (https://github.com/joshhkee/portfolio-dashboard/pull/12), carrying Parts
-  22–26 (movers + colour rule, palette prominence + table sizing, set-once tag
-  chips + text pass, the derived ledger line + notes cleanup, and the watchlist).
+  **Do not trust a PR number written in this file.** This bullet recorded #12
+  when it was written; by Part 33 the branch had reached the merge of **#14**
+  (`ff53615`, which is the tip of that branch's history), and the documentation
+  pass after it was cut from there. Numbers and branch names move every batch, so
+  ask the API which PR is open rather than reading one out of this file.
   Nothing should open a second PR while one is already open for this branch —
   but DO open a new one when the previous batch was merged, because a merged PR
   cannot be reopened to carry later work. This happens every time: the owner
@@ -63,12 +76,10 @@ every checkpoint keeps it green:
 - `main` moves under this branch each time the owner merges a PR, so re-check
   mergeability before declaring a checkpoint done.
 
-This machine has no `gh`. The token `git push` already uses is stored in the
-Windows Credential Manager; `printf "protocol=https\nhost=github.com\n\n" |
-git credential fill` prints it. Use it only in-process — never echo it, never
-commit it, and delete any temporary file immediately. Then read the PR through
-`GET /repos/joshhkee/portfolio-dashboard/pulls/<n>` and look at `mergeable`,
-`mergeable_state`, `state` and `merged_at`.
+This machine has no `gh`, so the pull request is read through the GitHub API
+instead — the token retrieval steps and the exact request are in the local,
+untracked **`.freebuff/run.md`**, deliberately not here: this file is committed,
+and a procedure for reading a credential has no business in a repository.
 
 ## Status
 
@@ -451,53 +462,25 @@ measurement.
 
 ---
 
-## Architecture invariants — do not break these
+## Where the rules live — moved 2026-09-24
 
-1. `Transaction` and `Contribution` are the only source of truth. Open
-   positions, completed trades, portfolio %, and totals are DERIVED by replaying
-   the ledger in `lib/portfolio-engine.ts`. Never store derived values that can
-   drift from the ledger.
-2. `CashBalance` is the single deliberate exception: stored, hand-editable,
-   auto-adjusted by contributions/buys/sells/exchanges (`lib/cash.ts`), never
-   recomputed from the ledger on read.
-3. `DailySnapshot` rows are frozen historical facts. `recordTodaySnapshot()` is
-   idempotent per UTC day, only rewrites today, and must fail soft — snapshot
-   recording must never break a page load.
-4. Quote/meta maps are keyed by compound `region::ticker` (`priceKey()` in
-   `lib/prices.ts`). A bare ticker is NOT unique across regions.
-5. `findNegativeQtyAfter` / `findFirstNegativeQty` scan EVERY ledger row, not
-   just the final quantity — a backdated Sell can dip a position negative
-   mid-replay and recover later. Preserve that.
-6. `prisma migrate dev` refuses in non-interactive shells. Generate SQL with
-   `npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel
-   prisma/schema.prisma --script` and hand-write the migration, then
-   `npx prisma migrate deploy`.
+The three sections that used to sit here — the architecture invariants, the
+non-goals, and the environment notes — moved to the documents a reader opens
+first, instead of sitting 450 lines inside the build history. One copy is the
+whole point: a rule stated twice drifts.
 
-## Non-goals — explicitly rejected by the owner, do not add
-
-- Fees / commissions tracking (owner considers them negligible)
-- Target allocation % and rebalancing drift
-
-## Environment notes
-
-- `.env` needs `DATABASE_URL` and `SITE_PASSWORD`. Never print or commit values.
-- Supabase's pooler caps session clients at 15; a running dev server can exhaust
-  it and break migrations (`EMAXCONNSESSION`). Stop the dev server or add
-  `?connection_limit=5` to `DATABASE_URL`.
-- **If you add `?connection_limit=5`, the closing quote must come AFTER the
-  query string:** `DATABASE_URL="postgresql://.../postgres?connection_limit=5"`.
-  Putting it before (`"...postgres"?connection_limit=5`) makes Next's env loader
-  read a value whose path is `postgres"` (%22) and every DB page 500s with
-  `Database postgres%22 does not exist`. `node --env-file` parses such a file
-  fine, so the failure only shows up in the Next app — verify with
-  `require('@next/env').loadEnvConfig()` and `new URL(process.env.DATABASE_URL)`
-  rather than trusting a Node one-liner.
-- `npm run dev` may pick a random high port if 3000 is taken — read the
-  "Local:" line from the startup log.
-- `next lint` is broken in this version; call `npx eslint` directly.
-- ESLint uses the flat `eslint.config.mjs` (ESLint 9), not `.eslintrc`.
-- `middleware.ts` is deprecated in Next 16 in favour of the `proxy` convention
-  (warning only; migrating is optional cleanup).
+- **Architecture invariants and non-goals → `AGENTS.md`.** All six invariants
+  (derived-never-stored, the `CashBalance` exception, frozen snapshots,
+  `region::ticker` price keys, the full-ledger quantity scan, and `migrate diff`
+  rather than `migrate dev`), plus the two features the owner has rejected.
+- **Environment and setup → `README.md`.** `DATABASE_URL`, `SITE_PASSWORD`,
+  `AUTH_SECRET`, `PRISMA_CONNECTION_LIMIT`, the pooler's 15-session cap, and
+  `migrate deploy` rather than `migrate dev`.
+- **Machine-local operations → `.freebuff/run.md`** (untracked, not part of the
+  project): the dev server's port, the Windows Prisma engine lock, `.env`
+  quoting, and how the open pull request is read from this machine.
+- **Design rules → `docs/DESIGN.md`.** Colour, typography, table and chart
+  conventions, motion, and the copy/voice rules the text passes settled.
 
 ---
 
