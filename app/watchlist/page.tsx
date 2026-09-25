@@ -31,17 +31,18 @@ export default async function WatchlistPage() {
   );
 
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <p className="text-sm text-ink-300">Watchlist</p>
-        <p className="mt-1 text-2xl font-medium">
-          {rows.length} ticker{rows.length === 1 ? "" : "s"}
-        </p>
-        {/* Says what the page is, because a row here can never show a
-            position — you own none of these. */}
-        <p className="mt-1 text-xs text-ink-500">
-          Tracked, not held. Nothing on this page is in the portfolio.
-        </p>
+    <div className="screen">
+      {/* The count and the caveat are one line here rather than two paragraphs,
+          and the caveat stays as a CLAUSE rather than becoming a tooltip: a row
+          on this page can never show a position, and a reader who mistakes this
+          for a holdings list has misunderstood the whole screen. */}
+      <div className="page-bar">
+        <h1 className="flex items-baseline gap-2 text-sm font-medium text-ink-100">
+          Watchlist
+          <span className="num text-xs font-normal text-ink-500">
+            {rows.length} ticker{rows.length === 1 ? "" : "s"} · tracked, not held
+          </span>
+        </h1>
       </div>
       <WatchlistPanel initialRows={rows} />
     </div>

@@ -9,6 +9,7 @@ import { PlainMoney, Percent } from "@/components/SignedNumber";
 import Sparkline from "@/components/Sparkline";
 import TickerName from "@/components/TickerName";
 import RangeBar, { rangePositionLabel } from "@/components/RangeBar";
+import RegionFlag from "@/components/RegionFlag";
 import WatchlistSignals from "@/components/WatchlistSignals";
 import type { WatchlistRow } from "@/lib/watchlist";
 import type { EntrySeries, EntrySignals } from "@/lib/entry-signals";
@@ -163,14 +164,18 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
+    // `lg:min-h-0 lg:flex-1`: the quote-freshness line and the add button are a
+    // fixed cost, and the table takes everything left — scrolling its own rows
+    // rather than growing the page, so the header (and the freshness line that
+    // says whether the prices below it can be trusted) stays put.
+    <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-ink-500">
           {refreshedAt ? `Quotes refreshed ${refreshedAt}` : "Prices and changes update each minute"}
         </p>
         {!adding && (
-          <button onClick={() => setAdding(true)} className="btn-ghost flex items-center gap-1.5">
-            <Plus size={14} strokeWidth={2.5} />
+          <button onClick={() => setAdding(true)} className="btn-ghost-sm flex items-center gap-1.5">
+            <Plus size={13} strokeWidth={2.5} />
             Track a ticker
           </button>
         )}
@@ -217,7 +222,7 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
           scroll sideways for no reason. The range and trend columns drop below
           `md` / `sm` and the reason column below `md`, so nothing is ever
           clipped — each of them is one click (or one hover) from what remains. */}
-      <div className="panel overflow-x-auto">
+      <div className="panel min-h-0 overflow-auto lg:flex-1">
         {rows.length === 0 ? (
           <p className="p-6 text-center text-sm text-ink-300">
             Nothing on the watchlist yet. Track a ticker you are considering buying.
@@ -239,7 +244,7 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
                   actually vary — a reason can be a sentence, and a price is
                   always seven characters. */}
               <tr>
-                <th className="w-6" />
+                <th className="cell-pad-start w-6" />
                 <th className="w-[22rem]">Ticker</th>
                 <th className="w-[7rem] text-right">Price</th>
                 <th className="w-[6rem] text-right">Today</th>
@@ -256,7 +261,7 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
                   30d
                 </th>
                 <th className="hidden md:table-cell">Why</th>
-                <th className="w-8" />
+                <th className="cell-pad-end w-8" />
               </tr>
             </thead>
             <tbody>
@@ -268,7 +273,7 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
                 return (
                   <Fragment key={r.id}>
                     <tr>
-                      <td className="pr-0">
+                      <td className="cell-pad-start pr-0">
                         <button
                           type="button"
                           onClick={() => setExpanded(isOpen ? null : r.id)}
@@ -281,19 +286,57 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
                         </button>
                       </td>
                       <td>
-                        <span className="num">{r.ticker}</span>
-                        {/* Region is a cell's worth of width for two letters; it
-                            rides on the name line instead. */}
+                        {/* The flag, on the ticker's own line and in place of the
+                            two-letter region code that used to sit after the
+                            name — by the owner's request. The code spent a
+                            cell's worth of width on two characters that say
+                            nothing a reader of this row does not already know (a
+                            ticker is listed in exactly one market), while the
+                            holdings pages have drawn the market as a flag for as
+                            long as they have existed. The code is not lost with
+                            it: it is the picture's accessible name and its
+                            tooltip, so the region is never carried by a 16px
+                            image alone. docs/DESIGN.md §9 records this as the
+                            one place a flag is allowed inside a table row;
+                            everywhere else it is a heading landmark (§5).
+
+                            On the ticker's line rather than after the name
+                            because `TickerName` is a block of its own — a
+                            trailing span lands on a THIRD line and adds a line
+                            of height to every row. */}
+                        <span className="flex items-baseline gap-2">
+                          <span className="num">{r.ticker}</span>
+                          <span
+                            role="img"
+                            aria-label={r.region}
+                            title={r.region}
+                            className="inline-flex"
+                          >
+                            <RegionFlag region={r.region} />
+                          </span>
+                        </span>
                         {/* A roomier budget than the ledger's 13rem: this table has
                             six columns, so a long fund name has somewhere to go
                             and truncating it next to empty space reads as a bug. */}
+                        {/* The flag replaces the two-letter region code this
+                            line used to carry, by the owner's request: the code
+                            spent ~54px of the widest column on two characters
+                            that say nothing a reader of this row does not
+                            already know (a ticker is listed in exactly one
+                            market), while the holdings pages have drawn the
+                            market as a flag for as long as they have existed.
+                            The code is not lost with it — it is the picture's
+                            accessible name and its tooltip, so the region is
+                            never carried by a 16px image alone.
+                            docs/DESIGN.md §9 records this as the one place a
+                            flag is allowed inside a table row; everywhere else
+                            it is a heading landmark (§5). */}
                         <TickerName
                           region={r.region}
                           ticker={r.ticker}
                           name={r.name}
                           maxWidthClass="max-w-[10rem] sm:max-w-[22rem]"
                         />
-                        <span className="num ml-2 text-xs text-ink-500">{r.region}</span>
                       </td>
                       <td className="num text-right">
                         {r.price !== null ? (
@@ -377,7 +420,7 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
                           </button>
                         )}
                       </td>
-                      <td className="text-right">
+                      <td className="cell-pad-end text-right">
                         <button
                           onClick={() => handleRemove(r.id)}
                           disabled={busy}
@@ -396,7 +439,7 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
                             a real class rather than the `whitespace-normal`
                             utility, which `.ledger-table td` outranks on
                             specificity (see app/globals.css). */}
-                        <td colSpan={8} className="cell-wrap px-4 py-4">
+                        <td colSpan={8} className="cell-wrap cell-pad-start px-4 py-4">
                           {signal ? (
                             <WatchlistSignals
                               signals={signal}

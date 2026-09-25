@@ -70,7 +70,7 @@ export default function AddTransactionForm() {
 
   if (!open) {
     return (
-      <button className="btn-primary" onClick={() => setOpen(true)}>
+      <button className="btn-primary-sm" onClick={() => setOpen(true)}>
         Log a transaction
       </button>
     );

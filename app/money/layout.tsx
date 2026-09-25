@@ -14,19 +14,21 @@ import SectionTabs from "@/components/SectionTabs";
  */
 export default function MoneyLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1">
       <SectionTabs
         label="Money"
         tabs={[
           {
             href: "/money",
             label: "Deposits",
-            icon: <PiggyBank size={14} strokeWidth={1.75} className="text-ink-500" />,
+            // No colour class on either icon — they inherit the tab's (see
+            // SectionTab.icon and tests/tab-colour.test.ts).
+            icon: <PiggyBank size={14} strokeWidth={1.75} />,
           },
           {
             href: "/money/cash",
             label: "Cash",
-            icon: <Wallet size={14} strokeWidth={1.75} className="text-ink-500" />,
+            icon: <Wallet size={14} strokeWidth={1.75} />,
           },
         ]}
       />

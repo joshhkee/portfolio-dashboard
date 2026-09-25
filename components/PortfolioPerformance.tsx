@@ -63,16 +63,24 @@ export default function PortfolioPerformance({
     filteredBenchmarks[key] = values.slice(dropped, dropped + filtered.length);
   }
 
+  const rangeControl = (
+    <SegmentedControl
+      ariaLabel="Chart time range"
+      options={RANGE_KEYS.map((key) => ({ value: key, label: key === "ALL" ? "All" : key }))}
+      value={range}
+      onChange={setRange}
+    />
+  );
+
   return (
     <div className={`flex flex-col gap-4${fill ? " min-h-0 flex-1" : ""}`}>
-      <div className="flex justify-end">
-        <SegmentedControl
-          ariaLabel="Chart time range"
-          options={RANGE_KEYS.map((key) => ({ value: key, label: key === "ALL" ? "All" : key }))}
-          value={range}
-          onChange={setRange}
-        />
-      </div>
+      {/* The range picker rides in the chart's own header when this instance is
+          the one filling a column (`fill`), and keeps a right-justified row of
+          its own when the charts are stacked at a fixed height. The row costs
+          ~30px plus a 16px gap, which on a 600px-tall window is height the
+          dashboard's chart cannot spare — and on the dashboard the header has
+          room for it, because that instance draws one chart and not three. */}
+      {!fill && <div className="flex justify-end">{rangeControl}</div>}
 
       {/* Deliberately NOT keyed on the range. Remounting these on every switch
           restarts each chart from an empty axis, so the line redraws itself
@@ -81,7 +89,7 @@ export default function PortfolioPerformance({
           chart. (An earlier pass wrapped this in a crossfade as well, which
           only gave the eye two things to watch.) */}
       <div className={`flex flex-col gap-4${fill ? " min-h-0 flex-1" : ""}`}>
-        <PortfolioValueChart data={filtered} fill={fill} />
+        <PortfolioValueChart data={filtered} fill={fill} actions={fill ? rangeControl : undefined} />
         {charts === "all" && (
           <>
             <DrawdownChart data={filtered} />

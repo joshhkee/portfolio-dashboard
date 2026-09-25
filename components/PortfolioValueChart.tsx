@@ -74,21 +74,33 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: Tooltip
  * 2px/1px stroke-weight difference keep the two series separable even
  * for viewers who can't rely on hue. */
 /**
- * `fill` lets the plot area take the height its parent has left (`min-h-[180px]`
- * is the floor below which a line chart stops being readable) instead of the
- * fixed 224px it gets elsewhere.
+ * `fill` lets the plot area take the height its parent has left instead of the
+ * fixed 224px it gets elsewhere. `height="100%"` inside an auto-height parent
+ * resolves to nothing, so `fill` is a contract with the caller, not a
+ * preference; the default stays fixed-and-predictable for the performance page.
  *
- * Only the dashboard passes it, and only because it gives the chart's ancestors
- * a definite height: `height="100%"` inside an auto-height parent resolves to
- * nothing, so `fill` is a contract with the caller, not a preference. The
- * default stays fixed-and-predictable for the performance page.
+ * The floor was 180px and is 140px, which is a measurement rather than a taste
+ * call: the dashboard was 87px taller than `main` at 1024×600 (the shell's own
+ * viewport, and the one a 13" laptop on Windows scaling actually lands on), and
+ * the chart is the only block on that page that can give height without losing
+ * information. 140px still draws a 25-month line with its axis labels and the
+ * outlay reference line readable; what it cannot do is keep the same proportions
+ * it has on a 900px window, and on a short one that is the right trade.
+ *
+ * `actions` exists for the same reason. The dashboard's range picker used to sit
+ * on a right-justified row of its own above the header (~30px plus a 16px gap of
+ * a 600px screen); it now sits at the right end of the header it controls, which
+ * is where it is asked for, and the row it gave up is a row of chart.
  */
 export default function PortfolioValueChart({
   data,
   fill = false,
+  actions,
 }: {
   data: SnapshotPoint[];
   fill?: boolean;
+  /** A control for the chart's own header — the dashboard's time range. */
+  actions?: React.ReactNode;
 }) {
   if (data.length < 2) {
     return (
@@ -119,7 +131,7 @@ export default function PortfolioValueChart({
 
   return (
     <div className={`flex flex-col gap-3${fill ? " min-h-0 flex-1" : ""}`}>
-      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
         <p className="text-sm text-ink-300">Portfolio value over time</p>
         <div className="flex flex-col gap-0.5">
           <p className="num text-sm text-ink-100">
@@ -146,8 +158,14 @@ export default function PortfolioValueChart({
             </p>
           )}
         </div>
+        {actions && <div className="ml-auto">{actions}</div>}
       </div>
-      <div className={fill ? "min-h-[180px] w-full flex-1" : "h-64 w-full"}>
+      {/* `h-56` below `lg` even when `fill` is on — below the breakpoint the shell
+          stops handing out heights, so a `flex-1` chart with only a floor would
+          settle at the floor on a phone instead of the 224px it has everywhere
+          else. At `lg` the floor takes over and the chart grows into whatever
+          the column has left. */}
+      <div className={fill ? "h-56 w-full lg:h-auto lg:min-h-[140px] lg:flex-1" : "h-64 w-full"}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
             <defs>

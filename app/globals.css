@@ -79,9 +79,19 @@
      overflow-x: auto alone silently becomes a scroll container for
      overflow-y too per the CSS spec, which breaks sticky positioning in
      confusing, hard-to-diagnose ways if this box isn't explicit about
-     owning both axes itself. */
+     owning both axes itself.
+
+     Below `lg` the height is capped at 70vh, as it always was: the page
+     scrolls and a table that grew to 64 rows would make the document very
+     long for no benefit. From `lg` the cap is REMOVED and the box takes
+     `flex-1` instead — its height comes from the shell (see `.screen` and
+     `.panel-fit` above), so a table is exactly as tall as the space its
+     page has left for it and nothing else on the page moves when the rows
+     scroll. That is the page rule stated in docs/DESIGN.md §4, and it is
+     why `.table-scroll` must be a flex child with a bounded height rather
+     than a free-standing box at these widths. */
   .table-scroll {
-    @apply max-h-[70vh] overflow-auto rounded-lg border border-ink-700;
+    @apply max-h-[70vh] overflow-auto rounded-lg border border-ink-700 lg:max-h-none lg:min-h-0 lg:flex-1;
   }
   .ledger-table tbody tr:hover {
     @apply bg-ink-800/50;
@@ -135,6 +145,92 @@
   .panel {
     @apply rounded-lg border border-ink-700 bg-ink-900;
   }
+  /* ---- The one switch ---------------------------------------------------
+
+     Every "pick one of N" control in the app is these three classes: the
+     section strip, a slide deck's tab strip, and every `SegmentedControl`
+     (chart range, benchmark index, stakeholder, period grouping). One
+     bordered track, one gold pill that SLIDES under the active item.
+
+     Defined once because four hand-rolled copies is how they drifted: the
+     segmented controls slid a gold pill while `SectionTabs` and `SlideDeck`
+     painted the active item `accentMuted`, so the identical gesture looked like
+     two different controls on two pages. The measurement and the transform live
+     in `useSlidingPill`; a caller supplies only its own layout, never a second
+     pill. Change the look here (docs/DESIGN.md §7).
+
+     `.tab-pill` carries the `motion-reduce:transition-none`, so a reduced-motion
+     reader gets the pill in the right place with no travel rather than a
+     different control. */
+  .tab-track {
+    @apply relative flex flex-wrap items-center gap-0.5 rounded-md border border-ink-700 p-0.5;
+  }
+  .tab-pill {
+    @apply absolute left-0 top-0 rounded bg-accent transition-all duration-200 ease-out motion-reduce:transition-none;
+  }
+  .tab-item {
+    @apply relative rounded px-2.5 py-1 transition-colors duration-200 motion-reduce:transition-none;
+  }
+  /* ---- The shell, and the panel contract it implies ---------------------
+
+     The app used to be a document: every page stacked eyebrow, heading,
+     controls and panels downward and grew taller than the window, so the
+     answer to "where does this figure/sentence/filter go" was re-invented
+     per page and every addition added height somewhere. It is now one
+     screen. Three classes carry the whole contract, and every page is
+     written in them:
+
+       .screen      a page root — a column that fills the content region
+       .panel-fit   a panel that takes its share of the screen rather than
+                    growing with its content
+       .panel-body  the part of such a panel that scrolls (a table panel
+                    substitutes `.table-scroll`, which is its own scroll
+                    region with a sticky header — never both)
+
+     Below `lg` none of this binds: the page is a document again and the
+     window scrolls it, which is the honest behaviour on a phone. That is
+     why every rule here is `lg:`-prefixed.
+
+     `min-h-0` is the load-bearing half. A flex item's default `min-height:
+     auto` refuses to shrink below its content, so a column of panels each
+     marked `flex-1` would still push the page past the window — the exact
+     failure this contract exists to remove. Removing it from any of these
+     rules silently restores the old scrolling document. */
+  .screen {
+    @apply flex flex-col gap-4 lg:min-h-0 lg:flex-1;
+  }
+  .panel-fit {
+    @apply flex min-h-0 flex-col overflow-hidden lg:flex-1;
+  }
+  /* A panel's chrome: the row that names it and holds its controls. Denser
+     than the old `p-5` bands (px-4 py-2), because it is chrome and not
+     content — and it is the row the page's own controls moved INTO, so that
+     a filter or a total costs no band of its own. */
+  .panel-head {
+    @apply flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-ink-700/60 px-4 py-2;
+  }
+  .panel-body {
+    @apply overflow-auto lg:min-h-0 lg:flex-1;
+  }
+  /* Headline figures on ONE line: a labelled value reading left to right
+     rather than label-over-value. As a definition list the pairing is
+     machine-readable, which is what lets the labels drop their explanatory
+     prose (§8) — "Total holdings (SGD)" plus a `title` carrying the one
+     clause about the FX rate. */
+  .stat-strip {
+    @apply flex flex-wrap items-center gap-x-6 gap-y-2;
+  }
+  .stat-strip dt {
+    @apply text-xs text-ink-300;
+  }
+  .stat-strip dd {
+    @apply num text-lg text-ink-100;
+  }
+  /* The row above the content: what the page is, and what you can do to it.
+     `shrink-0` so it never gives height to the region below it. */
+  .page-bar {
+    @apply flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2;
+  }
   /* Chart tooltips must paint above everything the chart draws inside itself.
      Recharts renders its tooltip as an absolutely-positioned sibling of the
      chart's SVG with no z-index, so anything the chart paints LATER in the DOM
@@ -162,13 +258,23 @@
 
      Short by design: a quarter second reads as the same chart changing its
      window, while anything longer feels like waiting for a new page. */
+  /* The offset is NEGATIVE (-6px, settling DOWN into place) and that is
+     load-bearing, not a taste call. A slide's content now fills its panel
+     exactly (`.panel-body` > `.swap-in` > content, each `h-full`), so the old
+     +6px version started the animation 6px BELOW the panel's bottom edge —
+     which IS scrollable overflow, so `overflow: auto` on `.panel-body` showed a
+     scrollbar for the 240ms of the swap and shifted the slide sideways. Content
+     above the scrollport's start edge is not reachable and therefore creates no
+     scrollable area, so the same motion inverted costs nothing. Measured: 6px
+     of overflow on all six performance slides with the old direction, 0px with
+     this one (docs/DESIGN.md §4). */
   .swap-in {
     animation: swap-in 240ms ease-out both;
   }
   @keyframes swap-in {
     from {
       opacity: 0;
-      transform: translateY(6px);
+      transform: translateY(-6px);
     }
     to {
       opacity: 1;
@@ -218,11 +324,39 @@
   .field {
     @apply w-full rounded-md border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100 outline-none transition placeholder:text-ink-500 focus:border-accent;
   }
+  /* The compact field that sits in a row of chrome — a panel's head, or the page
+     bar. It carries the padding for the magnifier and the clear button that flank
+     it, so it is a real class rather than `.field` plus a handful of overrides —
+     `.field` is in this layer, and a `pl-7` utility fighting it is exactly the
+     hazard §5 of docs/DESIGN.md describes. It is 32px tall on purpose: the row it
+     sits in is chrome, and the table below it should get every pixel that is not
+     spoken for.
+
+     It deliberately sets NO WIDTH, and the input is `w-full` inside it: the WIDTH
+     belongs to the caller's wrapper (`<SearchBox className="w-64" />` in a panel
+     head, `w-full` in the page bar's centre column — §7). A width here would be
+     the other half of the same hazard: a caller's `w-full` utility competes with
+     this class, and which one wins depends on where the bundler emitted the
+     stylesheet. This class no longer competes, so both callers work by
+     construction. */
+  .search-compact {
+    @apply h-8 w-full min-w-0 rounded-md border border-ink-700 bg-ink-950 pl-7 pr-7 text-xs text-ink-100 outline-none transition placeholder:text-ink-500 focus:border-accent;
+  }
   .btn-primary {
     @apply rounded-md bg-accent px-4 py-2 text-sm font-medium text-ink-950 transition hover:bg-accentHover disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-ghost {
     @apply rounded-md border border-ink-700 px-4 py-2 text-sm font-medium text-ink-100 transition hover:border-ink-500 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  /* The toolbar sizes. A page bar is chrome, so its controls are 30px rather
+     than the 36px a form's primary action gets — the difference is a table row
+     on every page that has one. Colour and hierarchy are unchanged: the primary
+     action keeps the gold fill wherever it appears. */
+  .btn-primary-sm {
+    @apply rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-ink-950 transition hover:bg-accentHover disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-ghost-sm {
+    @apply rounded-md border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-100 transition hover:border-ink-500 disabled:cursor-not-allowed disabled:opacity-50;
   }
   .badge-gain {
     @apply rounded-full bg-gainBg px-2 py-0.5 text-xs text-gain;

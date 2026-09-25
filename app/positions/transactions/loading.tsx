@@ -1,26 +1,31 @@
-import {
-  SkeletonBar,
-  SkeletonStatus,
-  SkeletonTable,
-} from "@/components/Skeleton";
+import { SkeletonBar, SkeletonStatus, SkeletonTable } from "@/components/Skeleton";
 
 /**
- * The ledger skeleton. The real row here has 11 columns once you count the
- * Edit/Delete cell, and it scrolls inside its own box, so the placeholder also
- * needs a full complement of columns to reserve the same height.
+ * The ledger: title and count, the filter in the middle, two actions, then the
+ * table — and nothing between the bar and the table.
+ *
+ * Eleven columns, because that is what the real row has (count the Edit/Delete
+ * cell) and the column widths come from the real `.ledger-table` — so the
+ * placeholder reserves the same width as well as the same height. The bar is the
+ * three-zone row the real page draws (`lg:grid-cols-[1fr_auto_1fr]`), so the
+ * filter lands where the field was and the table starts where it started.
  */
 export default function LoadingTransactions() {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="screen">
       <SkeletonStatus label="Loading transactions" />
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex flex-col gap-2">
-          <SkeletonBar className="h-3 w-32" />
-          <SkeletonBar className="h-6 w-28" />
+      <div className="page-bar lg:grid lg:grid-cols-[1fr_auto_1fr] lg:items-center">
+        <div className="flex items-baseline gap-2">
+          <SkeletonBar className="h-4 w-36" />
+          <SkeletonBar className="h-3 w-16" />
         </div>
-        <SkeletonBar className="h-9 w-40 rounded-md" />
+        <SkeletonBar className="h-8 w-64 rounded-md" />
+        <div className="flex items-center gap-2 lg:justify-self-end">
+          <SkeletonBar className="h-7 w-24 rounded-md" />
+          <SkeletonBar className="h-7 w-36 rounded-md" />
+        </div>
       </div>
-      <SkeletonTable rows={10} cols={8} />
+      <SkeletonTable rows={12} cols={11} />
     </div>
   );
 }

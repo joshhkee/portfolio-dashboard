@@ -39,8 +39,18 @@ export function SkeletonHeading({ action = false }: { action?: boolean }) {
  * A table-shaped placeholder.
  *
  * Rendered with the real `.ledger-table` / `.table-scroll` classes on purpose:
- * it inherits the same column widths, borders and sticky header, so the swap
- * to real rows is invisible apart from the numbers appearing.
+ * it inherits the same column widths, borders, sticky header AND height — since
+ * `.table-scroll` now takes `flex-1` from `lg`, this box is the same size in the
+ * skeleton and in the loaded page, so the swap to real rows is invisible apart
+ * from the numbers appearing. It has to be given a bounded parent to do that
+ * (`.screen` or `.panel-fit`); on its own it keeps the 70vh cap the narrow
+ * breakpoints use.
+ *
+ * It is also the whole of a full-page table route now. There used to be a
+ * `SkeletonTableBlock` that wrapped this with the count-and-filter head row
+ * above it; the filter moved into the page bar (§7), so the head row is gone and
+ * a page whose only content is a table renders this directly as a child of
+ * `.screen`.
  */
 export function SkeletonTable({
   rows = 6,
@@ -76,6 +86,75 @@ export function SkeletonTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+/**
+ * The page bar: the inline figures a page opens with, and its one control.
+ *
+ * This is the shape every page now starts with (`.page-bar` + `.stat-strip`),
+ * so it is the shape a skeleton has to hold — the bar is 30px here and 30px
+ * there, and the region below it gets the rest of the screen either way.
+ */
+export function SkeletonStatStrip({
+  stats = 2,
+  control = true,
+}: {
+  stats?: number;
+  control?: boolean;
+}) {
+  return (
+    <div className="page-bar">
+      <div className="stat-strip">
+        {Array.from({ length: stats }, (_, i) => (
+          <div key={i} className="flex items-baseline gap-2">
+            <SkeletonBar className="h-3 w-24" />
+            <SkeletonBar className="h-5 w-24" />
+          </div>
+        ))}
+      </div>
+      {control && <SkeletonBar className="h-8 w-64 rounded-md" />}
+    </div>
+  );
+}
+
+/**
+ * A slide deck: the tab strip in the panel head and the body below it.
+ *
+ * `tabs` is not a cosmetic knob — the strip's WIDTH is what the real one will
+ * be, so a page with six views (performance, after returns-and-risk was split)
+ * has to promise six pills or the head jumps when the page lands. Same for
+ * `body`: one block by default, because only one slide is ever visible and a
+ * skeleton that drew three stacked panels would be promising a layout the page
+ * does not have — but a deck whose opening slide is a row of cards over a table
+ * (money) draws that instead.
+ *
+ * The track is the real `.tab-track`, so the pills land in the boxes the
+ * skeleton made rather than beside them.
+ */
+export function SkeletonSlideDeck({
+  bodyClass = "h-64",
+  tabs = 3,
+  body,
+}: {
+  bodyClass?: string;
+  tabs?: number;
+  body?: React.ReactNode;
+}) {
+  return (
+    <section className="panel panel-fit">
+      <div className="panel-head">
+        <div className="tab-track">
+          {Array.from({ length: tabs }, (_, i) => (
+            <SkeletonBar key={i} className="h-5 w-16 rounded" />
+          ))}
+        </div>
+        <SkeletonBar className="h-3 w-40" />
+      </div>
+      <div className="panel-body p-4">
+        {body ?? <SkeletonBar className={`${bodyClass} w-full`} />}
+      </div>
+    </section>
   );
 }
 

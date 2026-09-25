@@ -47,7 +47,7 @@ interface MoverRow {
  */
 function MoverColumn({ label, rows }: { label: string; rows: MoverRow[] }) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5 lg:gap-1">
       <p className="text-[10px] uppercase tracking-wide text-ink-500">{label}</p>
       {rows.length === 0 ? (
         <p className="text-xs text-ink-500">—</p>
@@ -311,23 +311,29 @@ export default async function TodayPage() {
     }));
 
   return (
-    // The height is DEFINITE on `lg`, and that is what makes the chart's `fill`
-    // work: the chart's height is "whatever is left", which is only a question
-    // with an answer if the page has a height to divide up. 121px is the chrome
-    // above it — the 57px bar plus main's 32px padding top and bottom — measured,
-    // not guessed. If a window is genuinely too short for the fixed blocks, the
-    // row overflows and the page scrolls, which is the honest degrade.
+    // `.screen`: the page fills the height it is given and the chart below takes
+    // whatever is left, which is only a question with an answer if the page HAS
+    // a height to divide up.
+    //
+    // It used to be `lg:h-[calc(100dvh_-_121px)]` — the same arithmetic the
+    // Exposure page did with `13.5rem`, written twice, from two measurements
+    // taken at one viewport each. That is exactly the arrangement the shell
+    // removed: the chrome is now a fixed cost measured in ONE place (globals.css
+    // and the shell in app/layout.tsx) and pages say "fill what is left" instead
+    // of re-deriving the viewport. The old constant had also gone stale by 40px
+    // the moment the nav lost its wordmark, which is the failure mode a second
+    // copy of a measurement always has.
     //
     // The gaps are tight on purpose: every 4px here comes out of the chart's
     // height budget.
-    <div className="flex flex-col gap-4 lg:h-[calc(100dvh_-_121px)]">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-sm text-ink-300">Today</h1>
+    <div className="screen lg:gap-3">
+      <div className="page-bar">
+        <div className="flex items-baseline gap-2">
+          <h1 className="text-sm font-medium text-ink-100">Today</h1>
           <p className="text-xs text-ink-500">
             {positions.length} position{positions.length === 1 ? "" : "s"} · S$
             {formatAmount(cashTotalSgd)} cash
-            {visit.account ? ` · signed in as ${visit.account.username}` : ""}
+            {visit.account ? ` · ${visit.account.username}` : ""}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -347,22 +353,29 @@ export default async function TodayPage() {
 
       {/* The value, and the change since this person was last here — the two
           things someone opening the dashboard actually came for. */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="panel flex flex-col gap-4 p-5 lg:col-span-2">
+      {/* Every `lg:` step below is the same trade: on a short `lg` window the
+          fixed bands get denser and the chart at the bottom keeps the slack,
+          because the chart is the one block here that loses nothing by being
+          140px instead of 220, and the bands are the ones that were pushing the
+          page past the window (87px, measured at 1024×600 — see §10). Below
+          `lg` none of it applies: the page is a document there and the window
+          scrolls it, so the roomier spacing is the right one. */}
+      <div className="grid shrink-0 grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="panel flex flex-col gap-3 p-4 lg:col-span-2 lg:gap-2 lg:p-3">
           <div>
             <p className="text-xs text-ink-300">Total portfolio value (S$, holdings + cash)</p>
             {/* A total is not a gain, so it carries no green: colour in this
                 app means "up or down", and a figure that is simply the sum of
                 what you own would be green whatever happened to it. See the
                 colour rule in docs/DESIGN.md. */}
-            <p className="num mt-1 text-4xl font-medium text-ink-100">
+            <p className="num mt-1 text-4xl font-medium text-ink-100 lg:text-3xl">
               <PlainMoney value={totalPortfolioValue} symbol={sgd} />
             </p>
           </div>
 
           {sinceChange !== null && baselineCaption && (
             <div className="flex flex-col gap-1">
-              <p className="num text-lg">
+              <p className="num text-lg lg:text-base">
                 <NativeMoney value={sinceChange} symbol={sgd} showPlus />
                 {sincePct !== null && (
                   <span className="ml-2 text-sm">
@@ -383,7 +396,7 @@ export default async function TodayPage() {
             </div>
           )}
 
-          <div className="flex flex-wrap items-baseline gap-x-8 gap-y-1 border-t border-ink-700 pt-4">
+          <div className="flex flex-wrap items-baseline gap-x-8 gap-y-1 border-t border-ink-700 pt-4 lg:pt-3">
             <p className="text-xs text-ink-300">
               Since inception{" "}
               <span className="num ml-1 text-sm text-ink-100">
@@ -407,7 +420,7 @@ export default async function TodayPage() {
         {/* The day's movers, then anything that genuinely needs a decision.
             Gainers and losers sit in two columns so six rows cost three rows
             of height — this page's rule is that it fits one screen. */}
-        <div className="panel flex flex-col gap-3 p-5">
+        <div className="panel flex flex-col gap-3 p-4 lg:gap-2 lg:p-3">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3">
             <p className="text-xs font-medium uppercase tracking-wide text-ink-300">
               Today&apos;s movers
@@ -462,7 +475,7 @@ export default async function TodayPage() {
       {latestMonth && nextMonth && (
         <Link
           href="/money"
-          className="panel flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3 text-xs transition hover:border-ink-500 motion-reduce:transition-none"
+          className="panel flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-xs transition hover:border-ink-500 lg:py-1.5 motion-reduce:transition-none"
         >
           <span className="font-medium uppercase tracking-wide text-ink-300">Deposits</span>
           <span className="text-ink-100">

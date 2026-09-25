@@ -46,8 +46,20 @@ function DrawdownTooltip({ active, payload }: { active?: boolean; payload?: Tool
  *
  * Coloured with the loss tone by design — this chart only ever shows losses,
  * so a neutral or gain colour would misrepresent it.
+ *
+ * `fill` lets the plot area take the height its parent has left, exactly as
+ * `PortfolioValueChart` does. The drawdown curve has a slide of its own on
+ * /performance now, and a 112px curve floating in a 500px panel reads as a
+ * component that failed to load rather than as a chart. The default stays
+ * fixed-and-predictable for callers that stack it under something else.
  */
-export default function DrawdownChart({ data }: { data: PerfPoint[] }) {
+export default function DrawdownChart({
+  data,
+  fill = false,
+}: {
+  data: PerfPoint[];
+  fill?: boolean;
+}) {
   const series = drawdownSeries(data);
   if (series.length < 2) return null;
 
@@ -55,7 +67,7 @@ export default function DrawdownChart({ data }: { data: PerfPoint[] }) {
   const current = series[series.length - 1].drawdown;
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className={`flex flex-col gap-2${fill ? " min-h-0 flex-1" : ""}`}>
       <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
         <p className="text-sm text-ink-300">Drawdown from peak</p>
         <p className="num text-sm">
@@ -67,7 +79,7 @@ export default function DrawdownChart({ data }: { data: PerfPoint[] }) {
           <span className="text-loss">{(worst * 100).toFixed(2)}%</span>
         </p>
       </div>
-      <div className="h-28 w-full">
+      <div className={fill ? "min-h-[140px] w-full flex-1" : "h-28 w-full"}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={series} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
             <defs>

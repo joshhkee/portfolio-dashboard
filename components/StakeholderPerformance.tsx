@@ -120,8 +120,16 @@ export default function StakeholderPerformance({
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    // Three blocks in a fixed order, and only the middle one grows: the controls,
+    // the table (which takes what is left and scrolls its own rows), then the
+    // chart. It used to be a plain column — controls, table, chart, each as tall
+    // as its content — which came to ~50px more than the panel had on a laptop,
+    // so the whole panel scrolled a few rows to reveal the last line of a table
+    // whose own scroll region was just below. Splitting the height like this is
+    // what removes that: a `.table-scroll` is a flex child with `lg:flex-1`, so
+    // its box shrinks instead of the panel's content overflowing.
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-ink-500">
           Pro-rata by contribution, so these values add up to the portfolio total.
         </p>
@@ -206,7 +214,7 @@ export default function StakeholderPerformance({
           the same chart, and the swap-in makes that change of question legible
           rather than a jump cut. */}
       {timeline.length >= 2 && (
-        <div key={selected ?? "everyone"} className="swap-in flex flex-col gap-2">
+        <div key={selected ?? "everyone"} className="swap-in flex shrink-0 flex-col gap-2">
           <p className="text-xs text-ink-300">
             {selected ? (
               <>
@@ -217,7 +225,10 @@ export default function StakeholderPerformance({
               "Value per stakeholder over time"
             )}
           </p>
-          <div className="h-56 w-full">
+          {/* 11rem rather than the 14rem this chart used: the table above it is
+              the thing being read, and a third of the panel is all a
+              value-vs-contributed line needs to show a shape. */}
+          <div className="h-44 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
                 <CartesianGrid stroke="#2e2e2e" strokeDasharray="3 3" vertical={false} />

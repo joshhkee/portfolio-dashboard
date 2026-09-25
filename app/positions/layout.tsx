@@ -23,19 +23,24 @@ import SectionTabs from "@/components/SectionTabs";
  */
 export default function PositionsLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-6">
+    // The strip is `shrink-0` and the page below it is `lg:flex-1`, so the
+    // section's chrome is a fixed cost and everything that can scroll is inside
+    // the page — the shell's rule, stated once in globals.css and applied by
+    // all three section layouts.
+    <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1">
       <SectionTabs
         label="Positions"
         tabs={[
           {
             href: "/positions/holdings",
             label: "Holdings",
-            icon: <Briefcase size={14} strokeWidth={1.75} className="text-ink-500" />,
+            // No colour on the icon: it inherits the tab's (see SectionTab.icon).
+            icon: <Briefcase size={14} strokeWidth={1.75} />,
           },
           {
             href: "/positions/exposure",
             label: "Exposure",
-            icon: <Wallet size={14} strokeWidth={1.75} className="text-ink-500" />,
+            icon: <Wallet size={14} strokeWidth={1.75} />,
           },
           // The ledger that built these positions, and the only place an entry
           // can be edited. It used to be a top-level page in its own right,
@@ -48,7 +53,7 @@ export default function PositionsLayout({ children }: { children: React.ReactNod
           {
             href: "/positions/transactions",
             label: "Transactions",
-            icon: <ListOrdered size={14} strokeWidth={1.75} className="text-ink-500" />,
+            icon: <ListOrdered size={14} strokeWidth={1.75} />,
           },
         ]}
       />
