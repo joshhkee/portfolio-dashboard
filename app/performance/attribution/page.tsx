@@ -6,8 +6,6 @@ import { getSgdRateSeries, sgdRateOn } from "@/lib/fx-history";
 import { getSnapshots } from "@/lib/snapshots";
 import { contributionAttribution, dayKeyOf } from "@/lib/attribution";
 import { getAttributionCloses } from "@/lib/attribution-data";
-import { formatShortDate } from "@/lib/dates";
-import { formatAmount } from "@/components/SignedNumber";
 import ContributionAttribution from "@/components/ContributionAttribution";
 
 export const dynamic = "force-dynamic";
@@ -87,58 +85,38 @@ export default async function AttributionPage() {
   const cashGap = impliedCash - cashHeld;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <div>
-          {/* No heading of its own: the section tab above names this page. */}
-          <p className="text-xs text-ink-500">
-            {matrix.rows.length} instrument{matrix.rows.length === 1 ? "" : "s"} ever traded,
-            measured from {formatShortDate(new Date(`${matrix.baselineDay}T00:00:00Z`))} — the day
-            before the first recorded trade.
-          </p>
-        </div>
-        <p className="text-xs text-ink-500">
-          Positions only · no fees · nothing stored
-        </p>
-      </div>
+    <div className="screen">
+      {/* The grid, and nothing else.
 
+          This page used to spend FOUR rows of prose around a 21-column table:
+          an instrument count, a "priced from history" note, a paragraph of cell
+          definitions below it, and a cash-reconciliation row below that. All of
+          those facts survive — the scope and the cell definitions are on the
+          column headers they describe, and the cash check is a line inside the
+          panel that already reports how this grid lines up with the other ways
+          of measuring the same thing (§8.7). What went was the reading path:
+          on a page whose whole content is a table, four rows of text is four
+          rows the table cannot have.
+
+          The component is now handed the cash numbers rather than rendering
+          them itself, because they are a reconciliation of the SERVER's answer
+          (contributions less everything invested, against the hand-maintained
+          balances) and the grid is the client's. */}
       {matrix.rows.length === 0 ? (
         <p className="text-sm text-ink-300">
           Contribution attribution appears once the ledger has a transaction and a few months of
           daily snapshots.
         </p>
       ) : (
-        <ContributionAttribution matrix={matrix} />
-      )}
-
-      <div className="flex flex-col gap-1">
-        <p className="text-xs text-ink-500">
-          Cash check: the ledger says S${formatAmount(impliedCash)} should still be uninvested
-          (S${formatAmount(contributionTotal)} contributed, less what was spent on trades), while the
-          recorded balances hold S${formatAmount(cashHeld)} — a difference of S$
-          {formatAmount(Math.abs(cashGap))}. Cash is hand-maintained here, so this is the ledger and
-          the balances drifting apart rather than an error in the grid, which never touches cash.
-        </p>
-      </div>
-
-      {(matrix.unpriced.length > 0 || matrix.fxFallbacks > 0) && (
-        <div className="flex flex-col gap-1">
-          {matrix.unpriced.length > 0 && (
-            <p className="text-xs text-ink-500">
-              Valued at cost, because the price source has no history for them:{" "}
-              {matrix.unpriced.map((k) => k.split("::")[1]).join(", ")}. A position with no price
-              series contributes exactly its cash flow — a zero gain — rather than a measured one.
-            </p>
-          )}
-          {matrix.fxFallbacks > 0 && (
-            <p className="text-xs text-ink-500">
-              {matrix.fxFallbacks} date
-              {matrix.fxFallbacks === 1 ? "" : "s"} predate the available FX history and were costed
-              at today&apos;s rate, so the currency effect on those amounts is understated rather
-              than invented.
-            </p>
-          )}
-        </div>
+        <ContributionAttribution
+          matrix={matrix}
+          cash={{
+            gap: Math.abs(cashGap),
+            implied: impliedCash,
+            held: cashHeld,
+            contributed: contributionTotal,
+          }}
+        />
       )}
     </div>
   );

@@ -235,9 +235,13 @@ export default function AccountManager({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    // `lg:min-h-0 lg:flex-1` with the account list as the one region that
+    // scrolls: this page is a list of identities, and a list is exactly what
+    // should scroll inside its own panel rather than pushing the queue above it
+    // (the one thing here with a deadline) off the screen.
+    <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1">
       {bootstrapping && (
-        <div className="panel flex items-start gap-3 p-4">
+        <div className="panel flex shrink-0 items-start gap-3 p-4">
           <ShieldCheck size={16} strokeWidth={1.75} className="mt-0.5 shrink-0 text-accent" />
           <div className="flex flex-col gap-1">
             <p className="text-sm text-ink-100">No accounts yet</p>
@@ -259,7 +263,7 @@ export default function AccountManager({
            it already carries `border border-ink-700`, and the components layer
            beats utilities — so a border colour here is silently discarded.
            `.panel` sets no box-shadow, so the ring is the one that lands. */
-        <div className="panel flex flex-col ring-1 ring-accent/30">
+        <div className="panel flex shrink-0 flex-col ring-1 ring-accent/30">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-700 p-4">
             <div>
               <p className="flex items-center gap-2 text-ink-100">
@@ -327,18 +331,18 @@ export default function AccountManager({
         </p>
       )}
 
-      <div className="panel flex flex-col">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-700 p-4">
+      <div className="panel panel-fit">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-ink-700 px-4 py-3">
           {/* The count is the page's headline and deliberately not repeated
               here; this line says what the count cannot, which is what an
-              account IS. */}
-          <div className="max-w-xl">
-            <p className="text-ink-100">Sign-in accounts</p>
-            <p className="text-xs text-ink-500">
-              Every account sees the same portfolio. An account is an identity — who is signed in,
-              and when they last looked. Admins additionally create accounts and approve requests.
-            </p>
-          </div>
+              account IS — and it is one clause plus a tooltip now rather than
+              two sentences of chrome on a list of names. */}
+          <p
+            className="text-sm text-ink-100"
+            title="Every account sees the same portfolio. An account is an identity — who is signed in, and when they last looked. Admins additionally create accounts and approve requests."
+          >
+            Sign-in accounts
+          </p>
           {!createOpen && (
             <button
               type="button"
@@ -460,7 +464,7 @@ export default function AccountManager({
             </p>
           )
         ) : (
-          <ul>
+          <ul className="min-h-0 overflow-auto lg:flex-1">
             {rows.map((row) => {
               const isMe = row.id === meId;
               const message = messageFor(row.id);

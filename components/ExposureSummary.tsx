@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import ExposureDonut from "@/components/ExposureDonut";
+import SegmentedControl from "@/components/SegmentedControl";
 import type { ExposureBucket, UnclassifiedSlice } from "@/lib/exposure";
 
 export interface ExposureView {
-  /** Tab label, e.g. "By sector". */
+  /** The cut's own name — "Sector", "Type", "Currency". */
   label: string;
-  /** Right-hand caption for the selected view. */
+  /** Right-hand caption for the view: the one derived line worth reading. */
   hint: string;
   /** What the donut draws: the named buckets, then "Other tags" if folded. */
   slices: ExposureBucket[];
@@ -23,59 +24,101 @@ export interface ExposureView {
 }
 
 /**
- * One panel, two ways of cutting the same holdings.
+ * The exposure breakdowns, as two rings you can read at once.
  *
- * The two breakdowns answer different questions — "what did I choose to buy"
- * (hand-tagged) versus "what am I holding the wrapper of" (reported by the
- * lookup) — and stacking them as two donuts side by side would spend half the
- * page repeating the same circle. So they share one panel and one toggle, the
- * way the range selectors share one chart.
+ * This has been three shapes, and the order is instructive:
  *
- * The switch is animated by remounting under a new key, exactly like the
- * period selectors: one motion for the whole change, applied to a container
- * rather than to the ring itself, so the legend and the caption move with it.
+ * 1. **Two stacked panels** (sector with type behind a hand-rolled toggle, then
+ *    currency below it) — the same 176px ring drawn twice, ~700px of a 900px
+ *    window, and whichever ring you were not reading still held its share.
+ * 2. **One `SlideDeck`**, all three cuts sharing a single slot. That fixed the
+ *    height and lost something real: a reader comparing what the portfolio is
+ *    TAGGED with against what it is DENOMINATED in had to remember the first
+ *    ring while looking at the second.
+ * 3. **What it is now**: the two cuts that answer different questions are two
+ *    panels, both visible; the one cut that is the same circle sliced a second
+ *    way (sector and type are two groupings of the same holdings) stays behind a
+ *    small toggle on the first panel, where switching costs one click and no
+ *    memory. That is the rule this page settled on: stack what you compare,
+ *    switch what you don't.
+ *
+ * The toggle is the app's one switch (`SegmentedControl` — gold pill, sliding
+ * animation, see docs/DESIGN.md §7), so the same gesture reads the same way here
+ * as it does in a chart's range picker. The deck is no longer used on this page
+ * at all.
  */
-export default function ExposureSummary({ views }: { views: ExposureView[] }) {
-  const [index, setIndex] = useState(0);
-  const active = views[index] ?? views[0];
-  if (!active) return null;
+export default function ExposureSummary({
+  sector,
+  type,
+  currency,
+}: {
+  sector: ExposureView;
+  type: ExposureView;
+  currency: ExposureView;
+}) {
+  const [cut, setCut] = useState<"sector" | "type">("sector");
+  const view = cut === "sector" ? sector : type;
 
   return (
-    <section className="panel flex flex-col gap-4 p-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <div className="flex items-center gap-1">
-          {views.map((view, i) => (
-            <button
-              key={view.label}
-              type="button"
-              onClick={() => setIndex(i)}
-              aria-pressed={i === index}
-              className={`rounded-md px-2.5 py-1 text-sm transition motion-reduce:transition-none ${
-                i === index
-                  ? "bg-ink-800 text-ink-100"
-                  : "text-ink-500 hover:text-ink-100"
-              }`}
-            >
-              {view.label}
-            </button>
-          ))}
+    // `lg:grow` on both panels, not `lg:flex-1`: `flex-1` is `flex: 1 1 0%`, so it
+    // would also let the panels SHRINK below their content on a short window and
+    // clip a ring's legend inside its own card — the failure docs/DESIGN.md §4
+    // records from the last time this column split its height between two
+    // charts. `grow` only ever adds space (basis stays content), so a tall window
+    // gets two taller panels instead of a dead strip at the bottom of the column,
+    // and a short one still scrolls the column as one unit.
+    // `lg:grow` here as well as on the panels: without it this wrapper is only as
+    // tall as its content, the two panels have no free space to grow into, and
+    // the column ends in a dead strip.
+    <div className="flex flex-col gap-3 lg:grow">
+      {/* Panel one: the same holdings grouped two ways. */}
+      <section className="panel flex flex-col gap-3 p-4 lg:grow">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <SegmentedControl
+            ariaLabel="Group the holdings by"
+            options={[
+              { value: "sector", label: sector.label },
+              { value: "type", label: type.label },
+            ]}
+            value={cut}
+            onChange={setCut}
+          />
+          {/* The hint belongs to whichever cut is showing, so it is keyed to it:
+              the caption changes with the ring rather than beside it. */}
+          <p key={cut} className="swap-in text-xs text-ink-500">
+            {view.hint}
+          </p>
         </div>
-        <p className="text-xs text-ink-500">{active.hint}</p>
-      </div>
+        <div key={`${cut}-ring`} className="swap-in">
+          <ExposureDonut
+            slices={view.slices}
+            unclassified={view.unclassified}
+            totalSgd={view.totalSgd}
+            centerLabel={view.centerLabel}
+            folded={view.folded}
+            unclassifiedNote={view.note}
+          />
+        </div>
+      </section>
 
-      {/* Keyed on the view so the container replays .swap-in on every switch.
-          Deliberately not keyed on the data: the panel should keep its shape
-          while the numbers change under it. */}
-      <div key={active.label} className="swap-in flex flex-col gap-3">
+      {/* Panel two: what the value is denominated in. Always on screen, because
+          the question it answers ("how much of this carries currency risk?") is
+          about the portfolio as a whole rather than about one of its groupings,
+          and a reader asks it while looking at the first ring. */}
+      <section className="panel flex flex-col gap-3 p-4 lg:grow">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <p className="text-xs text-ink-300">{currency.label}</p>
+          <p className="text-xs text-ink-500">{currency.hint}</p>
+        </div>
         <ExposureDonut
-          slices={active.slices}
-          unclassified={active.unclassified}
-          totalSgd={active.totalSgd}
-          centerLabel={active.centerLabel}
-          folded={active.folded}
-          unclassifiedNote={active.note}
+          slices={currency.slices}
+          unclassified={currency.unclassified}
+          totalSgd={currency.totalSgd}
+          centerLabel={currency.centerLabel}
+          folded={currency.folded}
+          unclassifiedNote={currency.note}
         />
-      </div>
-    </section>
+      </section>
+    </div>
   );
 }

@@ -167,9 +167,9 @@ const DEFAULT_SORT: SortState = COLUMNS[1].states[0];
  * children participate in the track's layout directly. Only between those two
  * widths is it a real element: a column holding SG with HK under it.
  */
-const PANEL = "w-full min-w-0 shrink-0 snap-start";
+const PANEL = "w-full min-w-0 shrink-0 snap-start lg:flex lg:min-h-0 lg:flex-col";
 const TUCK =
-  "contents min-[1220px]:flex min-[1220px]:min-w-0 min-[1220px]:flex-1 min-[1220px]:flex-col min-[1220px]:gap-4 min-[1800px]:contents";
+  "contents min-[1220px]:flex min-[1220px]:min-h-0 min-[1220px]:min-w-0 min-[1220px]:flex-1 min-[1220px]:flex-col min-[1220px]:gap-4 min-[1800px]:contents";
 
 /** "245 shares", "1 share", "27.4508 shares" — the word agrees with the
  *  number, and a fractional holding keeps its decimals rather than rounding
@@ -270,7 +270,11 @@ function RegionTable({
   const unheld = rows.filter((r) => r.priceUnavailable).length;
 
   return (
-    <section className="flex min-w-0 flex-col gap-2">
+    // `lg:flex-1 lg:min-h-0` here and on the `.table-scroll` below is the whole
+    // change of behaviour: the table is as tall as the space its page has left
+    // for it and scrolls its own rows, instead of growing to its content and
+    // dragging the page (and, in the tuck layout, the table beside it) taller.
+    <section className="flex min-w-0 flex-col gap-2 lg:min-h-0 lg:flex-1">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         {/* The flag is a landmark, not a label: it sits beside the region code
             and the code keeps saying which market this is, so the market is
@@ -284,8 +288,16 @@ function RegionTable({
               · {rows.length} {rows.length === 1 ? "holding" : "holdings"}
               {/* "at cost" is the one caveat that changes how the heading's figure
                   should be read, so it is stated on the heading rather than only
-                  in the row. */}
-              {unheld > 0 ? ` · ${unheld} at cost` : ""}
+                  in the row — and the clause that used to be a paragraph under
+                  the search box lives on the phrase itself now, where the
+                  reader is already looking. */}
+              {unheld > 0 ? (
+                <span
+                  title={`${unheld} of these rows have no live quote: they are held at cost and show N/A for P/L, so this market's total understates the true figure.`}
+                >{` · ${unheld} at cost`}</span>
+              ) : (
+                ""
+              )}
             </span>
           </span>
         </p>
@@ -595,69 +607,73 @@ export default function PositionsTable({
   const showArrows = arrows.prev || arrows.next;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="stat-row">
-        <div>
-          <p className="stat-label">Total holdings ({displayCurrency})</p>
-          <p className="stat-value">
-            {displaySymbol}
-            {formatAmount(totalValueConverted)}
-          </p>
-        </div>
-        <div>
-          <p className="stat-label">Unrealized P/L ({displayCurrency})</p>
-          <p className="stat-value">
-            <NativeMoney value={totalPLConverted} symbol={displaySymbol} showPlus />
-          </p>
-        </div>
-      </div>
-      {/* One notice, always shown, because three tables in three currencies is
-          the permanent state of this page now rather than a mixed-region
-          accident: each table's figures and its heading total are in its own
-          market's money, and only the two figures above are converted. */}
-      <p className="-mt-4 text-xs text-ink-300">
-        Each table is in its own market&apos;s currency — US in USD, SG in SGD, HK in HKD — including
-        the total beside the region&apos;s name. The two figures above are converted to {displayCurrency}{" "}
-        at the current rate.
-      </p>
-      {anyPriceUnavailable && (
-        <p className="-mt-4 text-xs text-ink-300">
-          Rows with no live quote are held at cost and show N/A for P/L, so a region&apos;s total
-          understates the true figure. HK listings often have no free quote.
-        </p>
-      )}
+    <div className="screen">
+      {/* One band of chrome, not four.
 
-      <div className="flex items-center gap-3">
-        {/* The field is full width by design (`.field` is `w-full`, and the
-            ledger's own search boxes sit alone on their line), so it gets a
-            flexible wrapper: without one it pushes the arrows onto a line of
-            their own, where `justify-between` leaves them stranded on the left
-            under a full-width box. */}
-        <div className="min-w-0 flex-1">
-          <SearchBox value={search} onChange={setSearch} placeholder="Search ticker or region…" />
-        </div>
-        {showArrows && (
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => slide(-1)}
-              disabled={!arrows.prev}
-              aria-label="Previous market"
-              className="rounded-md border border-ink-700 p-1.5 text-ink-300 transition hover:border-ink-500 hover:text-ink-100 disabled:cursor-not-allowed disabled:text-ink-500 disabled:opacity-50 motion-reduce:transition-none"
-            >
-              <ChevronLeft size={16} strokeWidth={1.75} />
-            </button>
-            <button
-              type="button"
-              onClick={() => slide(1)}
-              disabled={!arrows.next}
-              aria-label="Next market"
-              className="rounded-md border border-ink-700 p-1.5 text-ink-300 transition hover:border-ink-500 hover:text-ink-100 disabled:cursor-not-allowed disabled:text-ink-500 disabled:opacity-50 motion-reduce:transition-none"
-            >
-              <ChevronRight size={16} strokeWidth={1.75} />
-            </button>
+          This page used to spend, above its first row of data: a stat row on
+          two lines (~70px), a sentence explaining that the three tables are in
+          three currencies (~32px), a conditional sentence about missing quotes
+          (~32px), and a full-width search field on a line of its own (~40px)
+          plus gaps between each — about 240px of a 900px window explaining
+          itself to a reader who owns all three markets.
+
+          The figures are now ON one line (a `dl`, so they stay a labelled
+          pair), the sentences are gone from the page and back on the labels
+          they qualify — where a reader asks the question instead of reading a
+          paragraph on arrival (DESIGN.md §8.6) — and the filter shares the row
+          with them. That band is what the tables now get: three markets, each
+          several hundred pixels tall, instead of a taller header above a
+          shorter table. */}
+      <div className="page-bar">
+        <dl className="stat-strip">
+          <div className="flex items-baseline gap-2">
+            <dt title={`US and HK holdings converted to ${displayCurrency} at today's rate; each region's own total stays in its market's currency.`}>
+              Total holdings ({displayCurrency})
+            </dt>
+            <dd>
+              {displaySymbol}
+              {formatAmount(totalValueConverted)}
+            </dd>
           </div>
-        )}
+          <div className="flex items-baseline gap-2">
+            <dt title={`Unrealized P/L converted to ${displayCurrency} at today's rate.${anyPriceUnavailable ? " Rows with no live quote are held at cost, so this understates the real figure." : ""}`}>
+              Unrealized P/L ({displayCurrency})
+            </dt>
+            <dd>
+              <NativeMoney value={totalPLConverted} symbol={displaySymbol} showPlus />
+            </dd>
+          </div>
+        </dl>
+
+        <div className="flex items-center gap-2">
+          {showArrows && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => slide(-1)}
+                disabled={!arrows.prev}
+                aria-label="Previous market"
+                className="rounded-md border border-ink-700 p-1 text-ink-300 transition hover:border-ink-500 hover:text-ink-100 disabled:cursor-not-allowed disabled:text-ink-500 disabled:opacity-50 motion-reduce:transition-none"
+              >
+                <ChevronLeft size={15} strokeWidth={1.75} />
+              </button>
+              <button
+                type="button"
+                onClick={() => slide(1)}
+                disabled={!arrows.next}
+                aria-label="Next market"
+                className="rounded-md border border-ink-700 p-1 text-ink-300 transition hover:border-ink-500 hover:text-ink-100 disabled:cursor-not-allowed disabled:text-ink-500 disabled:opacity-50 motion-reduce:transition-none"
+              >
+                <ChevronRight size={15} strokeWidth={1.75} />
+              </button>
+            </div>
+          )}
+          <SearchBox
+            value={search}
+            onChange={setSearch}
+            placeholder="Search ticker or region…"
+          />
+        </div>
       </div>
 
       {/* The scroll container owns both axes, like `.table-scroll`, so the list
@@ -680,7 +696,7 @@ export default function PositionsTable({
         tabIndex={0}
         role="group"
         aria-label="Holdings by market"
-        className="flex snap-x snap-mandatory items-start gap-4 overflow-x-auto pb-1 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+        className="flex snap-x snap-mandatory items-stretch gap-4 overflow-x-auto pb-1 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent lg:min-h-0 lg:flex-1"
       >
         {/* Written out rather than mapped, because the second column is two
             tables in one box and the DOM order is what both other layouts rely
@@ -699,10 +715,15 @@ export default function PositionsTable({
         </div>
         <div className={TUCK}>
           {["SG", "HK"].map((region) => (
+            // `min-[1220px]:flex-1` is the width in the two-across row and the
+            // HEIGHT in the tucked column, which is why SG and HK now share the
+            // right-hand column's full height between them rather than ending
+            // short under a 70vh-capped US table — the cap is gone with the rest
+            // of the page's viewport arithmetic.
             <div
               key={region}
               data-region-panel=""
-              className={`${PANEL} min-[1220px]:flex-none min-[1800px]:w-auto min-[1800px]:flex-1`}
+              className={`${PANEL} min-[1220px]:min-h-0 min-[1220px]:flex-1 min-[1800px]:w-auto`}
             >
               <RegionTable
                 region={region}

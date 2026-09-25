@@ -290,11 +290,16 @@ export default function SectorTagEditor({
   const suggestedRows = untagged.filter((p) => !!p.suggested);
 
   return (
-    /* `xl:flex-1 min-h-0` is the page's contract with this component: the
-       exposure page hands the panel a fixed height from `xl` up, and this list
-       fills what is left of it after its own chrome. Below that it is an
-       ordinary block, sized by its rows, and the page scrolls. */
-    <div className="flex flex-col gap-3 xl:min-h-0 xl:flex-1">
+    /* `lg:flex-1 min-h-0` is the shell's contract with this component: the
+       exposure page hands the panel the height its screen has left, and this
+       list fills what is left of that after its own chrome. Below `lg` it is an
+       ordinary block, sized by its rows, and the page scrolls.
+
+       This used to be `xl:` — the same boundary the page's hand-written
+       `13.5rem` height used, because a hand-written height has to name the
+       width it was measured at. The shell does not, so the list's own scrolling
+       starts at `lg` with everything else. */
+    <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1">
       {/* One line, and one action: how much is left to tag, and the offer to
           take the classifier's drafts. Everything else this bar used to hold
           was batch-selection machinery. */}
@@ -354,7 +359,7 @@ export default function SectorTagEditor({
           effect above looks for. */}
       <div
         data-tag-scroll=""
-        className="flex flex-col min-[1820px]:grid min-[1820px]:grid-cols-2 xl:min-h-0 xl:flex-1 xl:overflow-y-auto"
+        className="flex flex-col min-[1820px]:grid min-[1820px]:grid-cols-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
       >
         {positions.map((position, index) => {
           const id = key(position);

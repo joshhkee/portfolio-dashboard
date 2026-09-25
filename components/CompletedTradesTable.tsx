@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { NativeMoney, Percent, formatAmount } from "@/components/SignedNumber";
 import { currencySymbol, currencyForRegion } from "@/lib/fx";
 import { formatShortDate } from "@/lib/dates";
 import SortableTh from "@/components/SortableTh";
-import SearchBox from "@/components/SearchBox";
+import { useTableSearch } from "@/components/TableSearch";
 import { useSortable } from "@/lib/use-sortable";
 import TickerName from "@/components/TickerName";
 
@@ -43,10 +43,13 @@ export default function CompletedTradesTable({
   /** Compound "REGION::TICKER" -> display name, from the ticker-meta cache. */
   names?: Record<string, string>;
 }) {
-  const [search, setSearch] = useState("");
+  // Same contract as the ledger: the filter lives in the page bar (see
+  // TableSearch) and the count of what survived it is reported back, so the
+  // figure in the bar and the rows in the table cannot disagree.
+  const { query, setShown } = useTableSearch();
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = query.trim().toLowerCase();
     if (!q) return trades;
     return trades.filter(
       (t) =>
@@ -54,17 +57,20 @@ export default function CompletedTradesTable({
         t.region.toLowerCase().includes(q) ||
         (t.notes ?? "").toLowerCase().includes(q)
     );
-  }, [trades, search]);
+  }, [trades, query]);
+
+  useEffect(() => {
+    setShown(filtered.length);
+  }, [filtered.length, setShown]);
 
   const { sorted, sortKey, sortDir, toggleSort } = useSortable(filtered, GETTERS, "sellDate", "desc");
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex justify-end">
-        <SearchBox value={search} onChange={setSearch} placeholder="Search ticker, region, or notes…" />
-      </div>
-
-      <div className="table-scroll">
+    // The table's own box: a direct child of `.screen`, so `lg:flex-1` here means
+    // it takes whatever height the page has left and scrolls its own rows. The
+    // row that used to sit above it ("Newest first" plus the filter) is gone —
+    // the filter is in the page bar, and that height went to the rows.
+    <div className="table-scroll">
         <table className="ledger-table">
         <thead>
           <tr>
@@ -144,7 +150,6 @@ export default function CompletedTradesTable({
           )}
         </tbody>
         </table>
-      </div>
     </div>
   );
 }

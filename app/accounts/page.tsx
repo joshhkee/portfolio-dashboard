@@ -36,13 +36,19 @@ export default async function AccountsPage() {
   const { me, view, manage } = await accountAdminContext();
 
   if (!view.ok) {
+    // The refused state is a page too, so it uses the same shell: the name in
+    // the bar, and the explanation as the one panel on the screen. It used to be
+    // a `max-w-2xl` column with its own eyebrow and a `text-2xl` heading, which
+    // is the shape the rest of the site no longer has.
     return (
-      <div className="flex max-w-2xl flex-col gap-4">
-        <div>
-          <p className="text-sm text-ink-300">Accounts</p>
-          <p className="mt-1 text-2xl font-medium">Not available from here</p>
+      <div className="screen">
+        <div className="page-bar">
+          <h1 className="flex items-baseline gap-2 text-sm font-medium text-ink-100">
+            Accounts
+            <span className="text-xs font-normal text-ink-500">Not available from here</span>
+          </h1>
         </div>
-        <div className="panel flex flex-col gap-2 p-6">
+        <div className="panel flex shrink-0 flex-col gap-2 p-6">
           <p className="text-ink-100">{view.error}</p>
           <p className="text-sm text-ink-300">
             Sign in with a username and password to add or change accounts.{" "}
@@ -77,17 +83,19 @@ export default async function AccountsPage() {
   const meIsAdmin = manage.ok;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <p className="text-sm text-ink-300">Accounts</p>
-        <p className="mt-1 text-2xl font-medium">
-          {rows.length} {rows.length === 1 ? "identity" : "identities"}
+    <div className="screen">
+      <div className="page-bar">
+        <h1 className="flex items-baseline gap-2 text-sm font-medium text-ink-100">
+          Accounts
+          <span className="num text-xs font-normal text-ink-500">
+            {rows.length} {rows.length === 1 ? "identity" : "identities"}
+          </span>
           {meIsAdmin && requests.length > 0 && (
-            <span className="ml-2 text-base text-accent">
+            <span className="text-xs font-normal text-accent">
               · {requests.length} {requests.length === 1 ? "request" : "requests"} waiting
             </span>
           )}
-        </p>
+        </h1>
       </div>
 
       <AccountManager

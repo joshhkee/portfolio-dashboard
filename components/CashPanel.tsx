@@ -7,6 +7,7 @@ import { currencySymbol, type Currency, type FxRates, convertCurrency } from "@/
 import { formatAmount } from "@/components/SignedNumber";
 import { formatShortDate } from "@/lib/dates";
 import RegionFlag from "@/components/RegionFlag";
+import SegmentedControl from "@/components/SegmentedControl";
 
 const CURRENCIES: Currency[] = ["SGD", "USD", "HKD"];
 const CURRENCY_TO_REGION: Record<Currency, string> = { SGD: "SG", USD: "US", HKD: "HK" };
@@ -167,22 +168,19 @@ function ExchangeForm({
     <form onSubmit={handleSubmit} className="panel flex flex-col gap-4 p-5">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-ink-100">Exchange currency</p>
-        <div className="flex rounded-md border border-ink-700 p-0.5 text-xs">
-          <button
-            type="button"
-            onClick={() => setMode("manual")}
-            className={`rounded px-2.5 py-1 transition ${mode === "manual" ? "bg-accent text-ink-950" : "text-ink-300"}`}
-          >
-            Manual
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("auto")}
-            className={`rounded px-2.5 py-1 transition ${mode === "auto" ? "bg-accent text-ink-950" : "text-ink-300"}`}
-          >
-            Auto rate
-          </button>
-        </div>
+        {/* The app's one switch, not a hand-rolled copy of it: this pair of
+            buttons was the fifth place the same control had been written out by
+            hand, which is exactly how the pill stopped sliding on two of them
+            (docs/DESIGN.md §7). */}
+        <SegmentedControl
+          ariaLabel="How the exchange rate is set"
+          options={[
+            { value: "manual", label: "Manual" },
+            { value: "auto", label: "Auto rate" },
+          ]}
+          value={mode}
+          onChange={setMode}
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -278,15 +276,27 @@ export default function CashPanel({
   const [exchanging, setExchanging] = useState(false);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-ink-300">
-          Cash balances — auto-adjusted by outlay, buys/sells, and exchanges; edit any balance
-          directly if it drifts from reality.
-        </p>
+    // `.screen`: three card rows are a fixed cost, and the exchange log — the
+    // only block here that grows — takes the rest and scrolls inside its own
+    // panel, so the balances never move off the screen.
+    <div className="screen">
+      <div className="page-bar">
+        <h1
+          className="text-sm font-medium text-ink-100"
+          // The clause that used to be a sentence beside the cards, where it was
+          // the first thing read and the least needed: a balance is
+          // auto-adjusted, and you can correct one by hand. Both halves change
+          // how a figure should be read, so both stay — on the label.
+          title="Auto-adjusted by outlay, buys/sells and exchanges. Correct any balance by hand if it drifts from reality."
+        >
+          Cash balances
+        </h1>
         {!exchanging && (
-          <button onClick={() => setExchanging(true)} className="btn-ghost flex items-center gap-2">
-            <ArrowRightLeft size={14} strokeWidth={2} />
+          <button
+            onClick={() => setExchanging(true)}
+            className="btn-ghost-sm flex items-center gap-1.5"
+          >
+            <ArrowRightLeft size={13} strokeWidth={2} />
             Exchange
           </button>
         )}
@@ -294,28 +304,86 @@ export default function CashPanel({
 
       {exchanging && <ExchangeForm rates={rates} onClose={() => setExchanging(false)} />}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid shrink-0 grid-cols-1 gap-4 sm:grid-cols-3">
         {CURRENCIES.map((c) => (
           <BalanceCard key={c} currency={c} balance={balances[c] ?? 0} />
         ))}
       </div>
 
       {recentExchanges.length > 0 && (
-        <section>
-          <h2 className="mb-3 text-sm font-medium text-ink-300">Recent exchanges</h2>
-          <ul className="flex flex-col gap-2">
-            {recentExchanges.map((ex) => (
-              <li key={ex.id} className="flex items-center justify-between text-sm">
-                <span className="text-ink-300">{formatShortDate(new Date(ex.date))}</span>
-                <span className="num text-ink-100">
-                  {currencySymbol[ex.fromCurrency as Currency]}
-                  {formatAmount(ex.fromAmount)} {ex.fromCurrency} → {currencySymbol[ex.toCurrency as Currency]}
-                  {formatAmount(ex.toAmount)} {ex.toCurrency}
-                </span>
-                <span className="text-xs text-ink-500">{ex.auto ? "auto rate" : "manual rate"}</span>
-              </li>
-            ))}
-          </ul>
+        <section className="panel panel-fit">
+          <div className="panel-head">
+            <p className="text-xs text-ink-300">Recent exchanges</p>
+            <p className="text-xs text-ink-500">Last {recentExchanges.length}</p>
+          </div>
+          {/* A table, not a row of loose spans. The log was an unordered list
+              with three items pushed apart by `justify-between`, so nothing
+              lined up down the column: the amounts were one run-on string ("S$1,000 SGD
+              → US$742.10 USD") and the two figures inside it never sat under
+              each other, and "auto rate" was a right-aligned chip that looked
+              like a second date. Same facts, four columns: when, what was sold,
+              what was bought, and at what rate — every one of them a column
+              that can be scanned and compared down the page.
+
+              It is `.table-scroll` and NOT `.panel-body`, because a table IS
+              the scroll region (its sticky header depends on being the nearest
+              scroll container) and two nested scrollers would leave the header
+              sticking to nothing — docs/DESIGN.md §4. Inside `.panel-fit` it
+              takes `lg:flex-1`, so the balances above never move. */}
+          <div className="table-scroll">
+            <table className="ledger-table table-compact">
+              <thead>
+                <tr>
+                  <th className="cell-pad-start">Date</th>
+                  <th className="text-right">Sold</th>
+                  <th className="text-right">Bought</th>
+                  <th
+                    className="text-right"
+                    title="Units of the bought currency per one unit of the sold currency, as recorded on the exchange."
+                  >
+                    Rate
+                  </th>
+                  <th
+                    className="cell-pad-end text-right"
+                    title="Auto rate used the live quote when the exchange was recorded; manual is the amount you typed."
+                  >
+                    Priced by
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentExchanges.map((ex) => (
+                  <tr key={ex.id}>
+                    <td className="cell-pad-start text-ink-300">
+                      {formatShortDate(new Date(ex.date))}
+                    </td>
+                    {/* Both money columns are neutral: an amount exchanged is a
+                        value, and colour in this app means up or down (§2). */}
+                    <td className="num text-right">
+                      {currencySymbol[ex.fromCurrency as Currency]}
+                      {formatAmount(ex.fromAmount)}
+                      <span className="ml-1 text-xs text-ink-500">{ex.fromCurrency}</span>
+                    </td>
+                    <td className="num text-right">
+                      {currencySymbol[ex.toCurrency as Currency]}
+                      {formatAmount(ex.toAmount)}
+                      <span className="ml-1 text-xs text-ink-500">{ex.toCurrency}</span>
+                    </td>
+                    <td className="num text-right text-ink-300">
+                      <span
+                        title={`1 ${ex.fromCurrency} = ${ex.rate.toFixed(4)} ${ex.toCurrency}`}
+                      >
+                        {ex.rate.toFixed(4)}
+                      </span>
+                    </td>
+                    <td className="cell-pad-end text-right text-xs text-ink-500">
+                      {ex.auto ? "auto" : "manual"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
     </div>

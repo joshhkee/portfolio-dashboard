@@ -124,28 +124,69 @@ exists to catch, and it caught two.
 
 - `.panel` (`rounded-lg border border-ink-700 bg-ink-900`) is the only card
   treatment; `border-radius` defaults to 8px.
-- `.table-scroll` owns **both** scroll axes (`max-h-[70vh] overflow-auto`) — an
-  ancestor with `overflow-x: auto` alone silently becomes a scroll container for
-  `overflow-y` too, which breaks a sticky `<thead>` in confusing ways.
+- `.table-scroll` owns **both** scroll axes — an ancestor with `overflow-x: auto`
+  alone silently becomes a scroll container for `overflow-y` too, which breaks a
+  sticky `<thead>` in confusing ways.
+- **From `lg` a table's height comes from the shell**: `.table-scroll` is `flex-1`
+  with no max-height, so it is exactly as tall as its page has left for it and the
+  page never moves when its rows scroll. Below `lg` it keeps the `max-h-[70vh]` cap it
+  always had. The consequence to respect when writing a new table: at ≥`lg` a
+  `.table-scroll` must be a flex child of a bounded column (`.screen`, `.panel-fit`,
+  or a wrapper with `lg:min-h-0 lg:flex-1`), or it will size to its content and drag
+  the page taller than the screen. `SkeletonTable` is the shape to copy, and it is
+  the whole of a table route's body — the head row with the filter is gone with the
+  filter (§7).
+- **A table panel never also has a `.panel-body`.** The table IS the scroll region —
+  two nested scrollers would leave the sticky header sticking to nothing. A panel of
+  *non*-table rows (the exposure tag list, the cash exchange log, the account list)
+  is the case `.panel-body` exists for.
 - `.stat-row` / `.stat-label` / `.stat-value` for headline figures. The row wraps
   by design: a `text-3xl` figure plus its label is ~200px, so two side by side
   measured 504px on a 356px phone and dragged the document into a horizontal
-  scroll.
-- **Today is one screen on a desktop**: at 1440×900 and 1440×780 the page scrolls
-  0px, because the chart and the largest-positions panel share a row and the chart
-  takes the leftover height. Adding a tile to Today means removing something or
-  re-measuring.
-- **So is Exposure**, by the same rule: from `xl` the grid is `calc(100dvh - 13.5rem)`
-  — the chrome above it (nav, the "Positions" label, the section tabs, the
-  container's padding) measured at 216px, none of which changes with the width — and
-  the only thing that scrolls is the panel that grows with the portfolio. A page of
-  panels should not be able to scroll the panels themselves off the screen.
+  scroll.- **The shell: every page is one screen, and nothing computes a viewport height.**
+  `app/layout.tsx` renders `h-dvh` with `overflow-hidden`, and `<main>` is the only
+  scroll region — the last resort on a window too short for a page's fixed blocks.
+  Pages are written in four classes (globals.css), and the contract binds from `lg`:
+
+  | class | what it is |
+  |---|---|
+  | `.screen` | a page root: a column that fills the content region |
+  | `.panel-fit` | a panel that takes its share of the screen instead of growing with its content |
+  | `.panel-head` / `.panel-body` | its chrome row, and its scroll region |
+  | `.page-bar` / `.stat-strip` | the row above the content: what the page is, and its figures inline |
+
+  `min-h-0` in those rules is load-bearing: a flex item's default `min-height: auto`
+  refuses to shrink below its content, so a column of `flex-1` panels still pushes
+  the page past the window without it. Below `lg` none of it binds and the page is a
+  document again, which is what a phone wants.
+- **The chrome budget is measured once, in one place.** The nav is 48px, `main`'s
+  padding is 16px top and bottom, and a section strip is ~30px plus its 16px gap — so
+  a section page has ~126px of chrome and a chrome-less one ~80px. Measured at
+  1440×900 with `main.scrollHeight - main.clientHeight === 0` on every route.
+- **A hand-written viewport height is a bug, not a shortcut.** Today used
+  `lg:h-[calc(100dvh_-_121px)]` and Exposure `xl:h-[calc(100dvh-13.5rem)]`: the same
+  arithmetic twice, from two measurements taken at one width each, and both went
+  stale the moment the chrome above them changed (the nav losing its wordmark moved
+  them by 40px and 8px respectively). They are `flex-1` now. If a page needs the
+  height of the screen, it has the shell's answer already.
+- **Today is one screen on a desktop**, because the chart and the largest-positions
+  panel share a row and the chart takes the leftover height. Adding a tile to Today
+  means removing something or re-measuring.
 - **When a column has a fixed height, give it to the column, not the cards.**
   Splitting the height between two chart cards made the second one clip its caption
   mid-sentence at its own edge, which reads as a broken panel; letting the column
   scroll as one unit keeps each card whole and costs a single scrollbar that only
   appears on a window too short for both. Nothing inside a `.panel` should ever be
   cut in half — a panel that clips its own last line is worse than a scrollbar.
+- **A block that should fill says `grow`, never `flex-1`.** `flex-1` is
+  `flex: 1 1 0%`, so it lets an item SHRINK below its content as well as grow —
+  which is the clipping failure in the bullet above, arrived at from the other
+  direction. `flex-grow: 1` alone (`lg:grow`) keeps `flex-basis: auto`, so the
+  block is its content plus a share of the leftover space, and a window too short
+  for the content still overflows into the column's own scrollbar. The exposure
+  page's two ring panels are the reference execution: the column, the wrapper and
+  both panels are `lg:grow`, which is what turned a 380px strip of cards followed
+  by 200px of empty column into two panels that fill it.
 - **A panel that scrolls needs its own chrome pinned.** The tag list's rows scroll
   under a fixed header row and above a fixed closing line, so the columns never
   lose their headings; the same reasoning as `.table-scroll`'s sticky `thead`.
@@ -202,21 +243,28 @@ Almost every list in the app is `.ledger-table`. Its rules are load-bearing.
   instrument's NAME, reference text rather than a figure to rank by. The first
   version of this table sorted the primary only and said so in the `title`, and
   "can we sort by the secondary row?" is why the label swaps now.
-- **The sort level is drawn, not just implied.** A paired header carries one dot
-  per state in its cycle, with the current one filled — but only while it is the
-  column doing the ordering, because a column that is not sorting has no level to
-  be at. Dots on every header would be eleven groups of "level 1" reading as
-  texture, and they cost ~12px of sticky header on each table. The count is read
-  from the same `states` array a click advances through, so the dots cannot
-  disagree with the cycle; the level is also in the button's accessible name
-  ("Value, level 2 of 4, ascending") with `aria-sort` on the column, since the
-  dots themselves are decorative.
+- **The sort level is stated, not drawn.** A paired header cycles four states
+  (`primary ↓ / primary ↑ / companion ↓ / companion ↑`) and the reader is entitled
+  to know where in that cycle they are — but the first version drew it as one dot
+  per state with the current one filled, and the dots were removed on request. The
+  cost was ~12px of sticky header on every table (a table row), and a second
+  visual language — small round marks — that appears nowhere else in the app, on
+  the one row that is sticky and therefore always on screen. What is left is the
+  label swap ("Value" → "Shares"), which is what actually says which figure is in
+  charge, plus the level in the button's accessible name ("Value, level 2 of 4,
+  ascending"), `aria-sort` on the column, and the count in the cell's `title` —
+  "2 more clicks hands the order to the other figure". Do not reintroduce the
+  dots; if the level needs to be more visible, it needs a different idea.
 - **A flag is a landmark, never a label.** Each market's heading carries a small
   hand-drawn flag beside the region code. It is drawn as inline SVG rather than an
   emoji, because Windows renders flag emoji as bare letter pairs, and in muted
   palette colours rather than the flags' real saturation — nothing here is colour
   for decoration, and the flag is a picture of the word already next to it. Never
-  inside a table row: at 16px, in a dense ledger, that is noise.
+  inside a table row: at 16px, in a dense ledger, that is noise. **One exception,
+  asked for by the owner: the watchlist rows** (§9), where the flag sits on the
+  ticker's line in place of the two-letter region code — the ticker's own line,
+  because `TickerName` is a block, so a trailing span lands on a third line and
+  adds a line of height to every row.
 - **A column's width comes out of another column's.** A table that must keep all
   its columns pays for a wider cell by dropping a lower-value one at a breakpoint:
   the ledger's Note column went from 11rem to 16rem, paid for by `Txn value`
@@ -278,12 +326,20 @@ Almost every list in the app is `.ledger-table`. Its rules are load-bearing.
   `ResizeObserver`s costs far more than a string of coordinates. Its trend is
   exposed as an `aria-label`, so direction is never colour-only, and the absence
   of animation means `prefers-reduced-motion` needs no special case.
-- **Range and period switches animate once.** The chart remounts under a new React
-  key carrying `.swap-in` (240ms `ease-out`, fade plus 6px rise). One motion for
-  the whole swap on purpose: Recharts' own 1.5s line-draw underneath two competing
-  animations reads as a stutter. `.swap-in` is disabled under
-  `prefers-reduced-motion: reduce` — the switch still happens, it just arrives
-  instantly.
+- **Range and period switches animate once, and the offset is NEGATIVE.** The chart
+  remounts under a new React key carrying `.swap-in` (240ms `ease-out`, fade plus a
+  6px settle DOWN into place). One motion for the whole swap on purpose: Recharts'
+  own 1.5s line-draw underneath two competing animations reads as a stutter.
+  `.swap-in` is disabled under `prefers-reduced-motion: reduce` — the switch still
+  happens, it just arrives instantly.
+  The direction is not a taste call. A slide's content now fills its panel exactly
+  (`.panel-body` → `.swap-in h-full` → content, §7), so a `+6px` start put the
+  content 6px BELOW the panel's bottom edge: that is scrollable overflow, so
+  `overflow: auto` on `.panel-body` showed a scrollbar for the 240ms of the swap and
+  shifted the slide sideways. Content above the scrollport's start edge is not
+  reachable and creates no scrollable area, so the same motion inverted costs
+  nothing. Measured: 6px of overflow on every performance slide with the old
+  direction, 0px with this one.
 
 ---
 
@@ -311,6 +367,78 @@ Almost every list in the app is `.ledger-table`. Its rules are load-bearing.
   tags rest as a bordered chip (pencil on hover) rather than a permanently empty
   input; untagged rows show a dotted-underline `+ Add a tag` with the classifier's
   draft. Enter or picking an option commits, Escape reverts, clicking away settles.
+- **The nav has no wordmark.** "Investments" held the top-left corner of every page
+  and bought ~110px of the bar plus the weight of a brand nobody asked for: there is
+  one installation and the document title already says it. Orientation is the nav's
+  job, and it does it better — the active section is the lit one, and the section
+  strip names it again where the lenses are.
+- **There is one switch in this app, and it slides.** Every "pick one of N" control
+  — the section strip, a slide deck's tab strip, a chart's range, a benchmark index,
+  the stakeholder picker, the period grouping, the cash exchange's rate mode — is a
+  bordered track with a **gold pill that slides** under the active item, 200ms
+  `ease-out`, `motion-reduce` landing it instantly. It is defined in exactly two
+  places: `useSlidingPill` (the measurement and the transform) and `.tab-track` /
+  `.tab-pill` / `.tab-item` in globals.css (the look). **Never hand-roll another
+  one** — write a `SegmentedControl`, or use the hook plus those classes.
+
+  This rule exists because it already went wrong once. `SegmentedControl` slid a
+  gold pill; `SectionTabs` and `SlideDeck` painted the active item `accentMuted`
+  instead; the cash exchange form had a fifth, hand-written copy of the two buttons.
+  The result was the same gesture looking like three different controls on three
+  pages, and the owner's note — "those (light gold with the sliding animation) are
+  good, update the new ones" — is why §9 no longer exempts the tabs. The pill is one
+  absolutely positioned element moved with `transform`, so the motion is
+  compositor-only and the selection reads as travelling.
+- **The section strip is one row, and it names itself.** `SectionTabs` used to be a
+  `text-sm` paragraph over an underlined tab row: ~90px to say "Positions" and offer
+  three links. It is now a bordered track of pills with the section's name as a small
+  label beside a hairline (~30px), and the keyboard walks it with ←/→/Home/End. The
+  links keep `aria-current="page"` — these are real navigations, not a tab panel — and
+  the strip is a `<nav>` labelled with the section name, so the name is available to a
+  screen reader even though it is visually quiet.
+- **A panel with several views is a slide deck, not a stack — and a slide is one
+  subject.** `SlideDeck` holds one slot with a tab strip: money's two views of outlay,
+  performance's six answers to "how am I doing". Stacked, each of those cost the page
+  its own height while only one was being read, and a chart with 300px of width and
+  200px of height is a squashed chart. The rules the component enforces, and which any
+  future deck must keep:
+  - **No autoplay.** A slide that changes itself moves the figure being read.
+  - **Manual, and reachable.** Every view is a labelled button, not a dot: nothing
+    is discoverable only by swiping, and there is no drag-only interaction.
+  - **Real tab semantics** (`tablist`/`tab`/`tabpanel`, `aria-controls` +
+    `aria-labelledby`, roving `tabindex`); ←/→/Home/End move as they select.
+  - **Every slide stays mounted; the inactive ones are `hidden`.** So a slide holding
+    form state (the outlay pivot's inline edit) does not lose it — and `.panel-body`
+    must therefore set no `display`, because any `display` rule beats the `hidden`
+    attribute and would stack the hidden slides on top of each other.
+  - **One subject per slide, and it fits.** More tabs is the answer to an
+    information-heavy page, not a taller tab: performance's returns-and-risk was
+    three slides holding seven panels, which put the drawdown curve below the fold
+    of its own sub-tab, so reading it meant scrolling inside a panel that is supposed
+    to be one screen. Six slides (Value · Drawdown · vs index · Risk · Correlation ·
+    Calendar years) with ~680px of panel each is the same seven panels and no
+    scrolling. A control that drives THREE slides (the time range) lives in the
+    deck's head via `Slide.actions`, not at the top of each chart, so it exists once,
+    travels with the slides it applies to, and does not reset between them.
+  - **A slide that divides its own height works bottom-up**: `.panel-body` →
+    `.swap-in h-full` → a `flex h-full min-h-0 flex-col` content div, with the block
+    that gives way marked `flex-1 min-h-0` (money's "By stakeholder" = cards above a
+    `.table-scroll`). The chain is why the deck's wrapper carries `h-full`: a
+    percentage height needs a definite parent, and anything block-sized between them
+    breaks the chain silently.
+- **A filter lives on the row that already exists, never on one of its own.**
+  `SearchBox` left the full-width band above each table (~40px plus a gap on every
+  page with a table) for the table's `panel-head`, and then left that too for a
+  page whose whole content is a list: on the ledger and the realized trades the field
+  is the middle of `.page-bar`, centred between the count on the left and the actions
+  on the right, and the row that held it went to the rows instead: the ledger's
+  table box is **647px** tall on a one-screen page, and the row it replaced cost
+  ~34px of that. The count follows the field, because "64
+  entries" over twelve rows is worse than no count — `TableSearch`/`TableSearchCount`
+  share the query and the filtered length between the page bar and the table, and the
+  page bar reads "4 of 64 entries" while you type. The command palette (⌘K) stays the
+  global search — pages, tickers and actions — and the nav chip is its only visible
+  affordance.
 - **A row of panels too wide for its container is a carousel, not a scrollbar —
   and a tuck beats the carousel.** The positions page draws one table per market at
   a floor of ~560px, so a strip of them slides: 3 across from 1800px, and from
@@ -323,6 +451,14 @@ Almost every list in the app is `.ledger-table`. Its rules are load-bearing.
   something to the right when there is not, and they disappear entirely when
   everything fits. The strip is `tabIndex=0` with a group label so the keyboard can
   scroll it natively, and `prefers-reduced-motion` turns the slide into a jump.
+- **Below `lg` the site is a document again, and that is a requirement, not a
+  fallback.** The shell's rules are all `lg:`-prefixed, so a phone gets the page it
+  always had and the window scrolls it: 70vh table caps, normal flow, no clipped
+  panels. The two things to check at 390px are that nothing leaks horizontally
+  (`documentElement.scrollWidth === clientWidth`) and that a table that cannot fit
+  scrolls inside its own box rather than widening the page — measured 0px of document
+  overflow on the ledger, holdings, performance, attribution, money, cash, watchlist
+  and accounts pages at 390×780.
 - Below `lg`, the nav collapses into a disclosure panel that closes on navigation
   and on Escape; anything hidden from the bar (accounts, log out) reappears inside
   it, or it becomes unreachable on a phone.
@@ -365,7 +501,32 @@ figure.
    that names the residual between two pricing methods, the positions-table caveats
    (rows without a live quote are held at cost and the totals understate), the
    `at cost` markers, and `Unclassified is not an "Other" sector`.
-7. **Cut the furniture.** Removed on request: the late-deposit prose on `/money`
+7. **A sentence that qualifies a figure lives on the figure.** The prose that used to
+   sit in bands above and below each page — the three-currency note on holdings, the
+   "realized P/L is converted at today's rate" note, the cash-card note, the
+   XIRR/TWR glossary on `/performance`, the attribution caveats, "tracked, not held" —
+   is not deleted, it is relocated onto the label, column header or panel caption it
+   qualifies, where a reader meets it at the moment they have the question (§8.1).
+   A page's prose budget is now: one scope line if the grid needs one, and the
+   controls. Four paragraphs under a table is how a dashboard became a document.
+   The attribution page is the reference execution: its four bands of prose are gone
+   and its facts survive as the `Instrument` header's `title` (how many instruments,
+   measured from when, which are valued at cost) and the per-column `title` (which
+   period each one ends, and that cells are net of money paid in). Nothing was
+   dropped; the reading path is a table.
+8. **Every control costs height, so a control sits in an existing row.** Actions and
+   filters belong in `.page-bar` or a `panel-head` — never on a band of their own
+   above the content, because that band is taken from the table on every page. A page
+   whose whole content is one table puts the filter in the MIDDLE of the page bar
+   (§7), which is the same rule taken to its limit: the row exists either way.
+9. **A caption derived from the data, never a number typed into the copy.**
+   "Portfolio gain over 19 months" was hand-written and stayed nineteen months after
+   the reader chose "1Y". It now comes from the columns on screen — "Mar 25 – Sep 26 ·
+   19 months" — and the line under the figure says who produced it: the biggest
+   contributor with its share of the gain, how many positions are up, and the biggest
+   drag. All three are computed from the rows already filtered for the selected
+   window, so the caption cannot describe a different window from the grid below it.
+10. **Cut the furniture.** Removed on request: the late-deposit prose on `/money`
    and Today (the quiet clock badge remains, one per late month), the `N days after
    the month closed` clause, the `auto` provenance chip on tags, and the words
    that narrated data hygiene rather than data.
@@ -390,6 +551,34 @@ Each of these was deliberate, and most were asked for. Do not silently undo one.
   `DCA`, and the form's checkbox writes it. A note that merely mentions a DCA
   elsewhere is not a marker.
 - Ledger notes truncate rather than grow the row; the note cell is `16rem`.
+- There is **no wordmark** in the nav (§7), and no page computes its own viewport
+  height (§4). Both were removals rather than oversights.
+- The section label is a small quiet label INSIDE the strip rather than a heading
+  above it, even though that means "Positions" is never a page heading (§7).
+- **Two of the exposure cuts are on screen at once and the other is behind a
+  toggle.** Sector and type are the same circle sliced two ways, so they share one
+  panel behind a `SegmentedControl`; currency is a different question (what the
+  value is denominated in, not what it is), so it has a panel of its own beside it.
+  This is the THIRD arrangement this page has had: two stacked panels (which drew the
+  same ring twice), then all three behind one `SlideDeck` (which made two of them
+  invisible), now stack what you compare and switch what you don't. The deck is not
+  used here at all any more.
+- **The gold pill is the app's switch, everywhere** (§7) — the section strip and the
+  slide decks included. An earlier note in this file said the opposite (tabs and deck
+  switches fill with `accentMuted` because there is "one accent per screen doing one
+  job"); that was the drift the owner spotted, and it is reversed. The track's border
+  still keeps the pill from reading as a call to action, and a page's primary button
+  is still the only gold FILLED BUTTON — which is what "one accent per screen" was
+  protecting.
+- **A flag inside a table row, on the watchlist.** By explicit request: the flag sits
+  on the ticker's line where the two-letter region code used to be, and the code
+  lives on as the picture's accessible name and tooltip. Everywhere else §5 holds —
+  a flag is a landmark beside a word, never the label itself.
+- **`/money` has no tab called "Performance".** The word belongs to the section of
+  this site that owns returns, risk, attribution and realized trades; a tab on a
+  different page using it for "each person's share of the portfolio" made the same
+  word mean a narrower thing one click away from the broader one. The tab is
+  **"Returns by person"** and says what it is.
 - The exposure page's tag list shows one holding per row on most desktops.
   Beside a 32rem column of charts its panel is ~1100px below a 1820px window and
   two rows need 1208px, so the two-up layout is reachable only on a wide screen.
@@ -408,9 +597,40 @@ Design claims in this project are measurements, not opinions.
    one-screen layout is `0px` of document scroll at a named viewport
    (1440×900, 1440×780, 1024×800); a contrast claim names the ratio and the
    background it was measured against, worst case first.
+   - **On a page, the number that matters is `main.clientHeight` vs what the page
+     puts in it**, not the document: `<main>` is the scroll region now, so
+     `documentElement.scrollHeight === clientHeight` is true whether or not a page
+     fits. Read `main.scrollHeight - main.clientHeight` (0 = fits) and the page
+     root's own height against `main.clientHeight - 32`.
+   - **On a phone, check both directions**: `documentElement.scrollWidth - clientWidth`
+     for leaks and `main.scrollHeight > main.clientHeight` to confirm the document
+     still scrolls, since a page that neither scrolls nor fits is a page with
+     information missing off the bottom.
 3. **Check both breakpoints.** Narrow (~390px) for the wrap rules, and the widest
    desktop width for the tables.
 4. **Check computed styles when a class seems not to apply.** A utility losing to a
    `globals.css` selector is this codebase's most repeated bug (§5).
 5. **State the number, or say you did not verify.** "Measured 0px at 1440×900" and
    "not verified on a phone" are both acceptable; "should be fine" is not.
+6. **A scrollbar that appears for 240ms is still a scrollbar.** Measure overflow
+   DURING a transition as well as after it — the swap-in's original `+6px` offset was
+   invisible in a settled layout and added 6px of scrollable overflow on every
+   switch (§6).
+
+### The round-2 pass, as measured
+
+Window 1440×900 (1314×821 of content after browser chrome), phone 390×780
+(356px of content). `main.scrollHeight - main.clientHeight` is 0 on every page
+below; `documentElement.scrollWidth - clientWidth` is 0 at both widths.
+
+| what | number |
+|---|---|
+| holdings sort-header height, dots removed | 37px (the dot row was 12px of sticky header) |
+| transactions table box, filter row removed | 647px |
+| performance slides with any inner scroll | 0 of 6 (was: 1 of 3, over by ~40px) |
+| performance slides that fill their panel | Value 598px chart, Drawdown 620px, vs index 256px |
+| swap-in overflow, `+6px` vs `-6px` offset | 6px on all six slides → 0px |
+| exposure column: two ring panels, filled | 348px + 335px in a 695px column |
+| `/money` "By stakeholder": panel scroll | 0px (the pivot's own box scrolls 543px of rows) |
+| `/money/cash` exchange rows | 5 columns, 0px of panel scroll |
+| mobile horizontal leak, all changed pages | 0px |

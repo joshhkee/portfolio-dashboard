@@ -10,7 +10,6 @@ import {
   Tooltip,
   ReferenceLine,
 } from "recharts";
-import CorrelationHeatmap from "@/components/CorrelationHeatmap";
 import { formatShortDate } from "@/lib/dates";
 import { Percent, formatAmount } from "@/components/SignedNumber";
 import type { ConcentrationResult, LargestMove } from "@/lib/risk";
@@ -31,7 +30,7 @@ export interface RiskRollingPoint {
   value: number;
 }
 
-interface RiskPanelProps {
+export interface RiskPanelProps {
   concentration: ConcentrationResult;
   /** Largest positions, already sorted, capped by the caller. */
   slices: RiskPositionSlice[];
@@ -114,6 +113,14 @@ function RollingTooltip({ active, payload }: { active?: boolean; payload?: Toolt
  * Every number here comes from lib/risk.ts as a prop computed on the server,
  * so there is exactly one implementation of each definition, and the app's
  * hard-coded risk-free assumption is printed rather than buried.
+ *
+ * It holds no heading and no correlation matrix. The heading is the slide's own
+ * label (a panel repeating the name of the tab it sits inside says nothing), and
+ * the matrix is its own panel on its own slide — it answers a different question
+ * ("do these move together?") from the two here ("how much sits in how few
+ * names, and what did the swings buy"), it is the one block in the risk area
+ * that arrives from a client fetch, and bundling it behind this slide's stats is
+ * what used to make the panel taller than its box.
  */
 export default function RiskPanel({
   concentration,
@@ -139,13 +146,20 @@ export default function RiskPanel({
   const rollingWorst = rolling.length > 0 ? Math.min(...rolling.map((p) => p.value)) : null;
 
   return (
-    <section className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 className="text-sm font-medium text-ink-300">Risk &amp; concentration</h2>
+    <section className="flex h-full min-h-0 flex-col gap-3">
+      {/* No heading: the slide's own tab says "Risk", and a panel that repeats
+          the label of the tab it is inside is one line of the reader's budget
+          spent saying nothing. The WINDOW stays — which dates these figures
+          cover is not on the tab. */}
+      <div className="flex flex-wrap items-baseline justify-end gap-x-4 gap-y-1">
         <p className="text-xs text-ink-500">{windowLabel} · {days} days of history</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {/* Both panels stretch to the slide's height rather than sitting in its
+          top half: the two columns are the whole of this tab, so the grid taking
+          `flex-1` is what stops a 500px slide showing 350px of content from two
+          stacked cards with a gap beneath them. */}
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Concentration: what share of the money sits in how few names. */}
         <div className="panel flex flex-col gap-4 p-5">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -324,15 +338,6 @@ export default function RiskPanel({
             </p>
           )}
         </div>
-      </div>
-
-      {/* Reuses the app's gain/loss tones so the reading needs no new legend. */}
-      <div className="panel flex flex-col gap-3 p-5">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <p className="text-sm text-ink-300">How the holdings move together</p>
-          <p className="text-xs text-ink-500">6 months of daily returns · pair by pair</p>
-        </div>
-        <CorrelationHeatmap />
       </div>
     </section>
   );

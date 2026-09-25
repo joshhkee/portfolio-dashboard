@@ -3,6 +3,7 @@ import { PlainMoney } from "@/components/SignedNumber";
 import AddContributionForm from "@/components/AddContributionForm";
 import AllocationCards from "@/components/AllocationCards";
 import ContributionsPivotTable from "@/components/ContributionsPivotTable";
+import SlideDeck from "@/components/SlideDeck";
 import StakeholderPerformance from "@/components/StakeholderPerformance";
 import { toLocalDateInputValue } from "@/lib/dates";
 import { depositSchedule } from "@/lib/schedule";
@@ -148,56 +149,101 @@ export default async function ContributionsPage() {
     .sort((a, b) => b.dateMs - a.dateMs);
 
   return (
-    <div className="flex flex-col gap-8">      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm text-ink-300">Total outlay</p>
-          {/* Every contribution in this ledger is SGD, so the symbol is S$ —
-              `Money` would print a bare "$" here and read as USD beside the
-              S$-labelled cards directly below. Neutral, because money paid in
-              is not a gain. */}
-          <p className="mt-1 text-4xl font-medium">
-            <PlainMoney value={grandTotal} symbol="S$" />
-          </p>
-        </div>
-        {/* API download — rule only wants page navigations in <Link>. */}
-        <a href="/api/export/contributions" download className="btn-ghost" title="Download all contributions as CSV">
-          Export CSV
-        </a>
-      </div>
-
-      <section>
-        <h2 className="mb-4 text-sm font-medium text-ink-300">By stakeholder</h2>
-        {contributorRows.length === 0 ? (
-          <p className="text-sm text-ink-300">No outlay recorded yet.</p>
-        ) : (
-          <AllocationCards
-            slices={contributorRows.map((r) => ({ label: r.name, value: r.total }))}
-            symbol="S$"
-          />
-        )}
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-ink-300">Performance by stakeholder</h2>
-        <StakeholderPerformance rows={stakeholderRows} timeline={stakeholderSeries} />
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-ink-300">Outlay history</h2>
+    <div className="screen">
+      {/* One bar: the number, the export and the one action. The total used to
+          be a `text-4xl` headline in a band of its own (~110px) with the two
+          cards, a chart, a table and a pivot stacked under it to a depth of
+          about 1800px — a page you scrolled four times to answer one question.
+          The figure is smaller here because it is no longer the only thing on
+          the screen: it is the label of the panel below it. */}
+      <div className="page-bar">
+        <dl className="stat-strip">
+          <div className="flex items-baseline gap-2">
+            <dt>Total outlay</dt>
+            {/* Every contribution in this ledger is SGD, so the symbol is S$ —
+                `Money` would print a bare "$" here and read as USD beside the
+                S$-labelled cards in the panel below. Neutral, because money
+                paid in is not a gain. */}
+            <dd className="text-2xl">
+              <PlainMoney value={grandTotal} symbol="S$" />
+            </dd>
+          </div>
+        </dl>
+        <div className="flex items-center gap-2">
+          {/* API download — rule only wants page navigations in <Link>. */}
+          <a
+            href="/api/export/contributions"
+            download
+            className="btn-ghost-sm"
+            title="Download all contributions as CSV"
+          >
+            Export CSV
+          </a>
           <AddContributionForm
             knownContributors={knownContributors}
             nextMonthLabel={nextMonthLabel}
             nextMonthDate={nextMonthDate}
           />
         </div>
-        <ContributionsPivotTable
-          contributorNames={contributorRows.map((r) => r.name)}
-          contributorTotals={Object.fromEntries(contributorRows.map((r) => [r.name, r.total]))}
-          labelRows={labelRows}
-          grandTotal={grandTotal}
-        />
-      </section>
+      </div>
+
+      {/* Two views of the same outlay in one slot: who paid — with the months
+          their money arrived in, underneath — and what each person's money has
+          done. They were three stacked sections with three headings, which is
+          what made this the longest page in the app.
+
+          The outlay history is no longer a view of its own. It was a tab whose
+          content is the DETAIL of the tab beside it: "who paid" is the cards,
+          and "which month did it arrive in" is the same question one level
+          down, so a reader looking at the split was one click away from the
+          evidence for it. Side by side vertically they answer together, and the
+          page loses a tab that had to be discovered. */}
+      <SlideDeck
+        ariaLabel="Money view"
+        slides={[
+          {
+            label: "By stakeholder",
+            hint: `${contributorRows.length} ${contributorRows.length === 1 ? "person" : "people"} · share of outlay, and every month it arrived in`,
+            // Cards are a fixed cost; the pivot table takes the rest of the
+            // panel and scrolls its own rows (`.table-scroll`), so the cards
+            // never move and the panel itself never scrolls.
+            content: (
+              <div className="flex h-full min-h-0 flex-col gap-4 p-4">
+                {contributorRows.length === 0 ? (
+                  <p className="text-sm text-ink-300">No outlay recorded yet.</p>
+                ) : (
+                  <div className="shrink-0">
+                    <AllocationCards
+                      slices={contributorRows.map((r) => ({ label: r.name, value: r.total }))}
+                      symbol="S$"
+                    />
+                  </div>
+                )}
+                <ContributionsPivotTable
+                  contributorNames={contributorRows.map((r) => r.name)}
+                  contributorTotals={Object.fromEntries(contributorRows.map((r) => [r.name, r.total]))}
+                  labelRows={labelRows}
+                  grandTotal={grandTotal}
+                />
+              </div>
+            ),
+          },
+          {
+            // Not "Performance": that is the name of a SECTION of this site —
+            // returns, risk, attribution, realized trades — and a tab here
+            // called "Performance" reading "each person's share of the
+            // portfolio" is the same word meaning a narrower thing. This one
+            // names its own subject instead: what each person's money has done.
+            label: "Returns by person",
+            hint: "Each person's value against what they paid in",
+            content: (
+              <div className="flex h-full min-h-0 flex-col p-4">
+                <StakeholderPerformance rows={stakeholderRows} timeline={stakeholderSeries} />
+              </div>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

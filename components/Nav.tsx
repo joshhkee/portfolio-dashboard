@@ -103,14 +103,20 @@ export default function Nav({ account }: { account: NavAccount }) {
     return pathname === href || pathname?.startsWith(href + "/");
   }
 
+  // 48px, not 56: the bar is chrome, and every pixel it keeps is a pixel the
+  // page below cannot have. The links sit at the bar's left edge because the
+  // wordmark that used to hold that space is gone (see the note above).
   return (
     <nav className="sticky top-0 z-30 w-full border-b border-ink-700 bg-ink-900">
-      <div className="flex h-14 w-full items-center gap-1 px-4 sm:px-6">
-        <div className="shrink-0 pr-1">
-          <p className="text-sm font-semibold tracking-tight text-ink-100">Investments</p>
-        </div>
-
-        <ul className="hidden h-14 items-stretch gap-0.5 lg:flex">
+      <div className="flex h-12 w-full items-center gap-1 px-4 sm:px-6">
+        {/* No wordmark. "Investments" sat in the top-left corner of every page
+            and cost ~110px of the bar plus the visual weight of a brand the
+            owner never needed — there is one installation, one reader, and the
+            document title already says it. What the corner used to buy is
+            orientation, and the NAV does that better: the active section is
+            the one lit up, and the section's own tab strip names it again
+            where the lenses are. */}
+        <ul className="hidden h-12 items-stretch gap-0.5 lg:flex">
           {links.map((link) => {
             const active = isActive(link.href);
             return (
@@ -130,7 +136,7 @@ export default function Nav({ account }: { account: NavAccount }) {
           })}
         </ul>
 
-        <div className="ml-auto flex shrink-0 items-center gap-3">
+        <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={() => setMenuOpen((open) => !open)}
@@ -153,7 +159,7 @@ export default function Nav({ account }: { account: NavAccount }) {
             onClick={() => window.dispatchEvent(new Event(OPEN_PALETTE_EVENT))}
             title={`Search tickers, pages and actions (${isMac ? "⌘K" : "Ctrl+K"})`}
             aria-label="Open command palette"
-            className="flex items-center gap-2 rounded-md border border-ink-600 bg-ink-800/70 px-3 py-1.5 text-sm text-ink-100 transition hover:border-ink-500 hover:bg-ink-800 motion-reduce:transition-none"
+            className="flex items-center gap-2 rounded-md border border-ink-600 bg-ink-800/70 px-2.5 py-1 text-sm text-ink-100 transition hover:border-ink-500 hover:bg-ink-800 motion-reduce:transition-none"
           >
             <Search size={15} strokeWidth={1.75} className="text-accent" />
             <span className="hidden sm:inline">Search…</span>

@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import type { LedgerRow } from "@/lib/portfolio-engine";
 import EditableTransactionRow from "@/components/EditableTransactionRow";
 import SortableTh from "@/components/SortableTh";
-import SearchBox from "@/components/SearchBox";
+import { useTableSearch } from "@/components/TableSearch";
 import { useSortable } from "@/lib/use-sortable";
 
 const GETTERS: Record<string, (t: LedgerRow) => number | string> = {
@@ -27,10 +27,14 @@ export default function TransactionsTable({
   /** Compound "REGION::TICKER" -> display name, from the ticker-meta cache. */
   names?: Record<string, string>;
 }) {
-  const [search, setSearch] = useState("");
+  // The filter lives in the page bar, so the query comes from the shared scope
+  // (`TableSearch`) rather than from local state — and the count of what
+  // survived is published back to it, which is what lets the page bar say
+  // "12 of 64 entries" instead of claiming 64 over a table of 12.
+  const { query, setShown } = useTableSearch();
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = query.trim().toLowerCase();
     if (!q) return ledger;
     return ledger.filter(
       (t) =>
@@ -38,17 +42,26 @@ export default function TransactionsTable({
         t.region.toLowerCase().includes(q) ||
         (t.notes ?? "").toLowerCase().includes(q)
     );
-  }, [ledger, search]);
+  }, [ledger, query]);
+
+  useEffect(() => {
+    setShown(filtered.length);
+  }, [filtered.length, setShown]);
 
   const { sorted, sortKey, sortDir, toggleSort } = useSortable(filtered, GETTERS, "date", "desc");
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex justify-end">
-        <SearchBox value={search} onChange={setSearch} placeholder="Search ticker, region, or notes…" />
-      </div>
-
-      <div className="table-scroll">
+    // The table's own box, and nothing else: no `.panel` around it, because
+    // `.table-scroll` is already the bordered box and a panel wrapping it would
+    // draw a second border 2px away from the first.
+    //
+    // It is a direct child of `.screen`, so `lg:min-h-0 lg:flex-1` here is the
+    // shell's rule applied to a table: the ledger is exactly as tall as this page
+    // has left for it, its rows scroll inside the box, and the column headers
+    // stay put. The row that used to sit above it — "Newest first" plus the
+    // filter — is gone: the filter is in the page bar now, and that row's height
+    // went to the rows.
+    <div className="table-scroll">
         <table className="ledger-table">
         <thead>
           <tr>
@@ -124,7 +137,6 @@ export default function TransactionsTable({
           )}
         </tbody>
         </table>
-      </div>
     </div>
   );
 }

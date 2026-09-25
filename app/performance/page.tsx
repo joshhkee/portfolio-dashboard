@@ -21,9 +21,8 @@ import {
 } from "@/lib/risk";
 import { BENCHMARKS, getBenchmarkCloses } from "@/lib/benchmarks";
 import { alignCloses, priceKey } from "@/lib/prices";
-import PortfolioPerformance from "@/components/PortfolioPerformance";
-import YearlyReturnsTable from "@/components/YearlyReturnsTable";
-import RiskPanel from "@/components/RiskPanel";
+import PerformanceViews from "@/components/PerformanceViews";
+import type { RiskPanelProps } from "@/components/RiskPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -126,19 +125,74 @@ export default async function PerformancePage() {
   const yearReturns = yearlyReturns(snapshots);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <p className="text-xs text-ink-500">
-          {annualizedReturn !== null ? (
-            <>
-              <span className="text-ink-100">XIRR</span>: what your money earned.{" "}
-              <span className="text-ink-100">TWR</span>: how the strategy did, deposit timing
-              removed — the one to compare against an index.
-            </>
-          ) : (
-            "Not enough history yet to annualise anything."
-          )}
-        </p>
+    <div className="screen">
+      {/* The whole page in two rows: the figures, then the panel they describe.
+
+          These statistics were a `p-6` panel three lines tall (~150px), with a
+          glossary paragraph above it explaining XIRR and TWR, and the three
+          chart panels stacked below it — so the page was four screens of
+          scrolling, of which you were reading one at a time.
+
+          The glossary is not gone: "what your money earned" and "how the
+          strategy did, deposit timing removed" are the `title` of the two
+          figures they define, which is where a reader asks the question
+          (DESIGN.md §8.1) — and one line of it stays on the page as the
+          snapshot count and the window it covers. */}
+      <div className="page-bar">
+        <dl className="stat-strip">
+          <Stat
+            label="XIRR"
+            title={
+              annualizedReturn !== null
+                ? "Money-weighted annualised return: what your money earned, counting when each contribution landed."
+                : "Not enough history yet to annualise anything."
+            }
+            value={annualizedReturn !== null ? <Percent value={annualizedReturn} /> : "—"}
+          />
+          <Stat
+            label="TWR"
+            title="Time-weighted annualised return: how the strategy did with deposit timing removed — the one to compare against an index."
+            value={twrAnnualized !== null ? <Percent value={twrAnnualized} /> : "—"}
+          />
+          <Stat
+            label="Volatility"
+            title="How much the daily value swings, annualised."
+            value={volatility !== null ? `${(volatility * 100).toFixed(1)}%` : "—"}
+          />
+          <Stat
+            label="Sharpe"
+            title={`Excess return over a ${(RISK_FREE_RATE * 100).toFixed(1)}% risk-free rate, per unit of volatility.`}
+            value={sharpe !== null ? sharpe.toFixed(2) : "—"}
+            tone={sharpe !== null && sharpe > 0 ? "gain" : sharpe !== null ? "loss" : undefined}
+          />
+          <Stat
+            label="Max drawdown"
+            title="The worst fall from a peak to the trough that followed."
+            value={maxDrawdownPct !== null ? `${(maxDrawdownPct * 100).toFixed(1)}%` : "—"}
+            tone="loss"
+          />
+          <Stat
+            label="Largest day"
+            title={
+              biggestDay
+                ? `${formatShortDate(new Date(biggestDay.date))} — the single biggest one-day move.`
+                : undefined
+            }
+            value={
+              biggestDay
+                ? `${biggestDay.value >= 0 ? "+" : ""}${(biggestDay.value * 100).toFixed(2)}%`
+                : "—"
+            }
+            tone={biggestDay ? (biggestDay.value >= 0 ? "gain" : "loss") : undefined}
+          />
+          <Stat
+            label="Holdings value"
+            title="What the concentration figures are shares of. Holdings only — cash is excluded."
+            // Neutral: a value held is not a gain. Only the return and risk
+            // figures in this row carry a colour.
+            value={`${sgd}${formatAmount(holdingsValueSgd)}`}
+          />
+        </dl>
         <p className="text-xs text-ink-500">
           {snapshots.length} daily snapshots
           {snapshots.length > 0 &&
@@ -148,86 +202,48 @@ export default async function PerformancePage() {
         </p>
       </div>
 
-      {/* The statistics, up front and in one row: what it returned (two ways),
-          how much it moved to get there, and the worst it drew down. */}
-      <div className="panel flex flex-wrap items-start gap-x-10 gap-y-4 p-6">
-        <Stat
-          label="XIRR (ann., money-weighted)"
-          title="Money-weighted: counts when each contribution landed."
-          value={annualizedReturn !== null ? <Percent value={annualizedReturn} /> : "—"}
-        />
-        <Stat
-          label="TWR (ann., time-weighted)"
-          title="Time-weighted: deposit timing removed, so it reflects the strategy."
-          value={twrAnnualized !== null ? <Percent value={twrAnnualized} /> : "—"}
-        />
-        <Stat
-          label="Volatility (ann.)"
-          title="How much the daily value swings, annualised."
-          value={volatility !== null ? `${(volatility * 100).toFixed(1)}%` : "—"}
-        />
-        <Stat
-          label="Sharpe"
-          title={`Excess return over a ${(RISK_FREE_RATE * 100).toFixed(1)}% risk-free rate, per unit of volatility.`}
-          value={sharpe !== null ? sharpe.toFixed(2) : "—"}
-          tone={sharpe !== null && sharpe > 0 ? "gain" : sharpe !== null ? "loss" : undefined}
-        />
-        <Stat
-          label="Max drawdown"
-          title="The worst fall from a peak to the trough that followed."
-          value={maxDrawdownPct !== null ? `${(maxDrawdownPct * 100).toFixed(1)}%` : "—"}
-          tone="loss"
-        />
-        <Stat
-          label="Largest day"
-          title={
-            biggestDay
-              ? `${formatShortDate(new Date(biggestDay.date))} — the single biggest one-day move.`
-              : undefined
-          }
-          value={
-            biggestDay
-              ? `${biggestDay.value >= 0 ? "+" : ""}${(biggestDay.value * 100).toFixed(2)}%`
-              : "—"
-          }
-          tone={biggestDay ? (biggestDay.value >= 0 ? "gain" : "loss") : undefined}
-        />
-        <Stat
-          label="Holdings value"
-          title="What the concentration figures below are shares of."
-          // Neutral: a value held is not a gain. Only the return and risk
-          // figures in this row carry a colour.
-          value={`${sgd}${formatAmount(holdingsValueSgd)}`}
-        />
-      </div>
+      {/* Six slides, one subject each (see PerformanceViews). This used to be
+          three slides holding seven panels — a value chart and a drawdown curve
+          and an index comparison stacked in one, then a concentration panel
+          beside a risk-adjusted panel above a correlation matrix — so the
+          figures you came for sat below the fold of a panel that is meant to be
+          read in one look, and reading them meant scrolling inside a sub-tab.
+          Splitting by subject is what removes the scroll rather than moving it.
 
-      <PortfolioPerformance
+          Everything below is computed on the server and handed over as props:
+          this page's arithmetic is unchanged, only its arrangement.
+
+          The risk props are assembled here rather than in the client component
+          for the same reason they always were — lib/risk.ts is the ONE
+          implementation of each definition, and the app's risk-free assumption
+          is a server-side constant. */}
+      <PerformanceViews
         data={snapshots}
         benchmarks={BENCHMARKS}
         benchmarkSeries={benchmarkSeries}
+        risk={
+          concentrationStats && snapshots.length >= 2
+            ? ({
+                concentration: concentrationStats,
+                slices: riskSlices.slice(0, 8),
+                hiddenCount: Math.max(0, riskSlices.length - 8),
+                volatility,
+                sharpe,
+                annualReturn: twrAnnualized,
+                riskFreeRate: RISK_FREE_RATE,
+                largestMove: biggestDay,
+                rolling: rollingPoints,
+                rollingWindowDays: 365,
+                windowLabel: `${formatShortDate(new Date(snapshots[0].date))} – ${formatShortDate(
+                  new Date(snapshots[snapshots.length - 1].date)
+                )}`,
+                days: snapshots.length,
+                totalSgd: holdingsValueSgd,
+              } satisfies RiskPanelProps)
+            : null
+        }
+        years={yearReturns}
       />
-
-      {concentrationStats && snapshots.length >= 2 ? (
-        <RiskPanel
-          concentration={concentrationStats}
-          slices={riskSlices.slice(0, 8)}
-          hiddenCount={Math.max(0, riskSlices.length - 8)}
-          volatility={volatility}
-          sharpe={sharpe}
-          annualReturn={twrAnnualized}
-          riskFreeRate={RISK_FREE_RATE}
-          largestMove={biggestDay}
-          rolling={rollingPoints}
-          rollingWindowDays={365}
-          windowLabel={`${formatShortDate(new Date(snapshots[0].date))} – ${formatShortDate(
-            new Date(snapshots[snapshots.length - 1].date)
-          )}`}
-          days={snapshots.length}
-          totalSgd={holdingsValueSgd}
-        />
-      ) : null}
-
-      <YearlyReturnsTable years={yearReturns} />
     </div>
   );
 }
@@ -237,7 +253,13 @@ export default async function PerformancePage() {
  *
  * The `title` is not decoration: every number here is an estimate with a
  * definition, and a reader who wants to know which definition gets it on
- * hover rather than in a footnote they will not scroll to.
+ * hover rather than in a footnote they will not scroll to. That is also the
+ * reason the glossary paragraph that used to sit above this row could go — the
+ * definitions were already here, one hover away from the figure itself.
+ *
+ * A `dt`/`dd` pair inside the page bar's `<dl class="stat-strip">`, so the
+ * label and the figure are associated for a screen reader instead of being two
+ * paragraphs that happen to sit together.
  */
 function Stat({
   label,
@@ -251,15 +273,15 @@ function Stat({
   title?: string;
 }) {
   return (
-    <div title={title}>
-      <p className="text-xs text-ink-300">{label}</p>
-      <p
-        className={`num mt-1 text-xl font-medium ${
-          tone === "gain" ? "text-gain" : tone === "loss" ? "text-loss" : "text-ink-100"
-        }`}
+    <div className="flex items-baseline gap-2" title={title}>
+      <dt>{label}</dt>
+      <dd
+        className={
+          tone === "gain" ? "text-gain" : tone === "loss" ? "text-loss" : undefined
+        }
       >
         {value}
-      </p>
+      </dd>
     </div>
   );
 }

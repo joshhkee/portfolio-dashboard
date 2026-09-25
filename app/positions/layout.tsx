@@ -23,7 +23,11 @@ import SectionTabs from "@/components/SectionTabs";
  */
 export default function PositionsLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-6">
+    // The strip is `shrink-0` and the page below it is `lg:flex-1`, so the
+    // section's chrome is a fixed cost and everything that can scroll is inside
+    // the page — the shell's rule, stated once in globals.css and applied by
+    // all three section layouts.
+    <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1">
       <SectionTabs
         label="Positions"
         tabs={[

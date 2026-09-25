@@ -87,8 +87,14 @@ export default function CorrelationHeatmap() {
   const tickerOf = (key: string) => key.split("::")[1] ?? key;
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto">
+    // The matrix is the one thing on this page whose size is set by the DATA
+    // rather than by the design: eighteen open positions is an 18×18 grid, and
+    // that is ~560px tall before the legend. So the grid is the block that gives
+    // way — `flex-1` with its own `overflow-auto`, exactly like a table — and the
+    // legend stays put under it. Without this the whole slide scrolled, which is
+    // what the correlation matrix becoming its own sub-tab was meant to stop.
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="min-h-0 flex-1 overflow-auto">
         <table className="border-separate border-spacing-[2px]">
           <thead>
             <tr>
@@ -143,7 +149,7 @@ export default function CorrelationHeatmap() {
         </table>
       </div>
 
-      <p className="text-xs text-ink-500">
+      <p className="shrink-0 text-xs text-ink-500">
         Gold = they move together, terracotta = opposite. {data.observations} days of daily
         returns, one pair at a time.
       </p>
