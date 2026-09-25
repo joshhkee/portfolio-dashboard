@@ -34,12 +34,13 @@ export default function PositionsLayout({ children }: { children: React.ReactNod
           {
             href: "/positions/holdings",
             label: "Holdings",
-            icon: <Briefcase size={14} strokeWidth={1.75} className="text-ink-500" />,
+            // No colour on the icon: it inherits the tab's (see SectionTab.icon).
+            icon: <Briefcase size={14} strokeWidth={1.75} />,
           },
           {
             href: "/positions/exposure",
             label: "Exposure",
-            icon: <Wallet size={14} strokeWidth={1.75} className="text-ink-500" />,
+            icon: <Wallet size={14} strokeWidth={1.75} />,
           },
           // The ledger that built these positions, and the only place an entry
           // can be edited. It used to be a top-level page in its own right,
@@ -52,7 +53,7 @@ export default function PositionsLayout({ children }: { children: React.ReactNod
           {
             href: "/positions/transactions",
             label: "Transactions",
-            icon: <ListOrdered size={14} strokeWidth={1.75} className="text-ink-500" />,
+            icon: <ListOrdered size={14} strokeWidth={1.75} />,
           },
         ]}
       />

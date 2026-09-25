@@ -38,13 +38,18 @@ export default async function CompletedTradesPage() {
       {/* The heading, the figure, the caveat and the export were three stacked
           bands (~160px) over a table. They are one bar now, and the caveat —
           which does change how the figure should be read — is on the figure's
-          own label rather than in a paragraph below it.
-
-          The filter is the middle of that bar rather than a row of its own above
+          own label rather than in a paragraph below it.          The filter is the middle of that bar rather than a row of its own above
           the table: this page shows a list and nothing else, so a band spent on
           a search field (and on the caption "Newest first", which said what the
-          sort arrow already said) is a band taken from the rows. */}
-      <div className="page-bar lg:grid lg:grid-cols-[1fr_auto_1fr] lg:items-center">
+          sort arrow already said) is a band taken from the rows.
+
+          The middle column is `minmax(0, 1fr)`, so the field spans everything
+          between the total on the left and the export button on the right —
+          see the same row on the ledger and `TableSearchField`. `minmax(0, …)`
+          and not `1fr` because the wrapper inside has to be allowed to shrink
+          below its content width, or a narrow laptop pushes the button off the
+          bar instead of narrowing the field. */}
+        <div className="page-bar lg:grid lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center lg:gap-x-6">
         <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
         <dl className="stat-strip">
           <div className="flex items-baseline gap-2">

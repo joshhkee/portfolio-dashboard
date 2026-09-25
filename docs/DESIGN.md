@@ -172,6 +172,36 @@ exists to catch, and it caught two.
 - **Today is one screen on a desktop**, because the chart and the largest-positions
   panel share a row and the chart takes the leftover height. Adding a tile to Today
   means removing something or re-measuring.
+- **A short `lg` window is a design case, not an edge case.** The contract starts at
+  1024px *wide*, and its hardest test is 1024×**600** — a 13" laptop on Windows
+  scaling lands near it. Four things were wrong there while every page was right at
+  1440×900: Today was **87px taller than `main`**, the `vs index` and Risk slides
+  scrolled **123px** and **122px** inside their own sub-tab, and the exposure ring
+  column overflowed its 473px by **28px**. The rules that fix them, in the order to
+  reach for them:
+  1. **The fixed bands get denser; the flexible block absorbs it.** Anything that
+     is chrome at `lg` — panel padding, the gaps inside a card, a row height — may
+     tighten with `lg:p-3` / `lg:gap-2` / `lg:py-1.5`, because below `lg` the page
+     is a document and wants the roomier spacing back. What may NOT change is
+     content: the ring stays 176px, the five rows stay five rows, no figure is
+     dropped to save height.
+  2. **A control that drives a chart rides in that chart's header**, not on a row
+     of its own above it. The dashboard's time range moved into
+     `PortfolioValueChart`'s header via `actions` (~46px of a 600px screen).
+  3. **A chart may be shorter; a panel may not scroll.** The fill-mode floors are
+     `min-h-[140px]` (value and drawdown) and `min-h-[110px]` (benchmark), and each
+     of those charts keeps its fixed `h-56`/`h-64`/`h-32` BELOW `lg` — the floor is
+     for a short `lg` window, and a phone (where the shell hands out no heights)
+     would otherwise shrink to the floor.
+  4. **A list scrolls its own rows; a slide never scrolls.** A slide whose content
+     is taller than its box is a slide doing too much (§7) — that is what split the
+     risk pair into `Concentration` and `Risk-adjusted` rather than shrinking both
+     until they fit. The exception is data: a table, the exposure tag list and the
+     concentration ranking may scroll their own rows under fixed chrome, which is
+     the licence §5 already gives every table.
+  5. **Two columns where one is too tall.** The concentration ranking shows two
+     names per row at `lg` (eight names: 208px in one column, 96px in two), and the
+     page states the reading order — biggest first, left to right.
 - **When a column has a fixed height, give it to the column, not the cards.**
   Splitting the height between two chart cards made the second one clip its caption
   mid-sentence at its own edge, which reads as a broken panel; letting the column
@@ -389,6 +419,24 @@ Almost every list in the app is `.ledger-table`. Its rules are load-bearing.
   good, update the new ones" — is why §9 no longer exempts the tabs. The pill is one
   absolutely positioned element moved with `transform`, so the motion is
   compositor-only and the selection reads as travelling.
+- **An icon inside a tab inherits the tab's colour — it never names its own.**
+  A tab is read as one control, so its icon and its label are one graphic with one
+  contrast budget, and that budget is spent by the tab: `ink-300` at rest on the
+  page (≥ 7:1), `ink-950` on the gold pill (8.54:1). Pass the bare icon
+  (`<Icon size={14} strokeWidth={1.75} />`) and let `currentColor` follow.
+
+  This rule exists because it already went wrong, and the arithmetic is why it is
+  not a matter of taste: the strip's icons carried `text-ink-500` of their own, so
+  on the ACTIVE tab the label measured 8.54:1 while the icon beside it measured
+  **1.54:1** — under even the 3:1 floor for a non-text graphic, which is an icon
+  that has in practice disappeared. `ink-500` is a legitimate token (it is the
+  timestamp/hint grey, 4.75:1 at its worst, on the modal); it is simply not a
+  colour that may sit on the gold. If a tab's icons ever need to look quieter than
+  their label, the answer is a smaller icon or a lower `strokeWidth`, not a colour
+  class. `tests/tab-colour.test.ts` holds both halves: the ratios themselves, and a
+  source scan of every `app/*/layout.tsx` that fails if a `text-*` class comes back
+  inside an `icon:` — the failure mode is one word in one file, which no rendering
+  test would catch.
 - **The section strip is one row, and it names itself.** `SectionTabs` used to be a
   `text-sm` paragraph over an underlined tab row: ~90px to say "Positions" and offer
   three links. It is now a bordered track of pills with the section's name as a small
@@ -415,9 +463,11 @@ Almost every list in the app is `.ledger-table`. Its rules are load-bearing.
     information-heavy page, not a taller tab: performance's returns-and-risk was
     three slides holding seven panels, which put the drawdown curve below the fold
     of its own sub-tab, so reading it meant scrolling inside a panel that is supposed
-    to be one screen. Six slides (Value · Drawdown · vs index · Risk · Correlation ·
-    Calendar years) with ~680px of panel each is the same seven panels and no
-    scrolling. A control that drives THREE slides (the time range) lives in the
+    to be one screen. Seven slides (Value · Drawdown · vs index · Concentration ·
+    Risk-adjusted · Correlation · Calendar years) is the same seven panels and no
+    scrolling — and the seventh exists because the two risk halves, side by side,
+    measured 63px taller than a 1024×600 panel-body: the answer to "this slide is too
+    tall" is another slide, not a smaller font. A control that drives THREE slides (the time range) lives in the
     deck's head via `Slide.actions`, not at the top of each chart, so it exists once,
     travels with the slides it applies to, and does not reset between them.
   - **A slide that divides its own height works bottom-up**: `.panel-body` →
@@ -436,9 +486,24 @@ Almost every list in the app is `.ledger-table`. Its rules are load-bearing.
   ~34px of that. The count follows the field, because "64
   entries" over twelve rows is worse than no count — `TableSearch`/`TableSearchCount`
   share the query and the filtered length between the page bar and the table, and the
-  page bar reads "4 of 64 entries" while you type. The command palette (⌘K) stays the
+  page bar reads "4 of 64 entries" while you type.
+
+  The field then has to FILL that middle column, which is the one thing about the
+  row that took two tries: a 256px field centred in a 1300px bar read as three small
+  things with two long gaps between them ("it looks disjointed"). So `.page-bar`'s
+  layout for this row is `auto minmax(0, 1fr) auto` and `TableSearchField` renders
+  its field `w-full` — the field is the only element that can absorb width, so it
+  absorbs all of it. `SearchBox` still defaults to `w-64` for a panel head, where a
+  filter beside a heading should stay a filter; `minmax(0, …)` (not a bare `1fr`)
+  and `min-w-0` on the wrapper are what let it SHRINK, or a narrow laptop pushes the
+  export button off the bar instead of narrowing the field.
+
+  The command palette (⌘K) stays the
   global search — pages, tickers and actions — and the nav chip is its only visible
-  affordance.
+  affordance. That chip keeps a field's PROPORTIONS (`sm:w-56 md:w-72 xl:w-96`, the
+  placeholder left, the shortcut right) rather than wrapping its own text: a control
+  wearing a field's clothes has to be the shape of a field, or it reads as a button
+  with the word Search on it.
 - **A row of panels too wide for its container is a carousel, not a scrollbar —
   and a tuck beats the carousel.** The positions page draws one table per market at
   a floor of ~560px, so a strip of them slides: 3 across from 1800px, and from
@@ -634,3 +699,26 @@ below; `documentElement.scrollWidth - clientWidth` is 0 at both widths.
 | `/money` "By stakeholder": panel scroll | 0px (the pivot's own box scrolls 543px of rows) |
 | `/money/cash` exchange rows | 5 columns, 0px of panel scroll |
 | mobile horizontal leak, all changed pages | 0px |
+| a tab icon's contrast, on the gold pill | 8.54:1 inherited / **1.54:1** when it names `ink-500` |
+| page-bar filter field, `1fr` vs `minmax(0, 1fr)` middle column | 256px chip → fills the row (871px of 1314 at 1440) |
+
+### Short laptop windows, as measured
+
+1024×600 and 1280×720 CSS (`innerWidth` read back from the browser, since the
+window and the CSS viewport are not the same number). Every route was walked at
+both, on the base state and on every sub-tab. `main.scrollHeight - main.clientHeight`
+is 0 and `documentElement.scrollWidth - clientWidth` is 0 on all of them; the
+numbers below are the four defects that were there before, and the knob each fix
+turned.
+
+| what | 1024×600 before → after |
+|---|---|
+| Today, `main` overflow | **87px** → 0 (bands denser at `lg`, chart floor 180→140, range picker into the chart header) |
+| `vs index` slide, `.panel-body` scroll | **123px** → 0 (`BenchmarkChart.fill`, 110px floor) |
+| Risk slide, `.panel-body` scroll | **122px** → 0 (one slide split into `Concentration` + `Risk-adjusted`) |
+| exposure ring column | **28px** over 473 → 473/473 (panel padding and gaps at `lg`; rings still 176px) |
+| Concentration slide, ranking rows | 106px scroll → 0 (two columns at `lg`, 8 names in 96px) |
+| Today, largest-positions list | 73px scroll → 0 at 1280×720; still scrolls its own rows at 1024×600 |
+| `Correlation` slide | scrolls its own matrix (a `<table>`), unchanged at both sizes |
+| deck head, 7 tabs at 1024 | 81px — the strip wraps to a second line, which `useSlidingPill` follows via its y offset |
+| phone 390×780, every route and slide | 0px horizontal leak; charts keep 224px (Value), 256px (vs index), 128px (rolling) |

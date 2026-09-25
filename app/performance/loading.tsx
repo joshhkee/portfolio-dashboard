@@ -7,9 +7,11 @@ import { SkeletonBar, SkeletonSlideDeck, SkeletonStatus } from "@/components/Ske
  * the nearest one above it (the dashboard's) and a navigation here showed a
  * shape that belonged to a different page. It has its own now, and it is the
  * page's own shape: seven inline figures and one panel whose strip says there
- * are **six** views of them — Value, Drawdown, vs index, Risk, Correlation,
- * Calendar years (§7). The count matters: the strip is the widest thing in the
- * head, so promising three pills would move the head when the page landed.
+ * are **seven** views of them — Value, Drawdown, vs index, Concentration,
+ * Risk-adjusted, Correlation, Calendar years (§7). The count matters: the strip
+ * is the widest thing in the head, so promising three pills would move the head
+ * when the page landed — and at 1024px it is also what decides whether that
+ * strip wraps to a second line.
  */
 export default function LoadingPerformance() {
   return (
@@ -26,7 +28,7 @@ export default function LoadingPerformance() {
         </div>
         <SkeletonBar className="h-3 w-52" />
       </div>
-      <SkeletonSlideDeck tabs={6} bodyClass="h-72" />
+      <SkeletonSlideDeck tabs={7} bodyClass="h-72" />
     </div>
   );
 }

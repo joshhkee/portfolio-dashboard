@@ -28,9 +28,15 @@ import { RANGE_KEYS, filterByRange, type PerfPoint, type RangeKey, type YearRetu
  *   Value            what it is worth, against what you put in
  *   Drawdown         how far below its previous high it has sat
  *   vs index         the same window, measured against an index
- *   Risk             how much sits in how few names, and what the swings bought
+ *   Concentration    how much sits in how few names
+ *   Risk-adjusted    what the swings bought (volatility, Sharpe, the trailing year)
  *   Correlation      whether those names move together
  *   Calendar years   the year-by-year record
+ *
+ * Seven, not six: the two risk halves were one slide with two cards until the
+ * pair proved 63px taller than a 1024×600 panel-body, which is the same failure
+ * (a slide taller than its box) that split the original three-routes-into-one
+ * deck in the first place. See `RiskPanel.panel`.
  *
  * Three of those are the same chart with a different window, which is why the
  * range selector lives in the deck's HEAD (via `actions`) rather than at the top
@@ -56,8 +62,10 @@ export default function PerformanceViews({
    *  slice below lines up with the portfolio series index for index. */
   benchmarkSeries: Record<string, (number | null)[]>;
   /** Every prop RiskPanel needs, precomputed on the server, or null when there
-   *  is not enough history to be worth showing. */
-  risk: RiskPanelProps | null;
+   *  is not enough history to be worth showing. `panel` is the exception: which
+   *  half to draw is this deck's decision, not the data's, so the server hands
+   *  over the figures and the deck puts each half on its own slide. */
+  risk: Omit<RiskPanelProps, "panel"> | null;
   years: YearReturn[];
 }) {
   const [range, setRange] = useState<RangeKey>("ALL");
@@ -116,20 +124,36 @@ export default function PerformanceViews({
                   points={filtered}
                   benchmarks={benchmarks}
                   series={filteredBenchmarks}
+                  fill
                 />
               </div>
             ),
           } satisfies Slide,
         ]
       : []),
+    // Two slides rather than one with two cards: side by side they answer
+    // different questions, and together they need 63px more than a 1024×600
+    // panel-body has — which is what put a scrollbar inside this sub-tab. On a
+    // tall window each of these is now one panel taking the whole slide, so the
+    // concentration list and the rolling chart both get MORE height than they
+    // had in the shared card, not less.
     ...(risk
       ? [
           {
-            label: "Risk",
-            hint: "How much sits in how few names, and what the swings bought",
+            label: "Concentration",
+            hint: "How much sits in how few names",
             content: (
               <div className="flex h-full min-h-0 flex-col p-4">
-                <RiskPanel {...risk} />
+                <RiskPanel {...risk} panel="concentration" />
+              </div>
+            ),
+          } satisfies Slide,
+          {
+            label: "Risk-adjusted",
+            hint: "What the swings bought",
+            content: (
+              <div className="flex h-full min-h-0 flex-col p-4">
+                <RiskPanel {...risk} panel="return" />
               </div>
             ),
           } satisfies Slide,

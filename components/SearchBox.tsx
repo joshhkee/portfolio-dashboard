@@ -18,20 +18,31 @@ import { Search, X } from "lucide-react";
  * `aria-label` from the caller's placeholder. The clear button exists because
  * a filter has no other way back to "everything": tapping it restores the full
  * table without selecting the text and deleting it.
+ *
+ * `className` sizes the WRAPPER, because the input inside it is `w-full` and
+ * `.search-compact` deliberately carries no width of its own (see globals.css):
+ * a `w-64` in a panel head and a `w-full` in the page bar's centre column are
+ * then both just the caller's choice, with nothing for a utility to fight. The
+ * default is the first of those, so a field that says nothing about its width
+ * keeps the size it always had.
  */
 export default function SearchBox({
   value,
   onChange,
   placeholder,
   ariaLabel,
+  className = "w-64",
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   ariaLabel?: string;
+  /** The width of the field — `w-64` by default, `w-full` where it fills a
+   *  column of the row (the page bar). */
+  className?: string;
 }) {
   return (
-    <div className="relative flex items-center">
+    <div className={`relative flex min-w-0 items-center ${className}`.trim()}>
       <Search
         size={13}
         strokeWidth={1.75}

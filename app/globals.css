@@ -324,15 +324,23 @@
   .field {
     @apply w-full rounded-md border border-ink-700 bg-ink-950 px-3 py-2 text-sm text-ink-100 outline-none transition placeholder:text-ink-500 focus:border-accent;
   }
-  /* The compact field that lives in a panel's head rather than on a band of
-     its own. It carries the padding for the magnifier and the clear button
-     that flank it, so it is a real class rather than `.field` plus a handful
-     of overrides — `.field` is in this layer, and a `pl-7` utility fighting it
-     is exactly the hazard §5 of docs/DESIGN.md describes. It is 32px tall on
-     purpose: the row it sits in is chrome, and the table below it should get
-     every pixel that is not spoken for. */
+  /* The compact field that sits in a row of chrome — a panel's head, or the page
+     bar. It carries the padding for the magnifier and the clear button that flank
+     it, so it is a real class rather than `.field` plus a handful of overrides —
+     `.field` is in this layer, and a `pl-7` utility fighting it is exactly the
+     hazard §5 of docs/DESIGN.md describes. It is 32px tall on purpose: the row it
+     sits in is chrome, and the table below it should get every pixel that is not
+     spoken for.
+
+     It deliberately sets NO WIDTH, and the input is `w-full` inside it: the WIDTH
+     belongs to the caller's wrapper (`<SearchBox className="w-64" />` in a panel
+     head, `w-full` in the page bar's centre column — §7). A width here would be
+     the other half of the same hazard: a caller's `w-full` utility competes with
+     this class, and which one wins depends on where the bundler emitted the
+     stylesheet. This class no longer competes, so both callers work by
+     construction. */
   .search-compact {
-    @apply h-8 w-64 rounded-md border border-ink-700 bg-ink-950 pl-7 pr-7 text-xs text-ink-100 outline-none transition placeholder:text-ink-500 focus:border-accent;
+    @apply h-8 w-full min-w-0 rounded-md border border-ink-700 bg-ink-950 pl-7 pr-7 text-xs text-ink-100 outline-none transition placeholder:text-ink-500 focus:border-accent;
   }
   .btn-primary {
     @apply rounded-md bg-accent px-4 py-2 text-sm font-medium text-ink-950 transition hover:bg-accentHover disabled:cursor-not-allowed disabled:opacity-50;

@@ -153,17 +153,31 @@ export default function Nav({ account }: { account: NavAccount }) {
               is sized and tinted to be FOUND rather than merely present: a
               filled chip with the word "Search" on it, at the text size of the
               bar around it. The label is the affordance, so it drops out only
-              at the narrowest width, where the icon still carries the meaning. */}
+              at the narrowest width, where the icon still carries the meaning.
+
+              The chip keeps the SHAPE of the field it opens, and a field that
+              wraps its own text is a button wearing a field's clothes. It is
+              therefore a fixed, generous width (`sm:w-56 md:w-72 xl:w-96`) with
+              the placeholder on the left and the shortcut pushed to the far
+              right — the proportions a real input would have, which is what
+              makes it read as the header's search rather than as a small chip
+              that happens to be called Search. The widths stop at 24rem because
+              the bar is 48px of chrome: past that the chip starts to compete
+              with the links beside it instead of filling the space between
+              them. Below `sm` it collapses to the icon, where there is no room
+              for a field and the icon is still findable. */}
           <button
             type="button"
             onClick={() => window.dispatchEvent(new Event(OPEN_PALETTE_EVENT))}
             title={`Search tickers, pages and actions (${isMac ? "⌘K" : "Ctrl+K"})`}
             aria-label="Open command palette"
-            className="flex items-center gap-2 rounded-md border border-ink-600 bg-ink-800/70 px-2.5 py-1 text-sm text-ink-100 transition hover:border-ink-500 hover:bg-ink-800 motion-reduce:transition-none"
+            className="flex items-center gap-2 rounded-md border border-ink-600 bg-ink-800/70 px-2.5 py-1 text-sm text-ink-100 transition hover:border-ink-500 hover:bg-ink-800 sm:w-56 md:w-72 xl:w-96 motion-reduce:transition-none"
           >
-            <Search size={15} strokeWidth={1.75} className="text-accent" />
+            <Search size={15} strokeWidth={1.75} className="shrink-0 text-accent" />
             <span className="hidden sm:inline">Search…</span>
-            <span className="hidden text-xs text-ink-500 md:inline">{shortcutLabel}</span>
+            <span className="ml-auto hidden shrink-0 text-xs text-ink-500 md:inline">
+              {shortcutLabel}
+            </span>
           </button>
 
           {/* Accounts is chrome, not one of the five objects, so it sits

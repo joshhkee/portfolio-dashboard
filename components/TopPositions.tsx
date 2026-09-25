@@ -69,7 +69,11 @@ export default function TopPositions({
   }, [keys]);
 
   return (
-    <section className={`panel flex flex-col gap-3 p-4${fill ? " h-full min-h-0" : ""}`}>
+    // `lg:p-3` / `lg:py-1.5` on the rows below are the dashboard's share of the
+    // short-window trade (see app/page.tsx): the panel shares a row with the
+    // chart, five rows is what it shows, and tightening each of them by 4px is
+    // 20px the list gets back before it has to scroll at all.
+    <section className={`panel flex flex-col gap-3 p-4 lg:gap-2 lg:p-3${fill ? " h-full min-h-0" : ""}`}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="text-xs font-medium uppercase tracking-wide text-ink-300">
           Largest positions
@@ -94,7 +98,7 @@ export default function TopPositions({
               <li key={key}>
                 <Link
                   href={`/positions/holdings?ticker=${encodeURIComponent(row.ticker)}`}
-                  className="flex items-center gap-3 py-2 transition hover:text-accent motion-reduce:transition-none"
+                  className="flex items-center gap-3 py-2 transition hover:text-accent lg:py-1.5 motion-reduce:transition-none"
                 >
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline gap-2">

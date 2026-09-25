@@ -44,8 +44,15 @@ export default async function TransactionsPage() {
             that matters while you are typing is how many rows the filter LEFT,
             not how many the ledger holds — the field is in the page bar but the
             filtering happens in the table, and a stale "64 entries" over twelve
-            rows is worse than no count at all. */}
-        <div className="page-bar lg:grid lg:grid-cols-[1fr_auto_1fr] lg:items-center">
+            rows is worse than no count at all.
+
+            The middle column is `minmax(0, 1fr)` on purpose: the field is the
+            only part of this row that can absorb width, so it takes all of it
+            between the figures and the two actions. Because the left and right
+            clusters are `auto`, the field's own centre still lands on the row's
+            centre when they are similar widths, and it stops being a 256px chip
+            floating in 1300px of empty bar. */}
+        <div className="page-bar lg:grid lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center lg:gap-x-6">
           <div className="flex items-baseline gap-2">
             <h1 className="text-sm font-medium text-ink-100">Transaction ledger</h1>
             <TableSearchCount total={ledger.length} singular="entry" plural="entries" />

@@ -48,6 +48,19 @@ export interface RiskPanelProps {
   windowLabel: string;
   days: number;
   totalSgd: number;
+  /**
+   * Which half of the panel to draw.
+   *
+   * These two were one slide with two cards side by side, which is the right
+   * shape on a tall window and the wrong one on a short laptop: the pair needs
+   * ~324px of a panel-body that measures 321 at 1024×600, so the slide scrolled
+   * — and the rule this deck is built on is that a slide taller than its box is
+   * a slide doing too much (docs/DESIGN.md §7). They answer different questions
+   * anyway ("how much sits in how few names" vs "what did the swings buy"), so
+   * at a short window they are two tabs rather than one cramped one. The window
+   * label stays on both: which dates the figures cover is not on the tab.
+   */
+  panel: "concentration" | "return";
 }
 
 const BAND_LABEL: Record<ConcentrationResult["band"], string> = {
@@ -136,6 +149,7 @@ export default function RiskPanel({
   windowLabel,
   days,
   totalSgd,
+  panel,
 }: RiskPanelProps) {
   // Above this share, one day is doing so much of the work that the reader
   // should know the number may be one bad snapshot rather than market risk.
@@ -159,9 +173,18 @@ export default function RiskPanel({
           top half: the two columns are the whole of this tab, so the grid taking
           `flex-1` is what stops a 500px slide showing 350px of content from two
           stacked cards with a gap beneath them. */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
+      {/* Both panels are `min-h-0` and the rows inside them are the parts that
+          give: the slice list scrolls its own names and the rolling chart takes
+          the height left over (`min-h-[96px]`). At 1024×600 this slide measured
+          122px taller than its panel before that — a scrollbar inside a sub-tab
+          that is supposed to be one screen — and the two blocks that absorb it
+          are the two that stay readable when they are shorter. `lg:gap-3
+          lg:p-4` is the same 20px of chrome the dashboard gives up at that
+          width (see app/page.tsx). */}
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4">
         {/* Concentration: what share of the money sits in how few names. */}
-        <div className="panel flex flex-col gap-4 p-5">
+        {panel === "concentration" && (
+        <div className="panel flex min-h-0 flex-col gap-4 p-5 lg:gap-2 lg:p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <p className="text-sm text-ink-300">Concentration</p>
             <p className="text-xs text-ink-500">
@@ -170,7 +193,13 @@ export default function RiskPanel({
             </p>
           </div>
 
-          <div className="flex flex-col gap-2">
+          {/* Two columns at `lg`, one below it. The list is a ranking, so a row
+              reads left to right and then down (the exposure tag list states the
+              same convention); what it buys is height — eight names need 208px in
+              one column and 96px in two, and 96 fits the panel at 1024×600 where
+              208 did not. It still scrolls if the portfolio ever has more names
+              than rows, which is the same licence a table has. */}
+          <div className="grid min-h-0 grid-cols-1 gap-2 overflow-y-auto lg:grid-cols-2 lg:gap-x-6 lg:gap-y-1.5">
             {slices.map((s) => (
               <div key={s.key} className="flex items-center gap-3">
                 <span
@@ -228,9 +257,11 @@ export default function RiskPanel({
             concentrated.
           </p>
         </div>
+        )}
 
         {/* Risk-adjusted return, plus how it drifted over time. */}
-        <div className="panel flex flex-col gap-4 p-5">
+        {panel === "return" && (
+        <div className="panel flex min-h-0 flex-col gap-4 p-5 lg:gap-2 lg:p-4">
           <p className="text-sm text-ink-300">Risk-adjusted return</p>
 
           <div className="grid grid-cols-3 gap-3">
@@ -293,7 +324,7 @@ export default function RiskPanel({
                   range {(rollingWorst! * 100).toFixed(1)}% to {(rollingBest! * 100).toFixed(1)}%
                 </p>
               </div>
-              <div className="h-32 w-full">
+              <div className="h-32 w-full lg:h-auto lg:min-h-[96px] lg:flex-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={rolling} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                     <CartesianGrid stroke="#2e2e2e" strokeDasharray="3 3" vertical={false} />
@@ -338,6 +369,7 @@ export default function RiskPanel({
             </p>
           )}
         </div>
+        )}
       </div>
     </section>
   );

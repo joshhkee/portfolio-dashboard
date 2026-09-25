@@ -70,9 +70,16 @@ export default function ExposureSummary({
     // `lg:grow` here as well as on the panels: without it this wrapper is only as
     // tall as its content, the two panels have no free space to grow into, and
     // the column ends in a dead strip.
-    <div className="flex flex-col gap-3 lg:grow">
+    // `lg:gap-1.5` between the two cards and `lg:gap-2 lg:p-3` inside them: at
+    // 1024×600 the pair measured 29px taller than the column that holds them, so
+    // the column scrolled — a card's last legend row cut off, which reads as a
+    // broken panel rather than as a short window. Every pixel of that 29 comes
+    // out of spacing rather than content: the ring stays 176px (a 160px box puts
+    // the figure back on the ring itself — see ExposureDonut) and both captions
+    // stay. The column keeps its `overflow-y-auto` for a window shorter still.
+    <div className="flex flex-col gap-3 lg:grow lg:gap-1.5">
       {/* Panel one: the same holdings grouped two ways. */}
-      <section className="panel flex flex-col gap-3 p-4 lg:grow">
+      <section className="panel flex flex-col gap-3 p-4 lg:grow lg:gap-2 lg:p-3">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <SegmentedControl
             ariaLabel="Group the holdings by"
@@ -105,7 +112,7 @@ export default function ExposureSummary({
           the question it answers ("how much of this carries currency risk?") is
           about the portfolio as a whole rather than about one of its groupings,
           and a reader asks it while looking at the first ring. */}
-      <section className="panel flex flex-col gap-3 p-4 lg:grow">
+      <section className="panel flex flex-col gap-3 p-4 lg:grow lg:gap-2 lg:p-3">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <p className="text-xs text-ink-300">{currency.label}</p>
           <p className="text-xs text-ink-500">{currency.hint}</p>

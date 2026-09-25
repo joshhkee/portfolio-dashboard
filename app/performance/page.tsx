@@ -202,13 +202,15 @@ export default async function PerformancePage() {
         </p>
       </div>
 
-      {/* Six slides, one subject each (see PerformanceViews). This used to be
+      {/* Seven slides, one subject each (see PerformanceViews). This used to be
           three slides holding seven panels — a value chart and a drawdown curve
           and an index comparison stacked in one, then a concentration panel
           beside a risk-adjusted panel above a correlation matrix — so the
           figures you came for sat below the fold of a panel that is meant to be
           read in one look, and reading them meant scrolling inside a sub-tab.
-          Splitting by subject is what removes the scroll rather than moving it.
+          Splitting by subject is what removes the scroll rather than moving it;
+          the seventh slide is the second half of the risk pair, which needed
+          63px more than a 1024×600 panel-body had (see RiskPanel).
 
           Everything below is computed on the server and handed over as props:
           this page's arithmetic is unchanged, only its arrangement.
@@ -239,7 +241,7 @@ export default async function PerformancePage() {
                 )}`,
                 days: snapshots.length,
                 totalSgd: holdingsValueSgd,
-              } satisfies RiskPanelProps)
+              } satisfies Omit<RiskPanelProps, "panel">)
             : null
         }
         years={yearReturns}

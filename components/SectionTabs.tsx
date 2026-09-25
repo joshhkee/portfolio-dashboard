@@ -8,7 +8,19 @@ import { useSlidingPill } from "@/lib/use-sliding-pill";
 export interface SectionTab {
   href: string;
   label: string;
-  /** Rendered before the label — a region flag or an icon. */
+  /**
+   * Rendered before the label — a region flag or an icon.
+   *
+   * It must carry NO colour of its own: a tab's colour belongs to the tab
+   * (`ink-300` at rest, `ink-950` on the gold pill), and an icon that names its
+   * own `text-*` class keeps it whatever the tab does. That is not a style
+   * preference — `text-ink-500` on the gold pill measures **1.54:1**, well under
+   * the 3:1 floor for a graphic, and it was exactly what made the strip's icons
+   * unreadable on the active tab while its label was fine. Pass the bare
+   * `<Icon size={14} strokeWidth={1.75} />`; the SVG's `currentColor` stroke
+   * inherits. `tests/tab-colour.test.ts` scans the section layouts for a colour
+   * class here and fails if one returns.
+   */
   icon?: React.ReactNode;
 }
 

@@ -117,15 +117,29 @@ function Stat({ label, value, title }: { label: string; value: string; title?: s
  * every benchmark's aligned series is already in the props, so switching is
  * instant and costs no network, which is also what keeps the page to a
  * bounded number of Yahoo calls (three, cached — see getBenchmarkCloses).
+ *
+ * `fill` is the slide's contract, the same one `PortfolioValueChart.fill` makes:
+ * take the height the parent has left instead of a fixed 256px plot. This block
+ * is the tallest content in the deck — a header, five statistics, an explainer
+ * paragraph and the chart — and at 1024×600 it measured 123px taller than its
+ * panel, which is a scrollbar inside a sub-tab that is meant to be one screen.
+ * The chart is the only part of it that survives being shorter (the statistics
+ * and the explainer are the reading, the line is the shape), so the chart is
+ * what gives, down to a 110px floor. An instance that is NOT filling anything
+ * keeps its fixed plot, because there a predictable height each is what makes
+ * two charts comparable.
  */
 export default function BenchmarkChart({
   points,
   benchmarks,
   series,
+  fill = false,
 }: {
   points: PerfPoint[];
   benchmarks: { key: string; label: string }[];
   series: Record<string, (number | null)[]>;
+  /** Take the parent's leftover height instead of a fixed 256px plot. */
+  fill?: boolean;
 }) {
   const [selected, setSelected] = useState(benchmarks[0]?.key ?? "");
   const benchmarkLabel =
@@ -170,7 +184,7 @@ export default function BenchmarkChart({
   const windowLabel = `${longDate(first)} – ${longDate(last)}`;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className={`flex flex-col gap-3${fill ? " min-h-0 flex-1" : ""}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
           <p className="text-sm text-ink-300">Portfolio vs benchmark</p>
@@ -233,7 +247,12 @@ export default function BenchmarkChart({
         />
       )}
 
-      <div className="h-64 w-full">
+      {/* `h-64` below `lg` even when `fill` is on: below the breakpoint the shell
+          stops handing out heights (the page is a document again), so a `flex-1`
+          chart with only a 110px floor would settle at 110px on a phone. The
+          fixed 256px is what the mobile page wants; the floor is what the short
+          `lg` window needs. */}
+      <div className={fill ? "h-64 w-full lg:h-auto lg:min-h-[110px] lg:flex-1" : "h-64 w-full"}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={model?.chartData ?? []}

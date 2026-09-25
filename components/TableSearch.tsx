@@ -39,6 +39,19 @@ const TableSearchContext = createContext<TableSearchState | null>(null);
  * filtered length back here after render, and `TableSearchCount` prints
  * `12 of 64 entries` while a query is active and plain `64 entries` otherwise.
  *
+ * `TableSearchField` fills its column (`w-full`) rather than taking `SearchBox`'s
+ * own default width, and that is the whole of the second correction to this row.
+ * The first placement centred a 256px field between a count and a button and read
+ * as disjointed: three small things on a 1300px bar with two long gaps between
+ * them. The field is the only flexible element in the row, so it takes the slack
+ * — `.page-bar`'s middle column is `minmax(0, 1fr)`, and the field spans it
+ * edge-to-edge between the figures on the left and the actions on the right.
+ *
+ * `min-w-0` on the wrapper is what lets the COLUMN shrink: a `flex-1` item's
+ * default `min-width: auto` is the width of its content, so at `lg` on a narrow
+ * laptop the row would rather push the export button off the bar than narrow the
+ * field. The grid column carries its own `minmax(0, …)` for the same reason.
+ *
  * Not the command palette (§7): that is the global search for pages, tickers and
  * actions. This only ever filters the table it is wrapped around.
  */
@@ -71,7 +84,13 @@ export function TableSearchField({
 }) {
   const { query, setQuery } = useTableSearch();
   return (
-    <SearchBox value={query} onChange={setQuery} placeholder={placeholder} ariaLabel={ariaLabel} />
+    <SearchBox
+      value={query}
+      onChange={setQuery}
+      placeholder={placeholder}
+      ariaLabel={ariaLabel}
+      className="w-full"
+    />
   );
 }
 

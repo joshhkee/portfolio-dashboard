@@ -3,6 +3,13 @@
 import { LineChart, Layers, CheckCircle2 } from "lucide-react";
 import SectionTabs from "@/components/SectionTabs";
 
+// The icons below carry NO colour class on purpose. A tab's colour is decided by
+// the tab — `ink-300` at rest, `ink-950` on the gold pill — and an icon that names
+// its own (`text-ink-500`) keeps it: that measured 1.54:1 on the gold, which is
+// what put the strip below the 3:1 graphics floor. Inheriting is the fix, and
+// tests/tab-colour.test.ts fails if a colour class comes back.
+
+
 /**
  * The Performance object: how the portfolio has done, and why.
  *
@@ -21,19 +28,19 @@ export default function PerformanceLayout({ children }: { children: React.ReactN
           {
             href: "/performance",
             label: "Returns & risk",
-            icon: <LineChart size={14} strokeWidth={1.75} className="text-ink-500" />,
+            icon: <LineChart size={14} strokeWidth={1.75} />,
           },
           {
             href: "/performance/attribution",
             label: "Attribution",
-            icon: <Layers size={14} strokeWidth={1.75} className="text-ink-500" />,
+            icon: <Layers size={14} strokeWidth={1.75} />,
           },
           // Realized trades are a performance RESULT (what a closed position
           // actually earned), not a kitchen-sink page of their own.
           {
             href: "/performance/realized",
             label: "Realized",
-            icon: <CheckCircle2 size={14} strokeWidth={1.75} className="text-ink-500" />,
+            icon: <CheckCircle2 size={14} strokeWidth={1.75} />,
           },
         ]}
       />
