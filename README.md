@@ -33,12 +33,29 @@ position with no live quote).
 
 ### Positions — `/positions`
 
-Open holdings per region — `/positions/us`, `/positions/sg`, `/positions/hk` —
-with live quotes, unrealized P/L, 30-day sparklines and the instrument's
-resolved name.
+Every open holding, one table per market — `/positions/holdings` — side by side,
+with arrows that slide across them when all three do not fit. Each table has its
+own heading (the market, its holding count, its total in that market's own
+currency), its own sort, and live quotes. A cell pairs a figure with the one it is
+measured against: the value over the number of shares, the current price over the
+average cost paid, P/L over its percentage, this holding's share of the whole
+portfolio over how long it has been held. Every pair is sortable from its own
+header — click again and the header changes its name to say which of the two
+figures is doing the ordering (`Value` → `Shares`), and the header shows which of
+its states you are at as a row of dots. The instrument's resolved name sits under
+its ticker, and each market's heading carries its flag. Rows and headings stay in
+each market's native currency; the two figures above the tables are SGD. Where
+there is room for two tables but not three, HK sits under SG rather than a click
+away; the strip of one-at-a-time panels is the last resort below 1220px. The old
+per-region URLs (`/positions/us`, `/positions/sg`, `/positions/hk`) forward here.
 
-- **Exposure** lens (`/positions/exposure`) — a ten-tag sector vocabulary, the
-  local-versus-currency P/L split, and two donuts.
+- **Exposure** lens (`/positions/exposure`) — a ten-tag sector vocabulary and the
+  local-versus-currency P/L split, as three donuts down the left of the page with
+  the tag list beside them. On a desktop it is one screen with no page scroll: the
+  tag list is a fixed height and scrolls inside its own panel, under its column
+  labels. Pointing at a sector enlarges it and dims the rest, ring and legend
+  together, and the ring's centre swaps the total for that sector's name, value and
+  share — there is no boxed tooltip over the chart.
 - **The ledger** lens (`/positions/transactions`) — every buy and sell with the
   line the row derives for itself, plus edit and delete.
 

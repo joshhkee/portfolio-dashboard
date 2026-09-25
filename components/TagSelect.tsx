@@ -56,6 +56,9 @@ export default function TagSelect({
 }: TagSelectProps) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
+  // Which way the popup opens. See the effect below for why this is not a
+  // constant.
+  const [openUp, setOpenUp] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const listId = useId();
 
@@ -73,6 +76,34 @@ export default function TagSelect({
     }
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  /**
+   * Decide which way the popup opens, once, when it opens.
+   *
+   * Always downward was fine while this control sat in a list that grew the page.
+   * In a bounded, scrolling list — the exposure page's tag panel from `xl`, where
+   * the rows scroll inside a fixed-height panel — a dropdown that only opens
+   * downward gets CUT OFF for the last rows, because the popup is a child of its
+   * row and a scroll container clips whatever hangs out of it.
+   *
+   * So: open down when there is a popup's worth of room below, otherwise up.
+   * `160px` is a little more than the tallest popup (five options is 148px), so
+   * the flip happens before clipping rather than after. The room is measured
+   * against the nearest scroll container when there is one and the window when
+   * there is not, which also fixes the same problem at the bottom of a phone
+   * screen.
+   */
+  useEffect(() => {
+    if (!open) return;
+    const el = wrapRef.current;
+    if (!el) return;
+    const scroller = el.closest<HTMLElement>("[data-tag-scroll]");
+    const bounds = scroller?.getBoundingClientRect();
+    const rect = el.getBoundingClientRect();
+    const roomBelow = (bounds?.bottom ?? window.innerHeight) - rect.bottom;
+    const roomAbove = rect.top - (bounds?.top ?? 0);
+    setOpenUp(roomBelow < 160 && roomAbove > roomBelow);
   }, [open]);
 
   function commit(next: string) {
@@ -157,7 +188,9 @@ export default function TagSelect({
         <ul
           id={listId}
           role="listbox"
-          className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 overflow-y-auto rounded-md border border-ink-600 bg-ink-850 p-1 shadow-xl"
+          className={`absolute left-0 right-0 z-30 max-h-56 overflow-y-auto rounded-md border border-ink-600 bg-ink-850 p-1 shadow-xl ${
+            openUp ? "bottom-full mb-1" : "top-full mt-1"
+          }`}
           style={{ maxHeight: `${Math.min(matches.length, maxVisible) * 1.75 + 0.5}rem` }}
         >
           {matches.map((option, i) => (

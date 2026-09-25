@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { Cell, Pie, PieChart, ResponsiveContainer, Sector } from "recharts";
+import type { PieSectorShapeProps } from "recharts";
 import { seriesColor } from "@/lib/palette";
 import { formatAmount } from "@/components/SignedNumber";
 
@@ -25,36 +26,49 @@ export interface DonutSlice {
  */
 const UNCLASSIFIED_FILL = "#8f8b85";
 
+/**
+ * How far the hovered slice grows beyond the others, in pixels.
+ *
+ * Emphasis by GEOMETRY rather than by colour: the sector gets bigger and the
+ * rest recede, so hovering compares rather than merely labels. Growing is safe
+ * where recolouring is not — colour on this page means which bucket a holding
+ * is in, and a hover must not be able to restate that.
+ */
+const POP = 6;
+
+/** What everything that is NOT hovered drops to. Still legible at 0.35 (the
+ *  fills are muted mid-tones on ink-900, so nothing disappears), which is the
+ *  point: this is a comparison, and the rest of the ring has to stay readable
+ *  as context rather than being switched off. */
+const DIM = 0.35;
+
+/**
+ * One sector, drawn with the hover emphasis applied.
+ *
+ * Recharts' `shape` is called per sector with the computed geometry, so the
+ * growth is a radius on ONE path rather than a transform on the ring — the
+ * angles stay exactly where they are and the enlarged slice cannot overlap its
+ * neighbour's label.
+ *
+ * `active` is the component's own state rather than Recharts' `isActive`, so
+ * the ring, the hole's readout and the legend all read from one number; none of
+ * them can disagree about which slice is the subject.
+ */
+function EmphasisSlice({ index, focus, ...rest }: PieSectorShapeProps & { focus: number | null }) {
+  const isFocus = index === focus;
+  return (
+    <Sector
+      {...rest}
+      outerRadius={(rest.outerRadius ?? 0) + (isFocus ? POP : 0)}
+      fillOpacity={focus === null || isFocus ? 1 : DIM}
+      className="donut-slice"
+    />
+  );
+}
+
 interface DrawnSlice extends DonutSlice {
   fill: string;
   isUnclassified: boolean;
-}
-
-interface TooltipItem {
-  payload: DrawnSlice;
-}
-
-function DonutTooltip({ active, payload }: { active?: boolean; payload?: TooltipItem[] }) {
-  if (!active || !payload || payload.length === 0) return null;
-  const slice = payload[0].payload;
-
-  return (
-    <div className="panel border-ink-600 bg-ink-850 p-3 text-xs shadow-xl">
-      <p className="mb-1.5 text-xs text-ink-300">{slice.label}</p>
-      <div className="flex items-center justify-between gap-6">
-        <span className="text-ink-300">Value</span>
-        <span className="num text-ink-100">S${formatAmount(slice.valueSgd)}</span>
-      </div>
-      <div className="flex items-center justify-between gap-6">
-        <span className="text-ink-300">Share</span>
-        <span className="num text-ink-100">{(slice.weight * 100).toFixed(1)}%</span>
-      </div>
-      <div className="flex items-center justify-between gap-6">
-        <span className="text-ink-300">Position{slice.positions === 1 ? "" : "s"}</span>
-        <span className="num text-ink-100">{slice.positions}</span>
-      </div>
-    </div>
-  );
 }
 
 /**
@@ -64,16 +78,32 @@ function DonutTooltip({ active, payload }: { active?: boolean; payload?: Tooltip
  * have to estimate off, so each slice's exact value and share is printed
  * beside it. The chart is the overview; the list is the reading.
  *
+ * There is NO tooltip. There was one — a boxed panel of label/value/share/
+ * positions that tracked the pointer — and it was removed for being in the way:
+ * it covered the hole and the neighbouring sectors, it sat between the pointer
+ * and the thing being pointed at, and it was doing a job the legend already
+ * does in full. What replaced it is the ring's own centre: the hovered slice's
+ * name, value and share take the place of the total while the pointer is on it,
+ * so the readout happens inside the shape you are circling rather than over it.
+ * The one thing the box carried that the hole cannot fit is the per-slice
+ * holding COUNT; that left the UI with it.
+ *
  * The unclassified slice is drawn and listed LAST, after the named buckets, so
  * the remainder is visibly separate from the real categories.
  *
  * Sizing is deliberate, and was wrong before: at 160px with a 62% inner radius
  * the hole is ~99px across, and the figure `S$62,258.57` renders 92px wide —
  * 93% of the hole, which is why it looked like it was sitting on the ring. The
- * ring is 176px now and the figure is 12px, which puts it at about two thirds
- * of the hole. `folded` is whatever did not fit the palette (see
- * capBreakdown), listed behind a disclosure so the panel stays compact without
- * the numbers disappearing.
+ * box is 176px now and the ring is drawn at 90% of it: the hole is 116px across,
+ * which the figure clears comfortably, and there are 6px of slack left for the
+ * hovered slice to grow into — an `outerRadius` of 100% would have the emphasis
+ * clipped flat by the edge of the SVG, which is the subtle reason this number is
+ * not 100. It was 192px for one pass, to give the hover more room; 176 is what
+ * two of these cards need to share the chart column of a one-screen page.
+ *
+ * `folded` is whatever did not fit the palette (see capBreakdown), listed
+ * behind a disclosure so the panel stays compact without the numbers
+ * disappearing.
  */
 export default function ExposureDonut({
   slices,
@@ -93,10 +123,10 @@ export default function ExposureDonut({
   /** "Total" by default; the type view says "Holdings". */
   centerLabel?: string;
 }) {
-  // Tracked so the centre figure can step out of the tooltip's way: at this
-  // size a tooltip covers the hole, and a total half-hidden behind a panel was
-  // the other half of the illegibility complaint.
-  const [hovered, setHovered] = useState(false);
+  // WHICH slice is hovered, not just whether one is — the centre readout, the
+  // ring's emphasis and the legend all read from this one number, so they cannot
+  // disagree about which bucket is the subject.
+  const [active, setActive] = useState<number | null>(null);
 
   const drawn: DrawnSlice[] = [
     ...slices.map((s, i) => ({ ...s, fill: seriesColor(i), isUnclassified: false })),
@@ -105,14 +135,36 @@ export default function ExposureDonut({
       : []),
   ];
 
+  // What the hole is showing: the total, or the slice under the pointer.
+  const focused = active === null ? null : drawn[active];
+
   if (drawn.length === 0) {
     return <p className="text-sm text-ink-300">No holdings to break down yet.</p>;
   }
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Ring and legend side by side, at every width the card is wide enough for
+          it — a shorter card is what lets two of these sit in the chart column of
+          a one-screen page, and the legend's ~260px is the price. They were
+          stacked for one pass, to stop longer sector names truncating; that made
+          each card ~430px tall, which two of them cannot fit under the section
+          tabs on a laptop, so the cards went back to their compact shape. */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-        <div className="relative h-44 w-44 shrink-0 self-center sm:self-auto">
+        {/* The leave is handled by the BOX rather than by each sector: moving
+            from one slice to the next fires a leave and then an enter, which at
+            best re-renders twice and at worst flickers between two states.
+            Entering a sector only ever sets a new index; leaving the box is the
+            one event that clears it. */}
+        <div
+          /* 176px, not 192: the two chart cards share a bounded column on a
+             one-screen page, and 16px off each ring is what lets the pair fit
+             a laptop without either card scrolling. The hole is 116px across at
+             this size — the figure that used to sit on the ring measures 78px —
+             and the hover's 6px of growth still lands inside the box. */
+          className="relative h-44 w-44 shrink-0 self-center sm:self-auto"
+          onMouseLeave={() => setActive(null)}
+        >
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
@@ -120,37 +172,57 @@ export default function ExposureDonut({
                 dataKey="valueSgd"
                 nameKey="label"
                 innerRadius="66%"
-                outerRadius="100%"
+                outerRadius="90%"
                 paddingAngle={1}
                 stroke="#121212"
                 strokeWidth={1}
                 isAnimationActive={false}
-                onMouseEnter={() => setHovered(true)}
-                onMouseLeave={() => setHovered(false)}
+                onMouseEnter={(_data: unknown, index: number) => setActive(index)}
+                shape={(shapeProps: PieSectorShapeProps) => (
+                  <EmphasisSlice {...shapeProps} focus={active} />
+                )}
               >
                 {drawn.map((slice) => (
                   <Cell key={slice.label} fill={slice.fill} />
                 ))}
               </Pie>
-              <Tooltip content={<DonutTooltip />} />
             </PieChart>
           </ResponsiveContainer>
-          {/* Centre label: the total, so the ring never floats unanchored —
-              and it yields to the tooltip rather than fighting it for the same
-              pixels. */}
-          <div
-            className={`pointer-events-none absolute inset-0 flex flex-col items-center justify-center transition-opacity motion-reduce:transition-none ${
-              hovered ? "opacity-0" : "opacity-100"
-            }`}
-          >
-            <span className="text-[10px] uppercase tracking-wide text-ink-500">{centerLabel}</span>
-            <span className="num text-xs text-ink-100">S${formatAmount(totalSgd)}</span>
+          {/* The hole: the total at rest, the hovered slice while the pointer is
+              on the ring. Three lines in ~127px of hole, so the name is allowed
+              to wrap to two and the figures stay on one — and `px-3` is what
+              keeps a long name off the inner edge of the ring rather than
+              letting it run underneath it. */}
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5 px-3 text-center">
+            {focused ? (
+              <>
+                <span className="text-[10px] uppercase leading-tight tracking-wide text-ink-300">
+                  {focused.label}
+                </span>
+                <span className="num text-xs text-ink-100">S${formatAmount(focused.valueSgd)}</span>
+                <span className="num text-[10px] text-ink-500">
+                  {(focused.weight * 100).toFixed(1)}%
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="text-[10px] uppercase tracking-wide text-ink-500">{centerLabel}</span>
+                <span className="num text-xs text-ink-100">S${formatAmount(totalSgd)}</span>
+              </>
+            )}
           </div>
         </div>
 
         <ul className="flex min-w-0 flex-1 flex-col gap-1.5">
-          {drawn.map((slice) => (
-            <li key={slice.label} className="flex items-center gap-2.5 text-xs">
+          {drawn.map((slice, i) => (
+            /* The legend dims with the ring: the same slice has to be the
+               subject in both, or the emphasis says two different things. */
+            <li
+              key={slice.label}
+              className={`flex items-center gap-2.5 text-xs transition-opacity motion-reduce:transition-none ${
+                active === null || active === i ? "" : "opacity-40"
+              }`}
+            >
               <span
                 aria-hidden
                 className="h-2.5 w-2.5 shrink-0 rounded-sm"

@@ -7,7 +7,7 @@
 > Machine-local operations live in the untracked `.freebuff/run.md`. Anything
 > below that contradicts those three is history.
 >
-> Last entry: Part 33, 2026-09-23.
+> Last entry: Part 38, 2026-09-25.
 
 Segmented so each part is independently verifiable and hand-offable. Work the
 parts in order; a part is DONE only when its checkpoint passes.
@@ -46,6 +46,15 @@ and confirm the branch's open pull request still reports **no conflicts** —
 `mergeable: true`, `mergeable_state: clean`. The four checks above must pass on
 the exact pushed code. Do not merge the PR yourself unless the owner asks: the
 checkpoint is "PR updated and mergeable", not "merged".
+
+**This step is automatic** (owner's standing instruction, 2026-09-25). Every
+change the owner asks for ends with these commits, a push and the pull request
+updated — not only the parts in this file, and not only when asked. The old "do
+not commit unless asked" gate is gone. Two exceptions, and the agent says which
+one it is taking when it reports back: the owner says otherwise for a particular
+change, or the change is not ready to land — checks failing, a question still
+open, or work deliberately left for the owner's review before it goes anywhere.
+Merging stays owner-driven.
 
 ## Pull-request workflow — required from 2026-09-22
 
@@ -120,6 +129,92 @@ and a procedure for reading a credential has no business in a repository.
 | 31 | Login asks for an account (three named ways in, the shared password while you wait); the ledger is renamed Transactions and every P/L figure in the history modal sits under its own label | **DONE** |
 | 32 | Notes become structured: the derived facts first (`Opened` / `Added · avg ↑↓` / `Partial sell (n of m)` / `Closed`), the owner's note appended after them instead of replacing them, and a wider Note column | **DONE** |
 | 33 | A DCA buy reads `DCA (month) · avg ↑` (a checkbox in the log form writes the marker); a search chip you can find; no Add-account button on Today; the watchlist explainer wraps in 2×2; the text pass on Returns & risk | **DONE** |
+| 34 | Holdings: one table per market, side by side (value over shares, price over average cost, P/L over its %), sliding when three do not fit; the exposure tag list compressed to two holdings a line | **DONE** |
+| 35 | Holdings, second pass: a `Portfolio %` column with the holding period under it, both figures of every paired cell sortable (the header's label changes to name the one in charge), and HK tucked under SG before the strip is resorted to | **DONE** |
+| 36 | Region flags back on the market headings, redrawn; a dot per sort level under the active header; exposure rearranged into charts left / tag list right, with the donut hover enlarging the sector and dimming the rest | **DONE** |
+| 37 | The donut's tooltip goes — the ring's centre becomes the readout — and the tag list's mobile rows go from four loose lines to two, with the type label against the ticker and the tag chip on the percentage's line | **DONE** |
+| 38 | Exposure fits one screen: the intro sentence goes (the ring's centre says "Holdings"), the tag list becomes a fixed-height panel scrolling under its pinned column labels, and the ring goes back to 176px so both chart cards fit the column | **DONE** |
+
+---
+
+## Resume checkpoint — 2026-09-25 (after Part 38)
+
+**State:** the parts listed DONE above, now through **Part 38** — a layout request
+from the owner that took three passes to land ("stack the values, could the
+regions share a page, and the tag list has too much empty space"), then a
+correction when the first pass was not the shape they meant. What it settled:
+
+- **Each market keeps its own table, and they sit side by side** on
+  `/positions/holdings`. Stacking the figures inside a cell is what made that
+  possible: five columns (ticker · value over shares · price over average cost ·
+  P/L over its percentage · portfolio share over the holding period) need a
+  measured floor of **~560px**, so three fit from a 1800px viewport; from 1220px
+  there are two columns, with **HK tucked under SG** rather than slid off the edge;
+  below that, one table per view with the strip's arrows. Measured at a 1296
+  viewport: panels of 600px, tables 583 / 599 / 599, `scrollWidth == clientWidth`
+  in all three, 0px of document overflow, arrows gone.
+- **A header sorts both of its figures.** The four paired columns cycle
+  `primary ↓ / primary ↑ / companion ↓ / companion ↑`, and the label swaps to name
+  the figure in charge (`Value` → `Shares`, `Price` → `Avg cost`, `P/L` → `P/L %`,
+  `Portfolio %` → `Held`). `Holding` has one state — ascending then descending by
+  ticker — because its companion is the instrument's name. Each table keeps its own
+  sort state: three answers to "which of these is biggest", not one answer
+  pretending to be three.
+- **The holding period got a column of its own.** It rode at the ticker line's
+  right end and read as a loose end ("looks unnatural"); the review's ask was to
+  pair it under a `Portfolio %` column — the share of the WHOLE portfolio, not of
+  the row's region, which was the alternative and did not survive the question.
+- **The headings are per market and in that market's money** — `US · 13 holdings ·
+  US$29,811.68`, `SG · 4 holdings · S$22,736.00`, `HK · 1 holding · HK$5,104.00` at
+  the time of this pass, and drifting with prices — with only the two figures above
+  the strip converted to SGD. The first pass had merged all three into one table
+  with a `Region` column and an SGD heading; the  owner's correction was that the regions have to read as blocks. Reversed in Part
+  35, which also gave the holding period a column of its own: the header cycles
+  BOTH figures of a paired cell and renames itself to say which one is ordering.
+- **The market headings carry their flags again**, redrawn (a hairline `ink-700`
+  edge, `crispEdges` on the US stripes, a 40% canton, and Hong Kong as a flower
+  rather than a disc that read as Japan's flag). The flag is a landmark beside the
+  region code, never a substitute for it, and never inside a table row.
+- **The active header shows where in its cycle the table is**: one dot per state,
+  the current one filled — four on a paired column, two on `Holding`, and none on
+  a header that is not sorting, because a column that is not sorting has no level.
+  The dots read the same `COLUMNS[].states` list a click advances through.
+- **Exposure is charts left, tag list right** from 1280px up (a 32rem chart column
+  and the rest for the list), with the donut legends stacking under their rings in
+  that narrower column. Below 1280 it is the page it was. The donut hover now
+  enlarges the sector by 6px and dims everything else to 0.35, legend included.
+- **Container queries are not available in this Tailwind build** — checked with
+  the CLI against the exact classes, since the tag list is now a narrow column and
+  `@container`/`@[35rem]:` would have been the honest tool. Its two-up threshold
+  is a viewport width (`min-[1820px]`) derived from the page's geometry instead,
+  and its comment says what it is coupled to.
+- **The donut's tooltip is gone.** A box tracking the pointer sat between the
+  pointer and the shape it described, and it covered the hole; the centre of the
+  ring now shows the hovered sector's name, value and share instead, reverting to
+  the total on leave. The per-slice holding count left the UI with the box.
+- **The tag list's phone layout was redone**: the type label sits against the
+  ticker instead of floating mid-row (it is `ml-auto` against a desktop column
+  that a phone does not have), and the tag chip rides the percentage's line, so a
+  holding is two lines instead of four.
+- **Exposure is one screen at `xl`.** The grid is `calc(100dvh - 13.5rem)` (the
+  chrome above it measured at 216px), the tag list is bounded and scrolls inside
+  its panel under pinned column labels, and the chart column is a column, not a
+  stack of fixed-height cards — a fixed height split between two cards is what
+  made one clip its caption mid-sentence. The page's opening sentence is gone;
+  "holdings only, never cash" is now the ring's centre label.
+- **The donut ring is 176px again** (192 for one pass), which is what lets both
+  chart cards share the column without either scrolling.
+- **`TagSelect` opens upward when there is no room below**, against the nearest
+  scroll container or the window — a fixed-height list clips a dropdown that only
+  ever opens downward, for its last rows.
+- **The exposure tag list now runs two holdings a line** from `xl` up, which
+  took the panel from **1120px to 656px** and the page from **1716px to 1252px**
+  at that width — Type folded onto the ticker's line to pay for the second
+  column, and the weight bar keeps whatever slack is left.
+
+What was settled by asking rather than assumed, and the measurements behind each
+number, are in the **Part 34** section at the end of this file. Nothing in this
+pass touched the ledger, the engine or the API — it is presentation.
 
 ---
 
@@ -3194,3 +3289,605 @@ document overflow.
 - **The four long notes still truncate** (Part 32's gap, unchanged).
 - **`DCA` is still a text convention**, so a mistyped marker is a
   mis-classification rather than a validation error.
+
+---
+
+## Part 34 — a table per market, and the exposure tag list's dead space (DONE)
+
+Three requests in one message: *"stack values vertically to aid comparison"*,
+*"could we possibly put multiple regions on the same page, since we reduce the
+number of columns"*, and *"the tag the holdings section under exposure also has
+too much empty space"*.
+
+**It took a correction, and the correction is the useful part.** The first pass
+read "multiple regions on the same page" as one table with a `Region` column:
+eleven columns of figures in eight, one sort, one set of totals in SGD. The
+owner's reply on seeing it: *"this is not quite what i imagined… i still want
+separate tables for each region, just placed side by side."* One table can HOLD
+three regions; it cannot show them as three blocks, and sorting it by value
+interleaves them — which is the comparison the page exists for. Same page, three
+tables, three headings.
+
+### The two questions the request left open, and how they were answered
+
+Asked before building, because both change what the page MEANS rather than how it
+looks:
+
+1. **Are the rows in one currency, or in three?** Chosen: **native per row, and
+   each region's heading total also native** — only the page's two headline figures
+   are converted to SGD, and the page says so. Adding HK$ to S$ to US$ is not a
+   number, and converting every row would put the FX rate's daily move into figures
+   that are supposed to describe the holding. `getOpenPositionsFor` already returns
+   both halves per row — native `totalHoldings`/`unrealizedPL` and SGD-converted
+   `…Converted` — so the region heading sums the native one and the stat row keeps
+   the converted one.
+2. **Does a stacked cell lose its second sort?** Chosen at the time: **yes, the
+   header sorts the primary and says so in its `title`.** `qty`, `avgCost` and
+   `unrealizedPLPct` lost their `GETTERS` entries; `value`, `price` and `P/L` kept
+   theirs. The alternative — a header that toggles between its two figures — was
+   rejected as more chrome than the ordering of a secondary figure is worth.
+   **That judgement was reversed in Part 35**, on the owner asking "is it possible
+   to sort by the secondary row in the table?": the toggle is back, and the chrome
+   it was rejected for is paid for by the header's own LABEL, which changes to name
+   the figure in charge (`Value` → `Shares`) rather than by an extra control.
+
+### The holdings page (`app/positions/holdings/page.tsx`, `components/PositionsTable.tsx`)
+
+Five columns, each cell a PAIR of figures — the number you compare on top, the one
+that explains it underneath, both right-aligned so the digits line up down the
+column — and that pairing is what makes five columns do the work of nine:
+
+| column | primary | beneath it |
+|---|---|---|
+| Holding | ticker | the instrument's name, capped at 9rem |
+| Value | total holdings, native | `245 shares` |
+| Price | current price, native | the average cost paid, unlabelled — both quantities, neither coloured |
+| P/L | unrealized P/L, native | its percentage |
+| Portfolio % | this holding's share of the whole portfolio | how long it has been held |
+
+**Both figures in a pair are sortable, and the header names the one in charge.**
+The four paired headers cycle `primary ↓ / primary ↑ / companion ↓ / companion ↑`
+and the LABEL changes with the state — `Value` becomes `Shares`, `Price` becomes
+`Avg cost`, `P/L` becomes `P/L %`, `Portfolio %` becomes `Held` — so one control
+per column answers "sort by the second row" without adding chrome. `Holding` has a
+single state pair (ticker asc, then desc): its companion is the instrument's NAME,
+reference text rather than a figure to rank by. The states live in one `COLUMNS`
+array (each with the label it shows), the getters in `GETTERS`, and `advance()`
+updates from the PREVIOUS state rather than the captured one, so two clicks in one
+tick advance twice instead of landing back where they started.
+
+The fifth column was spent on the holding period rather than the sparkline. The
+period had no home of its own and rode at the ticker's right end at `text-[10px]`,
+where it read as detached from the row's figures; paired under the portfolio share
+it is a fact about the position, sitting beside another one. The 30-day sparkline
+(and its batched `/api/sparklines` request) is the one thing that did not come
+back. `Portfolio %` is the share of the WHOLE portfolio — a region's own share is
+in its heading — because the cross-region share is what the side-by-side
+arrangement is for. An unpriced holding renders ONE `N/A` rather than stacking the
+word twice.
+
+**Layout is measured, not chosen.** The five-column floor is **~560px** at a 1296
+viewport (the figures alone are 269px, the ticker 156px, `Portfolio %` 66px, and
+the outer columns carry 12px of padding instead of the ledger's 8px). From that:
+
+| viewport | arrangement |
+|---|---|
+| ≥ 1800px | three tables, no arrows (the wrapper goes `contents`, three equal columns) |
+| 1220–1799px | two columns — US | SG with HK tucked underneath, no arrows |
+| < 1220px | one table per view, arrows slide the strip |
+
+The tuck is the owner's preference made concrete: show a market rather than hide it
+behind an arrow, and fall back to the strip only when two five-column tables no
+longer fit. It costs visible blank space, and the cost is stated rather than
+hidden — US is capped at 70vh while SG + HK come to a few hundred pixels, so at
+1296 the left panel measured **600×635** against the right column's **600×444**.
+One DOM serves all three arrangements: the wrapper around SG and HK is `contents`
+below 1220px (the track then sees US, SG, HK as siblings and snaps one at a time)
+and `contents` again from 1800px (three equal columns), and is a real box only
+between the two widths, which is exactly the tuck.
+
+The arrows are driven by `scrollWidth` vs `scrollLeft`, not by the breakpoint, so
+they vanish when everything fits and cannot offer a table that is already on
+screen. The strip is `tabIndex=0` with `role="group"` so the keyboard scrolls it,
+it snaps one panel at a time, and `prefers-reduced-motion` makes the slide a jump.
+Two helpers in `globals.css` carry the width rules: `.table-region` (drops the
+ledger's `min-w-[720px]`, which would otherwise make a third-width table scroll
+inside its own panel) and `.cell-pad-start` / `.cell-pad-end` (a real selector,
+because `.ledger-table td` at 0-1-1 outranks any padding utility — asked for as
+"more padding on the first and last entries", and the naive `pl-3` silently does
+nothing).
+
+The three region routes are gone; `/positions/us|sg|hk` and `/holdings/us|sg|hk`
+are config redirects to `/positions/holdings` — config rather than stub pages
+because only `redirects()` forwards the `?ticker=` query the command palette
+deep-links with. The region rules are listed BEFORE the generic
+`/holdings/:path*` rule so a bookmarked region URL is one hop, not two. The
+`?ticker=` link still lands correctly in all three arrangements: in the two- and
+three-column layouts everything is on screen, so only the row is centred; in the
+one-column strip the row's own table is slid into view first. Verified live at a
+1077 viewport: `?ticker=01810` scrolled the strip to the HK panel (`scrollLeft`
+2027, panel fully visible) with the Xiaomi row rendered highlighted. The tab strip is `Holdings · Exposure · Transactions` (one tab, a
+`Briefcase` icon, where three flags used to be), and the palette lost its
+`Positions · SG` / `Positions · HK` entries while keeping the region words as
+keywords.
+
+### The tag list (`components/SectorTagEditor.tsx`)
+
+Three earlier templates are the history here, all recorded in the file, because
+each looked reasonable in the code and wrong on the screen. An instrument column
+of `1fr` grew to ~690px so a row read `name …… S$19,061.00`. Capping it at 20rem
+fixed that but handed the `1fr` to the tag column, so every row ended with a chip
+and then several hundred pixels of nothing. Giving the slack to a **weight bar**
+fixed that and is still how the row is built — the list is ordered biggest
+holding first, and a length compares down a column where "30.7%" does not.
+
+What it did not fix is the HEIGHT: eighteen rows of one column each. So the list
+now runs **two holdings per line from `xl` up**, with the odd/even halves padded
+equally (20px each, a rule between them) so both halves are the same width and
+their figures line up. Type — one word in a 4rem column — moved onto the ticker's
+line at the instrument cell's right edge, which is what pays for the second
+column; the four tracks left are `instrument | value | weight | tag`.
+
+Measured at a 1235px content width (1314 viewport): the panel is **656px** where
+it was 1120px, and the page is **1252px** where it was 1716px — 464px off the
+page. Each half measured 597px wide with its own grid at 176 · 88 · 89 · 176, no
+document overflow, and the doubled label row appears only from `xl` (below that
+there is one column of rows and one label row, as before). The bar's track is
+`ink-700` rather than the `ink-800` the app's shorter bars use, because at this
+length an `ink-800` track is invisible against the panel and 18 gold ticks
+floating in nothing is the same void in a new place. On a phone the bar stays
+`w-24` beside the type instead of taking a line of its own, which would have
+added a line to all 18 rows on the layout that can least afford it.
+
+### Verification
+
+- `npx tsc --noEmit` clean, `npx eslint app components lib tests scripts` clean,
+  `npm test` **24 files / 404 tests** pass, `npx next build` clean. (`npm run
+  build` runs `prisma generate` first, which fails with `EPERM` on
+  `query_engine-windows.dll.node` while the dev server holds the generated
+  client open — an environment artefact of testing with the dev server up, not a
+  code problem. `npx next build` is the check to use while it is running.)
+- **Holdings, live.** Columns per table: `Holding · Value · Price · P/L ·
+  Portfolio %`. At a **1296** viewport (the tuck): the track is 1217px with two
+  children — US at 600×635 and the wrapper at 600×444 — tables 583 / 599 / 599,
+  `scrollWidth == clientWidth` in all three, 0px of document overflow, no arrows.
+  At **1962** (three across, the wrapper `contents`): three columns of 617 / 615 /
+  615, tables 600 / 615 / 615, still no arrows and no inner overflow. At **1780**,
+  just under the 1800 threshold: the tuck again, two columns of 842px, the tables
+  far above their floor. At **1077** (below 1220): the track sees three siblings of
+  998px, scrolls 2027px, arrows present with `prev` disabled until the deep link
+  slid it to HK.
+- **The sort cycle, live, on the US `Value` header.** `Value` (descending — VOO
+  first) → `Value` ascending (NOW first) → **`Shares`** descending (B, 75 shares) →
+  `Shares` ascending (VHT, 5 shares) → round again, the label following the state
+  each time. The tables do not share a sort: after sorting US, SG still read D05
+  first under its own `Value` header. `Portfolio %` keeps its label through its
+  first two states, as designed.
+- **Padding, measured:** first column `padding-left: 12px`, last column
+  `padding-right: 12px`, middle columns 8px — asked for as "a bit more padding on
+  the first and last entries", and delivered by selectors rather than utilities
+  because `.ledger-table td` outranks one.
+- **Phone (356px):** the document is 340/340 (no sideways drag), one panel per
+  view at 277px, each table scrolling 185–217px inside its own container — the
+  ledger's established phone behaviour, now with far less to scroll than 8 columns
+  needed.
+- **Tag list, live:** 18 rows in 9 lines from `xl`, two halves at x 53 and 650 with
+  identical grid templates, panel 656px (was 1120px), page 1252px (was 1716px),
+  0px of document overflow at 356 / 935 / 1314. One-up below `xl` (935: 18 rows,
+  bar 325px, one label row); at 356px the rows are the flex layout, 118px tall,
+  bar 48px, headers hidden as before.
+
+### Known gaps
+
+- **The tuck leaves the right column short.** At 1220–1799px SG + HK stack to a
+  few hundred pixels beside a US table capped at 70vh, so the page is as tall as
+  its tallest table and the second column ends in blank space. The owner's trade,
+  made knowingly: a visible market is worth the gap, and an arrow-click is worse.
+- **The 30-day sparkline left the holdings page**, and with it the batched
+  `/api/sparklines` request that page used to make. It is still on Today's largest
+  positions and the watchlist. This pass's fifth column went to the holding period
+  instead; a per-row sparkline would be a sixth, worth roughly 95px more of floor
+  (~655px), which pushes three-across past 2100px.
+- **Sorting is per table, by design.** There is no global sort: a `Region` column
+  is exactly what the side-by-side arrangement replaced. Nobody has asked for a
+  different market order than US, SG, HK.
+- **`Portfolio %` is the whole portfolio's share**, not the region's. A region's
+  own share is already in its heading, and the cross-region share is what the
+  arrangement is for; the other reading is one line in `GETTERS` if it is wanted.
+- **The phone still scrolls a region's table sideways** (185–217px at 356px), and
+  each region's table scrolls its own rows vertically at 70vh. A layout that fits
+  a phone would have to trade figures away, which is a decision not yet asked for.
+- **Unpriced rows** (some HK tickers) show `N/A` for P/L and are held at cost, as
+  before; a region's heading now says `N at cost` beside it, and the page's notice
+  still says the totals understate.
+
+---
+
+## Part 35 — the fifth column, a sortable second row, and HK tucked under SG (DONE)
+
+Three requests in one message, all of them about the holdings page's shape after
+Part 34 had shipped:
+
+> *"the held period looks unnatural, what if we add a portfolio % column and stack
+> it with holding period? also, if there is space under the sg table, can we try to
+> place the hk table under it first before resorting to the carousell? also, is it
+> possible to sort by the secondary row in the table?"*
+
+The first clause names a symptom and guesses a cure, which is worth separating:
+"unnatural" is not a complaint about the holding period, it is a complaint about
+where it sat. It rode at the ticker line's right end at `text-[10px]`, at the far
+side of the widest cell in the row from the figures it belongs to, so it read as
+loose text rather than a fact about the position. Putting it in a column of its own
+is the fix; pairing it UNDER something is what stops the column being one short
+string floating in whitespace, and `Portfolio %` is the natural partner — both are
+facts about the position rather than about its price.
+
+### The two questions asked before building, and the answers
+
+1. **What does the tuck replace?** Chosen: **arrows only below ~1215px, HK under
+   SG from there up.** The alternative read as "tuck only while HK fits beside" —
+   i.e. keep the strip whenever SG and HK do not both fit, which is the carousel
+   this request is trying to escape. As built, the tuck runs 1220–1799px and three
+   across from 1800px.
+2. **`Portfolio %` of what?** Chosen: **the whole portfolio.** The alternative —
+   the holding's share of its own region — is closer to the neighbouring figures,
+   which are all native to the region, but it answers a question the region's own
+   heading already answers, and the cross-region share is the one the side-by-side
+   arrangement exists to make visible.
+
+### What shipped
+
+In `components/PositionsTable.tsx`, the sort model was replaced outright. `GETTERS`
+now carries all nine keys (`qty`, `avgCost` and `unrealizedPLPct` came back), a new
+`COLUMNS` array holds each column's cycle of `{ key, dir, label }` states, and the
+header renders `COLUMNS` — `label={isActive ? sort.label : column.label}`. One
+click per state, four states per paired column, the label changing on the third
+click to name the figure that is now ordering the rows. `useSortable` is no longer
+used here (it is still used elsewhere). `advance()` updates from the previous
+state rather than the captured one, so two clicks in one tick advance twice
+instead of landing where they started.
+
+The layout is two Tailwind constants and one wrapper. `PANEL` is the panel's own
+geometry; `TUCK` is
+`contents min-[1220px]:flex … min-[1800px]:contents`, and the `contents` at both
+ends is the whole trick — below 1220px the track must see US, SG and HK as three
+siblings so it can snap one at a time, and at 1800px it must see three columns, so
+in both cases the wrapper stops generating a box and its children join the track's
+layout directly. Only between the two widths is it a real element: a column with
+SG above HK. The track's children are written out literally rather than mapped,
+because that DOM order is what all three arrangements depend on.
+
+The holding period left the ticker line, the `Holding` header lost its second
+state (its companion is the instrument's name), the P/L cell gave up
+`cell-pad-end` to the new last column, and the empty state's `colSpan` went from 4
+to 5. `TickerName`'s cap came in to `max-w-[9rem]` for the narrower cell, and the
+new cell is `PlainPercent` over `formatHoldingPeriod` in `text-xs text-ink-500`,
+the share neutral because a quantity is not a result (DESIGN.md §2).
+
+### Verification
+
+The measurements, the sort cycle as observed live, the breakpoint table and the
+tuck's accepted blank space are in **Part 34's** `### Verification` and
+`### Known gaps` above, which now describe the shipped shape — the two sections
+were rewritten in this pass rather than left to contradict each other.
+
+Docs touched: this file, `README.md`'s Positions paragraph, `docs/DESIGN.md` §5 (a
+new bullet on a sortable pair, the floor and `.table-region` updated to five
+columns) and §7 (the carousel bullet now says a tuck beats the carousel and states
+its price), and two stale "four columns" comments in `app/globals.css`.
+
+---
+
+## Part 36 — flags, sort dots, and the exposure page's two columns (DONE)
+
+Four requests in one message:
+
+> *"re-design and bring back the country flag svgs. add 4 dots under the header to
+> indicate which level of sort i am at (value descending is first, value ascending,
+> shares descending and then shares ascending) for exposure, put the donut graphs
+> on the left and the holdings table on the right. for the sector hovering
+> animation on the donut, i prefer more of a emphasize style (enlarge sector and
+> dim others)"*
+
+Rewritten before building (the re-prompt pass) because two of the four name the
+solution rather than the problem: "4 dots under the header" is a fix for a sort
+cycle that does not describe itself, and "bring back the flag svgs" is a fix for
+three markets whose headings no longer announce which market they are. Both were
+built as written, with two decisions taken first — flags on the region HEADINGS
+(not the tabs Part 34 removed), and the dots on the active header only.
+
+### The flags
+
+`components/RegionFlag.tsx` had been unused since Part 34 took the region tabs out,
+and it survived with the note that already answered this request: "for use beside a
+HEADER label — never inside a table, where it would just add visual noise to a
+dense row". The region headings are header labels, so the component went back, and
+it was redrawn on the way (four things, all of them about 16px):
+
+- a hairline edge in `ink-700`, the app's own border colour, because a light field
+  against a dark panel ended in a soft antialiased boundary and looked smudged;
+- `shapeRendering="crispEdges"` on the US stripes only — at ~1.6px each they were
+  blending into a pink-red mush, and the curves keep smooth rendering because
+  snapping a 2px circle to the pixel grid makes it a square;
+- the canton at 40% of the width, which is the real flag's ratio rather than the
+  45% the first draft used;
+- Hong Kong as a flower rather than a disc. A red field with a pale circle in the
+  middle is Japan's flag, which is what one circle read as; five petals around a
+  centre is the bauhinia, and it is distinguished by shape rather than by
+  remembered colour.
+
+### The sort dots
+
+`SortableTh` gained a `level` prop and `PositionsTable` passes it for whichever
+header is active, built from `COLUMNS[column].states` — the same array a click
+advances through, so the dots cannot drift from the cycle they describe. Four dots
+on a paired column, two on `Holding`, none on a header that is not sorting. The
+level is in the button's accessible name ("Value, level 2 of 4, ascending") and
+`aria-sort` went on the `<th>`; the dots themselves are `aria-hidden`, because the
+state must not be carried by four small filled circles.
+
+The cost is real and was accepted: the dot row is ~12px of sticky header on each
+table, and the tables are already capped at 70vh.
+
+### The exposure page
+
+The three donut panels now stack down the left in a 32rem column with the tag list
+beside them from 1280px up. 32rem is what the donut card needs on its own terms —
+a 192px ring plus its gap leaves the legend ~264px, which is a sector name and its
+two figures — and 1280 is where both columns can be honest at once: the list wants
+~560px of panel, the chart column wants 512, and the gutters make up the rest.
+Below 1280 the page is exactly what it was (two chart panels across the top, the
+list full width underneath).
+
+Two consequences, both measured rather than assumed:
+
+- **The tag list's two-up threshold moved from `xl` to `min-[1820px]`.** In the new
+  column the panel is `viewport - 607px`, and two rows side by side need 1208px, so
+  1820 is where the second column of holdings comes back (measured at a 1962
+  viewport: halves of 656px, rows 9 lines, panel 656px tall). On a 1440 laptop the
+  list is therefore 18 rows rather than 9, which is the price of the arrangement
+  the request asked for.
+- **The donut's ring and legend stack** from `xl`, because in a 470px card the
+  legend would otherwise have ~260px and every longer sector name would truncate.
+  Stacked, the legend reads as a narrow table across the whole card, and the chart
+  column grows into the height the tag list already had (the left column measured
+  870px against the list's 1142px, where unstacked it was 612px against 1142px).
+
+**Container queries are not available here, and that is worth recording.** The
+honest fix for a panel whose width no longer follows the viewport is
+`@container`, and Tailwind 3.4 is supposed to ship it — but in this tree neither
+`@container` nor `@[35rem]:grid` compiles to anything, verified by running the CLI
+against a probe file with those exact classes and getting `.flex` and `.gap-4`
+back and nothing else, and by `container-type` appearing nowhere in
+`node_modules/tailwindcss`. So the thresholds are viewport numbers with the
+arithmetic written next to them, and TEMPLATE's comment says which page geometry
+they are coupled to.
+
+### The hover
+
+Sectors grow by 6px under the pointer and everything else drops to 0.35 opacity,
+legend included, from one number in one component. Three details are structural:
+`Pie`'s `shape` is used to draw each sector (Recharts 3 deprecated `activeShape`
+in favour of `shape` + `isActive`), the ring is drawn at 90% of a 192px box so the
+growth has somewhere to go instead of being clipped by the SVG edge, and the
+pointer leaving the BOX is what clears the state — a per-sector `mouseleave` fires
+between two adjacent slices, which is a flicker between two states rather than
+none. `.donut-slice` carries the `fill-opacity` transition, off under
+`prefers-reduced-motion`, since a radius on a path cannot be eased.
+
+### Verification
+
+- `npx tsc --noEmit` clean, `npx eslint app components lib tests scripts` clean,
+  `npm test` **24 files / 404 tests**, `npx next build` clean.
+- **Live, holdings.** Three flags on the page (one per region heading). The US
+  `Value` header carried `aria-sort="descending"` and dots `F o o o`; a click gave
+  `Value, level 2 of 4, ascending` with the order flipped (NOW first), another gave
+  `Shares, level 3 of 4, descending` with `o o F o` (B first, 75 shares), and the
+  `Holding` header showed two dots and no `aria-sort` on the others. Every header
+  cell measured 49px tall.
+- **Live, exposure.** At a 1296 viewport: a 512px chart column beside a 689px tag
+  panel, both donuts stacked (444px and 410px) with the legend 470px wide, rows a
+  grid of `176 / 88 / 159 / 176 / 0` at 52px each, 0px of document overflow, page
+  1397px against 2115px for the stacked layout. At 1962: the list two-up (halves
+  656px). At 1077: the old arrangement exactly — two 491px chart panels side by
+  side with the ring and legend back in a row, the list full width beneath. At 356:
+  three panels at 277px, rows in the wrapping flex layout, no sideways drag.
+- **Live, hover.** Hovering slice 1 grew it to a 68px bounding box from 62px, set
+  the other five slices in that ring to `fill-opacity: 0.35` (the currency donut's
+  three were untouched, being a separate component with its own state), dimmed the
+  matching legend row, and faded the centre total; leaving the box restored all of
+  it.
+
+### Known gaps
+
+- **The tag list is one row per holding on most desktops** (see above). Two-up
+  returns at 1820px; the template itself is unchanged.
+- **The dots add height to every table's sticky header** (~12px), and they exist on
+  one header at a time — the other four columns keep the plain chevron.
+- **The flags are not the flags' colours.** They are muted palette tones by design,
+  which is the same rule the rest of the app follows; a reader looking for
+  saffron-and-blue will not find it.
+- **The hover does not work from the legend.** Pointing at a legend row dims
+  nothing and enlarges nothing; only the ring is a hover surface.
+- **The chart column's height is not balanced with the list.** The list is the
+  taller of the two at most widths, so a few hundred pixels of the left column are
+  empty below the currency card. Same class of trade as the holdings tuck.
+
+---
+
+## Part 37 — the donut's tooltip goes, and the tag list's phone rows (DONE)
+
+Three asks in one message:
+
+> *"the popup on hover feels unnatural, like its getting in the way. maybe do away
+> with the text box and just change the inner text on hover? also, on mobile, the
+> tagged holdings table looks very unorganised. the 'fund' and 'stock' labels look
+> out of place. maybe fix it, and put the tag inline with the percentage?"*
+
+### The readout moves into the ring
+
+`Tooltip` and `DonutTooltip` are gone from `ExposureDonut`. A panel that tracks the
+pointer sits between the pointer and the thing it describes, and at 192px of ring
+it covered the hole and both neighbouring sectors — the complaint was about the box,
+not about reading the numbers. Every figure the box carried was already in the
+legend, so the CENTRE of the ring became the readout: while the pointer is on a
+sector, the hole shows that sector's name (10px, allowed to wrap to two lines),
+its value, and its share, then reverts to the total on leave. Measured on the
+widest current label: 99px + 72px + 30px of text in a hole with 103px of usable
+width and ~127px of height, so the three lines fit with room to spare.
+
+The emphasis stays as it was (the sector grows 6px, everything else drops to 0.35,
+legend in step) and now there are three things reading one `active` number — ring,
+hole and legend — so none of them can disagree about which slice is the subject.
+
+**The one thing the box carried that the hole cannot fit is the per-slice holding
+count.** It left the UI with the tooltip; nothing else on the page shows it. If it
+is wanted back, the legend row is the place for it (the hole is ~103px of usable
+width and the count is another 12 characters).
+
+### The tag list's phone rows
+
+At 356px a holding read as four loose lines: the type label ("Fund", "Stock")
+floated in the middle of the first line, and the tag chip took a line of its own for
+about 90px of content. Both had the same cause — the row is a five-track GRID from
+`md` up and a wrapping FLEX row below it, and two of the grid's devices do nothing
+without the grid:
+
+- the type label is `ml-auto` inside an 11rem instrument COLUMN on a desktop, which
+  is what lines the labels up in their own column down the list; in a flex row with
+  no column to align to, it hung in the gap between the ticker and the value. Now it
+  is `md:ml-auto`, so on a phone it sits against the ticker (`S63 Stock`) — where
+  its alignment means nothing because there is nothing to align with.
+- the tag cell was `basis-full`, which guaranteed it its own line. In the flex row
+  it is now content-sized, so the chip rides the line the weight bar is already on —
+  which is also what the request asked for ("put the tag inline with the
+  percentage").
+
+Measured at a 420 viewport (a 262px row): the row is 94px tall — one line shorter
+than the 118px Part 34 recorded for the flex layout at a NARROWER 356 viewport — the
+type label sits 30px after the ticker instead of at the row's midpoint, and the
+chip's cell is 93px of content rather than the full width. Desktop is unchanged: the
+type is still at the right edge of its 11rem track and the chip still sits in its
+own 11rem column.
+
+### Verification
+
+- `npx tsc --noEmit` clean, `npx eslint app components lib tests scripts` clean,
+  `npm test` **24 files / 404 tests**, `npx next build` clean.
+- **Live, the readout.** No `.recharts-tooltip-wrapper` in the DOM any more.
+  Hovering a sector put `US Broad Market / S$9,043.82 / 14.6%` in the hole (its
+  label measured 99px inside a 103px usable width) and left the total in place for
+  every other sector; leaving the box restored `TOTAL / S$61,746.77`.
+- **Live, the phone.** At a 420 viewport a row is two-ish lines — ticker with its
+  type, then the bar with the percentage and the chip after it — and at 356 a long
+  tag (`Industrials & Defence`) still wraps to a line of its own, which is the one
+  case the request cannot have: the chip is wider than the space left beside the
+  percentage on that screen.
+
+### Known gaps
+
+- **The per-slice holding count has no home** (see above).
+- **A long tag still takes its own line on a phone**, for the reason above; the
+  chip is 12px type with its own padding and cannot shrink further without
+  disagreeing with every other chip in the app.
+- **The hole's readout is not reachable on touch**, where there is no hover — the
+  legend carries the same figures, so nothing is lost, but the emphasis and the
+  readout are a pointer affordance.
+
+---
+
+## Part 38 — exposure on one screen (DONE)
+
+One request, four instructions:
+
+> *"make the exposure tab sit on the page without scrolling. eliminate the
+> unnecessary sentence at the top. make the table a fixed size and scrollable. the
+> end result should be a grid-like layout on the screen, clean and
+> compartmentalised."*
+
+### The height arithmetic
+
+From `xl` the grid is `xl:h-[calc(100dvh-13.5rem)]`. `13.5rem` is 216px, which is
+the chrome above this page MEASURED at a 1296px width rather than guessed — the
+nav, the "Positions" label, the section tabs and the container's padding — and all
+four are width-independent, so one number holds across desktop widths. At a 900px
+window (an 821px viewport in the preview) the grid is 606px, starting 183px down
+and ending 33px above the bottom edge: `document.scrollHeight == innerHeight`,
+which is the whole point.
+
+### The sentence, and where its meaning went
+
+The first line of the page was *"Holdings only — 18 positions, S$61,759.05. Cash is
+excluded: it has no sector."* — the owner's "unnecessary sentence". It was doing two
+jobs: the scope (holdings, never cash) and a total that the ring already draws in
+its centre. The total was pure duplication; the scope mattered, so rather than
+dropping it the sector view's `centerLabel` became **`Holdings`** (the type view had
+said that since it was written). The ring now reads `HOLDINGS / S$61,759.05`, which
+is where a page of panels should state its scope: on the figure, not above it.
+
+### The table: fixed height, scrolling rows, pinned labels
+
+The right panel is `xl:min-h-0` with `overflow-hidden`, and `SectorTagEditor` fills
+it: its root is `xl:flex-1 xl:min-h-0` and the ROWS container is
+`xl:flex-1 xl:min-h-0 xl:overflow-y-auto`. The untagged bar, the column labels and
+the closing line stay outside that scroller, so a column of figures never loses its
+heading — the same reasoning as `.table-scroll`'s sticky `thead`, done with layout
+instead of `position: sticky`. Measured at the 900px window: rows area 404px of 941
+total, panel 606.
+
+Two consequences had to be handled, both of them created by the scroll container:
+
+- **The dropdown was clipped.** `TagSelect`'s option list is a child of its row, and
+a scroll container clips what hangs out of it, so the last rows' popups were cut
+off. It now measures the room below at open time — against the nearest
+`[data-tag-scroll]` ancestor, or the window when there is none — and opens upward
+when that is where the space is. Verified live: the last row opened a full ten-option
+list (148px) upward and stayed entirely inside the scroller; the first row still
+opens downward.
+- **The edited row wants to be visible.** Opening an editor scrolls its row to the
+centre of the panel (`block: "center"`, instant under `prefers-reduced-motion`),
+so a popup opening below it has the room it needs — guarded on the container
+actually scrolling, since below `xl` there is no such container and jumping the
+page would be noise. The last row cannot be centred (the scroller is already at its
+end), which the upward-opening popup covers.
+
+### The chart column
+
+The two chart cards keep their natural heights and the COLUMN scrolls as one unit
+(`xl:min-h-0 xl:flex-col xl:overflow-y-auto`) rather than each card being given
+half a fixed height. That was the first attempt and it was wrong for a visible
+reason: with rows of `1fr 1fr`, the currency card had 287px for 318px of content,
+so its last sentence was cut off at the card's own border — a broken-looking panel,
+worse than a scrollbar. As a column the cards come to 596px against 606 available
+at a 900px window, so nothing scrolls at all there, and the only case that scrolls
+is a window shorter than about 810px.
+
+The ring also went back to **176px** (192 since Part 36), which is worth 32px across
+the two cards and is the number DESIGN's sizing note already described: the hole is
+116px across and the centre readout's longest line measures 99px.
+
+### Verification
+
+- `npx tsc --noEmit` clean, `npx eslint app components lib tests scripts` clean,
+  `npm test` **24 files / 404 tests**, `npx next build` clean.
+- **Live, one screen.** At 1420×900 (viewport 821): grid 606px tall at y=183,
+  `scrollHeight == innerHeight == 821`. Chart cards 262 and 318, column content 596,
+  no scrollbar anywhere in the left column. Tag panel 606 with a 404px rows area and
+  941px of rows.
+- **Live, the dropdown.** With the rows scrolled to the end, the last row's editor
+  opened a 148px list upward, `listTop 522 / listBottom 670` inside a scroller of
+  `319 → 723` — fully inside. The first row's editor still opened downward.
+- **Live, below `xl`.** At a 1077px viewport the page is what it was: chart panels
+  side by side at y=183, grid 1486px tall, the page scrolling (1701px) and the rows
+  container NOT bounded (951 = 951).
+
+### Known gaps
+
+- **Under about 810px of viewport height the chart column scrolls** as one unit.
+  That is the fallback for a short window; the page still does not scroll.
+- **The chrome constant is a number, not a measurement.** `13.5rem` is right for
+  this page under the Positions tabs; moving the page under different chrome would
+  want it re-measured, which the comment beside it says.
+- **The two chart cards no longer have equal heights** (262 against 318), because
+  the column gives them their natural size. Equal heights was the first attempt and
+  lost to the caption clipping described above.
