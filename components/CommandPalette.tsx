@@ -37,9 +37,11 @@ const ACTIONS: Command[] = [
  */
 const PAGES: Command[] = [
   { id: "page-today", label: "Today", group: "Go to", href: "/", keywords: "home overview dashboard" },
-  { id: "page-positions", label: "Positions", group: "Go to", href: "/positions/us", keywords: "holdings open us" },
-  { id: "page-positions-sg", label: "Positions · SG", group: "Go to", href: "/positions/sg", keywords: "holdings singapore" },
-  { id: "page-positions-hk", label: "Positions · HK", group: "Go to", href: "/positions/hk", keywords: "holdings hong kong" },
+  // One entry, because there is one page. It used to be three — Positions, and
+  // a · SG and · HK beside it — and all three opened the same table with a
+  // different region filtered in. The region names stay as keywords, so typing
+  // "hk" or "singapore" still lands here rather than on nothing.
+  { id: "page-positions", label: "Positions", group: "Go to", href: "/positions/holdings", keywords: "holdings open positions us sg hk singapore hong kong" },
   { id: "page-transactions", label: "Transaction ledger", group: "Go to", href: "/positions/transactions", keywords: "transactions entries buy sell trades" },
   { id: "page-performance", label: "Performance", group: "Go to", href: "/performance", keywords: "returns risk sharpe volatility drawdown benchmark" },
   { id: "page-realized", label: "Realized trades", group: "Go to", href: "/performance/realized", keywords: "completed sold closed profit" },
@@ -137,8 +139,9 @@ export default function CommandPalette() {
       id: `ticker-${t.region}-${t.ticker}`,
       label: `${t.region} ${t.ticker}`,
       group: "Holdings",
-      // The region page highlights and scrolls to this ticker on arrival.
-      href: `/positions/${t.region.toLowerCase()}?ticker=${encodeURIComponent(t.ticker)}`,
+      // The holdings page highlights and scrolls to this ticker on arrival,
+      // whichever region it is in.
+      href: `/positions/holdings?ticker=${encodeURIComponent(t.ticker)}`,
       hint: t.name ?? undefined,
       keywords: `${t.ticker} ${t.region} ${t.name ?? ""}`.toLowerCase(),
     }));

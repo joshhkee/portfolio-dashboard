@@ -103,6 +103,35 @@
   .table-compact td {
     @apply px-2 text-xs;
   }
+  /* A ledger table that has to fit BESIDE its neighbours rather than fill the
+     page: the positions page draws one per market, up to three across. It has
+     five columns (a measured floor of ~560px), and the ledger's
+     `min-w-[720px]` is sized for the eleven-
+     column ledgers — inheriting it here would make each region's table wider
+     than the third of the page it is given, and the overflow would show up as
+     a scrollbar inside a panel that is supposed to be a comparison. Declared
+     after `.ledger-table` so it wins by source order inside this layer, the
+     same mechanism `.table-compact` relies on. */
+  .table-region {
+    @apply min-w-0;
+  }
+  /* Breathing room on the outer columns of a narrow table — the ledger's own
+     `px-2` leaves a name and a figure sitting against the table's edge, and
+     with a five-column table that edge is close to the panel's border.
+
+     This cannot be a `pl-3` utility on the cell: `.ledger-table td` carries a
+     class AND an element in its selector (0-1-1) and outranks a plain utility
+     (0-1-0) whatever the source order — the same hazard `.cell-wrap` and
+     `.cell-pin` document above. Hence a real selector in this layer, following
+     their naming. */
+  .ledger-table th.cell-pad-start,
+  .ledger-table td.cell-pad-start {
+    @apply pl-3;
+  }
+  .ledger-table th.cell-pad-end,
+  .ledger-table td.cell-pad-end {
+    @apply pr-3;
+  }
   .panel {
     @apply rounded-lg border border-ink-700 bg-ink-900;
   }
@@ -150,6 +179,26 @@
   @media (prefers-reduced-motion: reduce) {
     .swap-in {
       animation: none;
+    }
+  }
+  /* A donut sector, under the hover emphasis (see ExposureDonut). The opacity
+     is the half of the emphasis that CAN be eased: the growth is a radius on a
+     path, and there is no interpolating one of those — so the dimming carries
+     the motion and the size change lands with the pointer, which is where the
+     eye already is.
+
+     Written here rather than as a Tailwind transition because it is set on an
+     SVG element that Recharts re-renders from props: a `transition-*` utility
+     would have to be threaded through the shape renderer for every sector, and
+     `fill-opacity` is only reachable as a transitionable CSS property from a
+     rule like this one. `fill` needs no transition — it never changes on hover,
+     which is the point of emphasising by geometry. */
+  .donut-slice {
+    transition: fill-opacity 140ms ease-out;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .donut-slice {
+      transition: none;
     }
   }
   .stat-row {

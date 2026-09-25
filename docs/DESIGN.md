@@ -81,7 +81,10 @@ coloured.
   **gold** (`bg-accent/70`), not a `data.*` colour. That was corrected once and
   then reversed by the owner, who preferred gold. Do not "fix" it again; gold on
   the `ink-800` track measures ~7.5:1, so there is no accessibility argument
-  either.
+  either. One exception, for scale rather than colour: the exposure tag list's
+  weight bar spans the panel, and its track is `ink-700`, because at that length
+  an `ink-800` track is invisible against the panel and a gold tick floating in
+  nothing is not a chart. The fill is the same gold either way.
 - The value chart's dashed outlay reference line is `#5f5c57`: at `ink-500` it
   separated from the gold series by only 2.53:1 (below the 3:1 non-text floor),
   and this value gives 3.03:1 while still receding 2.81:1 against the page.
@@ -132,6 +135,20 @@ exists to catch, and it caught two.
   0px, because the chart and the largest-positions panel share a row and the chart
   takes the leftover height. Adding a tile to Today means removing something or
   re-measuring.
+- **So is Exposure**, by the same rule: from `xl` the grid is `calc(100dvh - 13.5rem)`
+  — the chrome above it (nav, the "Positions" label, the section tabs, the
+  container's padding) measured at 216px, none of which changes with the width — and
+  the only thing that scrolls is the panel that grows with the portfolio. A page of
+  panels should not be able to scroll the panels themselves off the screen.
+- **When a column has a fixed height, give it to the column, not the cards.**
+  Splitting the height between two chart cards made the second one clip its caption
+  mid-sentence at its own edge, which reads as a broken panel; letting the column
+  scroll as one unit keeps each card whole and costs a single scrollbar that only
+  appears on a window too short for both. Nothing inside a `.panel` should ever be
+  cut in half — a panel that clips its own last line is worse than a scrollbar.
+- **A panel that scrolls needs its own chrome pinned.** The tag list's rows scroll
+  under a fixed header row and above a fixed closing line, so the columns never
+  lose their headings; the same reasoning as `.table-scroll`'s sticky `thead`.
 - Density is a decision made at a measured width, not a preference: the page
   container, the table padding and the column budgets in §5 all came from
   overflow measurements at 1440, 1024 and 390px.
@@ -167,11 +184,55 @@ Almost every list in the app is `.ledger-table`. Its rules are load-bearing.
   inherits it too, to drop the ledger's `min-w-[720px]`.
 - **Abbreviate a header before you abandon a table.** `P/L (%)` and `Txn value`
   are fine when the full wording lives in `SortableTh`'s `title`.
+- **A cell can hold a PAIR of figures.** The holdings table stacks them: the
+  figure you compare on the row's text size, the one that explains it beneath at
+  `text-xs` in `ink-500`, both right-aligned so the digits line up. Value over
+  quantity, price over average cost, P/L over its percentage, portfolio share
+  over the holding period. Pairing figures this way took the holdings table from
+  eleven columns to eight, and that width is what put all three markets on one
+  page. A stack is not formatting: it is how a row carries more numbers than it
+  has columns.
+- **Both figures in a pair are sortable, and the header says which one is in
+  charge.** A stack is not a hierarchy, so the four paired headers cycle
+  `primary ↓ / primary ↑ / companion ↓ / companion ↑` and the LABEL changes with
+  the state — `Value` becomes `Shares`, `Price` becomes `Avg cost`, `P/L` becomes
+  `P/L %`, `Portfolio %` becomes `Held`. One control per column, no extra chrome,
+  and no way to look at a column and be unsure which of its two numbers produced
+  the order. `Holding` is the exception with a single state: its companion is the
+  instrument's NAME, reference text rather than a figure to rank by. The first
+  version of this table sorted the primary only and said so in the `title`, and
+  "can we sort by the secondary row?" is why the label swaps now.
+- **The sort level is drawn, not just implied.** A paired header carries one dot
+  per state in its cycle, with the current one filled — but only while it is the
+  column doing the ordering, because a column that is not sorting has no level to
+  be at. Dots on every header would be eleven groups of "level 1" reading as
+  texture, and they cost ~12px of sticky header on each table. The count is read
+  from the same `states` array a click advances through, so the dots cannot
+  disagree with the cycle; the level is also in the button's accessible name
+  ("Value, level 2 of 4, ascending") with `aria-sort` on the column, since the
+  dots themselves are decorative.
+- **A flag is a landmark, never a label.** Each market's heading carries a small
+  hand-drawn flag beside the region code. It is drawn as inline SVG rather than an
+  emoji, because Windows renders flag emoji as bare letter pairs, and in muted
+  palette colours rather than the flags' real saturation — nothing here is colour
+  for decoration, and the flag is a picture of the word already next to it. Never
+  inside a table row: at 16px, in a dense ledger, that is noise.
 - **A column's width comes out of another column's.** A table that must keep all
   its columns pays for a wider cell by dropping a lower-value one at a breakpoint:
   the ledger's Note column went from 11rem to 16rem, paid for by `Txn value`
   (`hidden min-[1400px]:table-cell`). The measured minimum for the full ledger is
   **1374px**; that is where the 1400 threshold comes from.
+- **A narrow table gets its own class, not a utility.** `.table-region` drops the
+  ledger's `min-w-[720px]` for the five-column tables that sit beside each other on
+  the positions page (ticker, value, price, P/L, portfolio % — measured floor
+  **~560px**: figures 269px, ticker 156px, `Portfolio %` 66px, plus 12px of outer
+  padding each side).
+  `.ledger-table` is class-only, so a `min-w-0` utility *might* win on source
+  order; declaring `.table-region` after it in the same layer is what makes it
+  certain, the same mechanism `.table-compact` uses. Cells at a table's outer
+  edges opt into extra padding with **`.cell-pad-start` / `.cell-pad-end`** —
+  those have to be real selectors because `.ledger-table td` (0-1-1) outranks any
+  padding utility, which is the third appearance of that hazard in this file.
 - Row hover is `bg-ink-800/50`; headers are sticky `ink-850` with
   `border-b border-ink-700`.
 
@@ -193,6 +254,25 @@ Almost every list in the app is `.ledger-table`. Its rules are load-bearing.
 - **Tooltips must sit above what the chart draws.** `.recharts-tooltip-wrapper`
   gets `z-20`, because Recharts renders its tooltip as an unpositioned sibling and
   a donut's centre figure was painting over its own tooltip.
+- **A donut has no tooltip.** It had one, and it was removed for being in the way:
+  a box that tracks the pointer sits between the pointer and the thing it
+  describes, and at this size it covered the hole and both neighbouring sectors.
+  Every figure it carried was already in the legend, so what replaced it is the
+  ring itself — while the pointer is on a sector, that sector's name, value and
+  share take over the CENTRE of the ring, and the total comes back when it leaves.
+  The one thing that left the UI with the box is the per-slice holding count,
+  which the hole has no room for.
+- **Hover emphasises by geometry, not by colour.** A donut sector grows by 6px
+  under the pointer and everything else drops to 0.35 opacity. Recolouring was
+  never available: colour on that page means which bucket a holding is in, and a
+  hover must not be able to restate it. Two consequences are structural rather
+  than stylistic — the ring is drawn at **90%** of its 176px box so the growth has
+  6px to expand into instead of being clipped flat by the edge of the SVG, and the
+  legend dims from the SAME number as the ring so the two cannot disagree about
+  which slice is the subject. The opacity carries the transition (a radius on a
+  path cannot be eased, and the size change lands where the pointer already is);
+  `prefers-reduced-motion` turns the fade off and leaves the emphasis itself,
+  which is state rather than motion.
 - **The sparkline is hand-rolled inline SVG with no animation.** It renders once
   per row (~18 of them), and mounting 18 chart instances with their own
   `ResizeObserver`s costs far more than a string of coordinates. Its trend is
@@ -220,10 +300,29 @@ Almost every list in the app is `.ledger-table`. Its rules are load-bearing.
   list, so each row keeps its flat index and scrolling looks it up by attribute.
 - **A disclosure beats a hover tooltip** (touch has no hover, and a tooltip cannot
   be re-read): `aria-expanded` on the trigger, content in the document.
+- **A popup has to know which way it opens.** `TagSelect`'s option list is a child
+  of its row, and a scroll container clips whatever hangs out of it — so once the
+  tag list became a fixed-height panel whose rows scroll, a dropdown that always
+  opened downward was cut off for the last rows. It now measures the room below
+  (against the nearest scrolling ancestor, or the window when there is none) and
+  opens upward when that is where the space is. Any absolutely-positioned popup
+  inside a bounded panel needs the same treatment.
 - **A set-once control should not look like a frequently-edited one.** Exposure
   tags rest as a bordered chip (pencil on hover) rather than a permanently empty
   input; untagged rows show a dotted-underline `+ Add a tag` with the classifier's
   draft. Enter or picking an option commits, Escape reverts, clicking away settles.
+- **A row of panels too wide for its container is a carousel, not a scrollbar —
+  and a tuck beats the carousel.** The positions page draws one table per market at
+  a floor of ~560px, so a strip of them slides: 3 across from 1800px, and from
+  1220px two columns with HK TUCKED UNDER SG rather than slid off the edge — show a
+  market if the width can be found for it, and hide it behind an arrow only when it
+  cannot (below 1220px). The tuck's price is visible and accepted: US is capped at
+  70vh while SG + HK come to a few hundred pixels, so the right column ends short.
+  The strip snaps one panel at a time. The arrows are derived from the scroll position rather than from the
+  breakpoint (`scrollWidth` vs `scrollLeft`), so they cannot claim there is
+  something to the right when there is not, and they disappear entirely when
+  everything fits. The strip is `tabIndex=0` with a group label so the keyboard can
+  scroll it natively, and `prefers-reduced-motion` turns the slide into a jump.
 - Below `lg`, the nav collapses into a disclosure panel that closes on navigation
   and on Escape; anything hidden from the bar (accounts, log out) reappears inside
   it, or it becomes unreachable on a phone.
@@ -291,6 +390,10 @@ Each of these was deliberate, and most were asked for. Do not silently undo one.
   `DCA`, and the form's checkbox writes it. A note that merely mentions a DCA
   elsewhere is not a marker.
 - Ledger notes truncate rather than grow the row; the note cell is `16rem`.
+- The exposure page's tag list shows one holding per row on most desktops.
+  Beside a 32rem column of charts its panel is ~1100px below a 1820px window and
+  two rows need 1208px, so the two-up layout is reachable only on a wide screen.
+  It is a threshold, not a broken template.
 
 ---
 

@@ -75,7 +75,7 @@ export default function TopPositions({
           Largest positions
         </p>
         <Link
-          href="/positions/us"
+          href="/positions/holdings"
           className="text-xs text-ink-500 transition hover:text-accent motion-reduce:transition-none"
         >
           All {totalCount}
@@ -93,9 +93,7 @@ export default function TopPositions({
             return (
               <li key={key}>
                 <Link
-                  href={`/positions/${row.region.toLowerCase()}?ticker=${encodeURIComponent(
-                    row.ticker
-                  )}`}
+                  href={`/positions/holdings?ticker=${encodeURIComponent(row.ticker)}`}
                   className="flex items-center gap-3 py-2 transition hover:text-accent motion-reduce:transition-none"
                 >
                   <span className="min-w-0 flex-1">

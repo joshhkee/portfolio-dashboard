@@ -147,8 +147,16 @@ points one way.
 - Ask before a decision that changes what the product *means* — what a word on
   screen denotes, what a page shows, whether access is a gate or a label. For
   reversible implementation detail, decide, and say what you decided.
-- Do not commit, push, open a pull request or merge one unless asked to. The
-  branch and pull-request workflow for this project is in `docs/PLAN.md`.
+- **Every change the owner asks for ends with a commit, a push, and the pull
+  request updated** — the standing instruction as of 2026-09-25. Run the four
+  checkpoint checks, then publish, without waiting to be asked. There are exactly
+  two exceptions, and the agent says which one it is taking when it reports back:
+  the owner says otherwise for a particular change, or the change is not ready to
+  land (checks failing, a question still open, or work deliberately left for the
+  owner's review before it goes anywhere).
+- **Merging is still never automatic.** The checkpoint is "pull request open or
+  updated and mergeable", and the owner decides when it lands. The branch and
+  pull-request workflow is in `docs/PLAN.md`.
 - When a batch of work lands, update `docs/PLAN.md`'s status table and its resume
   checkpoint. Durable rules belong in this file or `docs/DESIGN.md`, not only in
   the plan: the plan records what happened, these two say what still holds.

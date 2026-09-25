@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil } from "lucide-react";
 import { formatAmount } from "@/components/SignedNumber";
@@ -33,9 +33,33 @@ export interface TaggablePosition {
  * drift: instrument, value, weight, type, tag control, action.
  *
  * It is a FLEX row below `md` and a grid above it. Six columns on a phone is a
- * horizontal scrollbar for nothing, so there the tag control takes its own line
- * (`basis-full`) and the rest wrap; `flex-1`/`basis-full` have no meaning inside
- * a grid, which is what lets one element list carry both layouts.
+ * horizontal scrollbar for nothing, so there the cells wrap into two lines
+ * instead — ticker with its type label, and the value; then the weight bar with
+ * the tag chip after it. `flex-1` has no meaning inside a grid, which is what
+ * lets one element list carry both layouts.
+ *
+ * That mobile arrangement is the second pass. At 356px the row read as four
+ * loose lines per holding: the type label floated in the middle of the first
+ * line, because it is `ml-auto` inside an 11rem COLUMN on a desktop and a phone
+ * has no column for it to align to, so it hung in the gap between the ticker and
+ * the value; and the tag chip took a line of its own for ~90px of content. Now
+ * the type sits against the ticker, where its alignment means nothing because
+ * there is nothing to align with, and the chip rides the line the weight bar is
+ * already on. Two lines per holding, each one a pair that belongs together.
+ *
+ * The TWO-UP threshold is `min-[1820px]` rather than `xl`, and that is not
+ * taste — it is the exposure page's geometry. From 1280px up this list sits in
+ * the right-hand column, beside a 32rem column of donuts, so its own width is
+ * `viewport - 607px` (32rem + the 1rem gutter + the page's 2rem of padding per
+ * side). Two holdings per line need 1208px of panel — two 560px templates plus
+ * the 20px rule and padding between them — and `viewport - 607 = 1208` lands at
+ * 1815px. A viewport breakpoint standing in for a container measurement is a
+ * compromise (the honest tool would be a container query, which this Tailwind
+ * build does not emit: `@container`/`@[35rem]:` compile to nothing here, checked
+ * with the CLI against these exact classes). What it costs is a dependency: if
+ * the exposure page's columns change width, this number has to move with them.
+ * What it buys is not squeezing each half to 300px at a 1280px window, which is
+ * what the old `xl:` did the moment the list stopped spanning the page.
  *
  * There is no selection column any more. Tagging used to be batched by ticking
  * rows, which cost a leading 1.5rem column plus a toolbar of Select all /
@@ -43,19 +67,52 @@ export interface TaggablePosition {
  * whose whole point is that you set each one once. The only batch left is
  * accepting the classifier's drafts, which is one button.
  *
- * The instrument column is CAPPED, and the tag column takes the slack, because
- * the alternative is what the table did before: an instrument column of `1fr`
- * in a 1230px panel grew to ~690px, so a row read "name ……… S$19,061.00" with
- * a hand-span of empty space between the two. Capping the name and letting the
- * tag column absorb the remainder keeps the figures next to their instrument
- * and moves the leftover room to the one cell whose contents are of variable
- * width.
+ * Three earlier versions of this template are worth knowing about, because all
+ * three looked reasonable in the code and wrong on the screen. First the
+ * instrument column was `1fr`: in a 1230px panel it grew to ~690px, so a row read
+ * "name ……… S$19,061.00" with a hand-span of empty space between the two.
+ * Capping it at 20rem fixed that, but it moved the void to the END of the row —
+ * the tag column had the `1fr`, so every row finished with a chip and then
+ * several hundred pixels of nothing.
+ *
+ * The slack went to the WEIGHT column then, where it is spent on something: the
+ * list is ordered biggest holding first, and a bar compares down a column in a
+ * way that "30.7%" does not. The instrument cap came down with it (20rem ->
+ * 11rem), because the cap's job is only to stop a long name setting the column,
+ * and this row is now half a panel wide rather than all of it.
+ *
+ * The third change is the row itself: TWO holdings per line on a wide screen
+ * (see the rows container in the component), because eighteen one-per-line rows were
+ * spending the panel's full width on a bar and its height on nothing. Type moved
+ * out of its own column and onto the ticker's line to pay for it — it was a
+ * single word in a 4rem column, and it still costs no line of its own there.
+ *
+ * The tag column is a fixed 11rem for the same reason it used to be `1fr`: the
+ * rows are separate grids, so a content-sized column would start each chip at a
+ * different x and the column would stop reading as a column. A fixed width also
+ * bounds the tag cell, which is what keeps the chip off the action column — and
+ * the action column is `auto`, not a fixed 4.5rem, because it holds a Save
+ * button that only exists on a row being edited. Reserving width for a control
+ * that is absent is the same void in a new place; it is the LAST column, so
+ * letting it size to nothing cannot misalign anything before it.
+ *
+ * Gold for the bar is the app's proportion colour, not a highlight — see
+ * docs/DESIGN.md §2, where the holding-value and outlay bars are the same gold
+ * on the same track.
+ *
+ * The five tracks want **560px** before a row can be a grid at all: 11rem
+ * instrument, 5.5rem value, a 1fr weight column that needs about 7rem once the
+ * bar and its figure are inside it, 11rem tag, and 12px between each. `md`
+ * (768px) is comfortably below that whenever the panel spans the page, which is
+ * the arrangement it was written for — and in the exposure page's right-hand
+ * column the panel is ~660px at its narrowest, which is still over the line.
  */
-const ROW =
-  "flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-ink-700 py-2.5 md:grid md:grid-cols-[minmax(0,20rem)_5.5rem_3rem_4rem_minmax(0,1fr)_5rem]";
+const TEMPLATE =
+  "md:grid-cols-[minmax(0,11rem)_5.5rem_minmax(4rem,1fr)_11rem_minmax(0,auto)]";
 
-const HEAD =
-  "hidden md:grid md:grid-cols-[minmax(0,20rem)_5.5rem_3rem_4rem_minmax(0,1fr)_5rem] md:gap-x-3 md:border-b md:border-ink-700 md:pb-1.5";
+const ROW = `flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-ink-700 py-2.5 md:grid ${TEMPLATE}`;
+
+const HEAD = `gap-x-3 border-b border-ink-700 pb-1.5 ${TEMPLATE}`;
 
 /** "EQUITY" is not a word anyone says out loud; an unreported type stays a
  *  dash rather than being called a stock by default. */
@@ -118,6 +175,30 @@ export default function SectorTagEditor({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const rowRefs = useRef<Record<string, HTMLFormElement | null>>({});
+
+  /**
+   * Bring the row being edited into the middle of the list.
+   *
+   * From `xl` the rows scroll inside their panel (the exposure page gives that
+   * panel a fixed height so the page itself does not scroll), and the tag
+   * dropdown opens BELOW its row — so opening an editor near the bottom of the
+   * scroll area would put most of the popup outside it, where a scroll container
+   * clips it. Centring the row first leaves a popup's height of room under it.
+   *
+   * Guarded on the container actually scrolling: below `xl` there is no such
+   * container, and jumping the page to centre a row the reader has just tapped
+   * would be noise.
+   */
+  useEffect(() => {
+    if (!editingId) return;
+    const node = rowRefs.current[editingId];
+    const scroller = node?.closest<HTMLElement>("[data-tag-scroll]");
+    if (!node || !scroller) return;
+    if (scroller.scrollHeight <= scroller.clientHeight + 2) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    node.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
+  }, [editingId]);
 
   // The vocabulary first, then any tag already in use that is not in it. Legacy
   // free text keeps rendering AND stays pickable, so a tag the owner invented
@@ -209,7 +290,11 @@ export default function SectorTagEditor({
   const suggestedRows = untagged.filter((p) => !!p.suggested);
 
   return (
-    <div className="flex flex-col gap-3">
+    /* `xl:flex-1 min-h-0` is the page's contract with this component: the
+       exposure page hands the panel a fixed height from `xl` up, and this list
+       fills what is left of it after its own chrome. Below that it is an
+       ordinary block, sized by its rows, and the page scrolls. */
+    <div className="flex flex-col gap-3 xl:min-h-0 xl:flex-1">
       {/* One line, and one action: how much is left to tag, and the offer to
           take the classifier's drafts. Everything else this bar used to hold
           was batch-selection machinery. */}
@@ -231,17 +316,47 @@ export default function SectorTagEditor({
         )}
       </div>
 
-      <div className={HEAD}>
-        <span className="text-[10px] uppercase tracking-wide text-ink-500">Instrument</span>
-        <span className="text-right text-[10px] uppercase tracking-wide text-ink-500">Value</span>
-        <span className="text-right text-[10px] uppercase tracking-wide text-ink-500">Wt</span>
-        <span className="text-[10px] uppercase tracking-wide text-ink-500">Type</span>
-        <span className="text-[10px] uppercase tracking-wide text-ink-500">Exposure</span>
-        <span />
+      {/* Two label rows once there are two rows of holdings per line: each half
+          is a self-contained grid with the same template, so repeating the
+          labels over each half is what keeps them aligned with their own
+          figures. Narrower than two-up, the second set is hidden and the first
+          spans the panel, matching the single column of rows. */}
+      <div className="hidden md:grid md:grid-cols-1 min-[1820px]:grid-cols-2">
+        <div className={`grid ${HEAD} min-[1820px]:pr-5`}>
+          <span className="text-[10px] uppercase tracking-wide text-ink-500">Instrument</span>
+          <span className="text-right text-[10px] uppercase tracking-wide text-ink-500">Value</span>
+          <span className="text-[10px] uppercase tracking-wide text-ink-500">Weight</span>
+          <span className="text-[10px] uppercase tracking-wide text-ink-500">Exposure</span>
+          <span />
+        </div>
+        <div
+          aria-hidden
+          className={`hidden min-[1820px]:grid min-[1820px]:border-l min-[1820px]:border-ink-700/50 min-[1820px]:pl-5 ${HEAD}`}
+        >
+          <span className="text-[10px] uppercase tracking-wide text-ink-500">Instrument</span>
+          <span className="text-right text-[10px] uppercase tracking-wide text-ink-500">Value</span>
+          <span className="text-[10px] uppercase tracking-wide text-ink-500">Weight</span>
+          <span className="text-[10px] uppercase tracking-wide text-ink-500">Exposure</span>
+          <span />
+        </div>
       </div>
 
-      <div className="flex flex-col">
-        {positions.map((position) => {
+      {/* Two per line on a wide screen (the `1820` in TEMPLATE's note above is
+          why): the odd/even classes split each visual line
+          down the middle and draw the rule between the halves, so the panel
+          halves its height without the two rows reading as one wide row. The
+          odd/even padding is equal (20px each), which is what keeps the two
+          halves the same width — and therefore their figures in line. */}
+      {/* The one thing on this page that grows with the portfolio, so it is the
+          one thing that scrolls: bounded by the panel from `xl`, and scrolling
+          under its own label row, which stays put so a column of figures never
+          loses the heading above it. `data-tag-scroll` is what the row-centring
+          effect above looks for. */}
+      <div
+        data-tag-scroll=""
+        className="flex flex-col min-[1820px]:grid min-[1820px]:grid-cols-2 xl:min-h-0 xl:flex-1 xl:overflow-y-auto"
+      >
+        {positions.map((position, index) => {
           const id = key(position);
           const draft = value[id] ?? "";
           const isSaved = (saved[id] ?? "").trim();
@@ -250,15 +365,34 @@ export default function SectorTagEditor({
           return (
             <form
               key={id}
+              ref={(el) => {
+                rowRefs.current[id] = el;
+              }}
               onSubmit={(e) => {
                 e.preventDefault();
                 commit(position, draft);
               }}
-              className={ROW}
+              className={`${ROW} ${
+                index % 2 === 0
+                  ? "min-[1820px]:pr-5"
+                  : "min-[1820px]:border-l min-[1820px]:border-ink-700/50 min-[1820px]:pl-5"
+              }`}
             >
               <span className="min-w-[7rem] flex-1 md:min-w-0">
-                <span className="num block truncate text-xs text-ink-100" title={position.ticker}>
-                  {position.ticker}
+                {/* Type rides the ticker's line rather than holding a column: one
+                    word ("Stock", "Fund", or a dash when the lookup said nothing)
+                    against the right edge of the instrument cell, in the same
+                    10px ink-500 the retired Type column used. */}
+                <span className="flex items-baseline gap-2">
+                  <span className="num block truncate text-xs text-ink-100" title={position.ticker}>
+                    {position.ticker}
+                  </span>
+                  <span
+                    className="shrink-0 text-[10px] text-ink-500 md:ml-auto"
+                    title={position.instrumentType ?? "type not reported by the lookup"}
+                  >
+                    {typeLabel(position.instrumentType)}
+                  </span>
                 </span>
                 <span
                   className="block truncate text-[10px] text-ink-500"
@@ -272,18 +406,39 @@ export default function SectorTagEditor({
                 S${formatAmount(position.valueSgd)}
               </span>
 
-              <span
-                className="num w-10 shrink-0 text-right text-xs text-ink-500 md:w-auto"
-                title={`${(weight * 100).toFixed(2)}% of holdings value`}
-              >
-                {(weight * 100).toFixed(1)}%
-              </span>
+              {/* The weight as a length and as a figure. The bar is the cell
+                  that takes the panel's leftover width, so the room that used
+                  to sit empty after a chip is now the one thing on the page
+                  that ranks the holdings against each other. The number keeps
+                  its exact place at the bar's end, so a bar too short to read
+                  still has its value beside it. No color coding: a share of
+                  the portfolio is a quantity, not a result (docs/DESIGN.md §2).
 
-              <span
-                className="w-16 shrink-0 text-[10px] text-ink-500 md:w-auto"
-                title={position.instrumentType ?? "type not reported by the lookup"}
-              >
-                {typeLabel(position.instrumentType)}
+                  The track is `ink-700` rather than the `ink-800` the shorter
+                  bars in this app use (RiskPanel, AllocationCards,
+                  ContributionAttribution). Those sit beside their label at a
+                  fixed few-rem width, so the label supplies the scale; this one
+                  is the width of the panel, and at `ink-800` it was invisible
+                  against the panel — 18 rows of a gold tick floating in
+                  nothing, which is the empty space this pass set out to use.
+
+                  `w-24` on a phone and `w-auto` (i.e. the grid track) once the
+                  row is a grid: full width there would have pushed Type onto a
+                  line of its own, one extra line per row on the one layout that
+                  can least afford it, so the bar shares that line instead. */}
+              <span className="flex w-24 shrink-0 items-center gap-2 md:w-auto">
+                <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-ink-700">
+                  <span
+                    className="block h-full rounded-full bg-accent/70"
+                    style={{ width: `${Math.min(Math.max(weight, 0), 1) * 100}%` }}
+                  />
+                </span>
+                <span
+                  className="num w-10 shrink-0 text-right text-xs text-ink-500"
+                  title={`${(weight * 100).toFixed(2)}% of holdings value`}
+                >
+                  {(weight * 100).toFixed(1)}%
+                </span>
               </span>
 
               {/* Three resting states, and the point of all three is that a
@@ -292,7 +447,7 @@ export default function SectorTagEditor({
                   editor you opened deliberately. There is no permanently
                   visible dark input box, because a box implies something you
                   are expected to keep changing. */}
-              <span className="flex min-w-0 basis-full flex-col gap-1 md:basis-auto">
+              <span className="flex min-w-0 flex-col gap-1">
                 {editingId === id ? (
                   <TagSelect
                     autoFocus
@@ -309,6 +464,11 @@ export default function SectorTagEditor({
                     }}
                     onBlur={() => settle(position, id)}
                     busy={busy === id}
+                    /* Five options rather than eight: the popup has to fit under
+                       a row inside a bounded list, and a scroll container
+                       clips what hangs out of it. The rest are a scroll away,
+                       in a list that was already scrollable. */
+                    maxVisible={5}
                     ariaLabel={`Exposure tag for ${position.ticker}`}
                     placeholder="Pick or type a tag…"
                   />

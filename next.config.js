@@ -5,8 +5,8 @@
  * Money, Watchlist), and every URL that used to name a REPORT now resolves to
  * the object that owns it. These live in the config rather than as stub pages
  * because only the config can forward a path SUFFIX: `/holdings/us?ticker=D05`
- * has to arrive at `/positions/us?ticker=D05`, which a redirect page cannot do
- * without hand-parsing the query.
+ * has to arrive at `/positions/holdings?ticker=D05`, which a redirect page
+ * cannot do without hand-parsing the query.
  *
  * `permanent: false` on purpose — these are a convenience for bookmarks and
  * muscle memory, not a contract, and a 308 would make a later rename stick in
@@ -29,9 +29,26 @@ const nextConfig = {
       // Next matches these top to bottom.
       { source: "/holdings/cash", destination: "/money/cash", permanent: false },
       { source: "/cash", destination: "/money/cash", permanent: false },
-      // Holdings -> Positions. The bare path opens on the US tab, exactly as
-      // the old index page did.
-      { source: "/holdings", destination: "/positions/us", permanent: false },
+      // Holdings -> the holdings page. The bare path used to open on the US tab,
+      // which made the section look region-first; there is one table now,
+      // covering all three markets.
+      { source: "/holdings", destination: "/positions/holdings", permanent: false },
+      // The three region pages collapsed into one. These forward rather than
+      // 404 because `/positions/us?ticker=D05` is how the command palette
+      // deep-links a holding, and the query string has to survive — the same
+      // reason the rules in this file are config rather than pages. Listed
+      // before the generic rule below, or a bookmarked region URL would take
+      // two hops through a page that no longer exists.
+      {
+        source: "/holdings/:region(us|sg|hk)",
+        destination: "/positions/holdings",
+        permanent: false,
+      },
+      {
+        source: "/positions/:region(us|sg|hk)",
+        destination: "/positions/holdings",
+        permanent: false,
+      },
       { source: "/holdings/:path*", destination: "/positions/:path*", permanent: false },
       // The two lenses, which used to be top-level peers of the objects they
       // are a view of.
