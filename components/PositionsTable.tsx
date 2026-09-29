@@ -626,7 +626,7 @@ export default function PositionsTable({
           shorter table. */}
       <div className="page-bar">
         <dl className="stat-strip">
-          <div className="flex items-baseline gap-2">
+          <div className="stat">
             <dt title={`US and HK holdings converted to ${displayCurrency} at today's rate; each region's own total stays in its market's currency.`}>
               Total holdings ({displayCurrency})
             </dt>
@@ -635,7 +635,7 @@ export default function PositionsTable({
               {formatAmount(totalValueConverted)}
             </dd>
           </div>
-          <div className="flex items-baseline gap-2">
+          <div className="stat">
             <dt title={`Unrealized P/L converted to ${displayCurrency} at today's rate.${anyPriceUnavailable ? " Rows with no live quote are held at cost, so this understates the real figure." : ""}`}>
               Unrealized P/L ({displayCurrency})
             </dt>

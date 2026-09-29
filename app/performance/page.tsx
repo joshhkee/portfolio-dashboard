@@ -202,15 +202,20 @@ export default async function PerformancePage() {
         </p>
       </div>
 
-      {/* Seven slides, one subject each (see PerformanceViews). This used to be
+      {/* Six slides, one subject each (see PerformanceViews). This used to be
           three slides holding seven panels — a value chart and a drawdown curve
           and an index comparison stacked in one, then a concentration panel
           beside a risk-adjusted panel above a correlation matrix — so the
           figures you came for sat below the fold of a panel that is meant to be
           read in one look, and reading them meant scrolling inside a sub-tab.
-          Splitting by subject is what removes the scroll rather than moving it;
-          the seventh slide is the second half of the risk pair, which needed
-          63px more than a 1024×600 panel-body had (see RiskPanel).
+          Splitting by subject is what removes the scroll rather than moving it.
+          Value and drawdown are the two exceptions to "one subject": they are
+          the same days drawn twice — the level and the dips from its peak — and
+          putting them one above the other is the comparison they exist for, so
+          they share a slide rather than forcing a tab switch between two views
+          of the same window. The risk pair still has two slides of its own;
+          together they needed 63px more than a 1024×600 panel-body had (see
+          RiskPanel).
 
           Everything below is computed on the server and handed over as props:
           this page's arithmetic is unchanged, only its arrangement.
@@ -261,7 +266,9 @@ export default async function PerformancePage() {
  *
  * A `dt`/`dd` pair inside the page bar's `<dl class="stat-strip">`, so the
  * label and the figure are associated for a screen reader instead of being two
- * paragraphs that happen to sit together.
+ * paragraphs that happen to sit together. The layout — label over value on a
+ * phone, beside it on a desktop — is the shared `.stat` rule, not this
+ * component's business.
  */
 function Stat({
   label,
@@ -275,7 +282,7 @@ function Stat({
   title?: string;
 }) {
   return (
-    <div className="flex items-baseline gap-2" title={title}>
+    <div className="stat" title={title}>
       <dt>{label}</dt>
       <dd
         className={

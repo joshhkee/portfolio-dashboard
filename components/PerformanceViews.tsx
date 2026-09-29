@@ -12,7 +12,7 @@ import YearlyReturnsTable from "@/components/YearlyReturnsTable";
 import { RANGE_KEYS, filterByRange, type PerfPoint, type RangeKey, type YearReturn } from "@/lib/performance";
 
 /**
- * Returns and risk, as six single-subject slides.
+ * Returns and risk, as six slides.
  *
  * This was three slides holding seven panels between them — a value chart and a
  * drawdown curve and an index comparison stacked in one, a concentration panel
@@ -25,24 +25,29 @@ import { RANGE_KEYS, filterByRange, type PerfPoint, type RangeKey, type YearRetu
  * So the split is by SUBJECT, one per slide, and the test for a new panel is
  * whether it answers the same question as the panel beside it:
  *
- *   Value            what it is worth, against what you put in
- *   Drawdown         how far below its previous high it has sat
- *   vs index         the same window, measured against an index
- *   Concentration    how much sits in how few names
- *   Risk-adjusted    what the swings bought (volatility, Sharpe, the trailing year)
- *   Correlation      whether those names move together
- *   Calendar years   the year-by-year record
+ *   Value & drawdown  what it is worth, and the dips from each high — the same
+ *                     window drawn twice, stacked so the two lines can be read
+ *                     against each other instead of one tab apart
+ *   vs index          the same window, measured against an index
+ *   Concentration     how much sits in how few names
+ *   Risk-adjusted     what the swings bought (volatility, Sharpe, the trailing year)
+ *   Correlation       whether those names move together
+ *   Calendar years    the year-by-year record
  *
- * Seven, not six: the two risk halves were one slide with two cards until the
- * pair proved 63px taller than a 1024×600 panel-body, which is the same failure
- * (a slide taller than its box) that split the original three-routes-into-one
- * deck in the first place. See `RiskPanel.panel`.
+ * Value and drawdown are the deliberate exception to one-subject-per-slide:
+ * they are not two subjects, they are one window seen two ways, and separating
+ * them cost the comparison the range selector exists to enable — you could ask
+ * for the last year and then have to hold the shape of one curve in your head
+ * while the other drew. Stacked, the second is read against the first. The two
+ * RISK halves stay split, because the pair needed 63px more than a 1024×600
+ * panel-body had (`RiskPanel.panel`) — the same failure, but there the two
+ * panels genuinely answer different questions.
  *
- * Three of those are the same chart with a different window, which is why the
+ * Three slides are the same chart with a different window, which is why the
  * range selector lives in the deck's HEAD (via `actions`) rather than at the top
  * of each chart: it is one control driving the window those three share, it is
- * not asked for on the other three, and the answer must not reset when you step
- * from the value line to the drawdown of the same days.
+ * not asked for on the others, and the answer must not reset when you step from
+ * the value line to the index comparison of the same days.
  *
  * The range state is here, above the deck, for that reason — the charts are
  * separate slides, so nothing below can hold it.
@@ -91,22 +96,23 @@ export default function PerformanceViews({
 
   const slides: Slide[] = [
     {
-      label: "Value",
-      hint: "What it is worth, and what you put in",
+      label: "Value & drawdown",
+      hint: "What it is worth, above how far below its peak it has sat",
       actions: rangeControl,
       content: (
-        <div className="flex h-full min-h-0 flex-col p-4">
+        // One slide, two plots, stacked. They are the SAME window drawn twice —
+        // the level and the fall from each high — so the question they answer
+        // together ("am I below where I was, and how much of the gain did that
+        // give back") is a glance rather than a tab switch. `fill` on both is
+        // what splits the slide's height between them; the divider says where
+        // one plot ends and the next begins without spending a panel on it.
+        // Below `lg` the shell hands out no heights, so each chart falls back
+        // to its own fixed height (224px / 140px) and stacks in the flow.
+        <div className="flex h-full min-h-0 flex-col gap-4 p-4">
           <PortfolioValueChart data={filtered} fill />
-        </div>
-      ),
-    },
-    {
-      label: "Drawdown",
-      hint: "How far below its previous high it has sat",
-      actions: rangeControl,
-      content: (
-        <div className="flex h-full min-h-0 flex-col p-4">
-          <DrawdownChart data={filtered} fill />
+          <div className="flex min-h-0 flex-1 flex-col border-t border-ink-700/60 pt-4">
+            <DrawdownChart data={filtered} fill />
+          </div>
         </div>
       ),
     },

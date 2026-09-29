@@ -212,19 +212,48 @@
   .panel-body {
     @apply overflow-auto lg:min-h-0 lg:flex-1;
   }
-  /* Headline figures on ONE line: a labelled value reading left to right
+  /* Headline figures.
+
+     On a desktop they are ONE line: a labelled value reading left to right
      rather than label-over-value. As a definition list the pairing is
      machine-readable, which is what lets the labels drop their explanatory
      prose (§8) — "Total holdings (SGD)" plus a `title` carrying the one
-     clause about the FX rate. */
+     clause about the FX rate.
+
+     On a phone that one line WRAPS, and a wrapped row of label+value pairs is
+     a ragged staircase: a three-character "TWR" beside a fourteen-character
+     "Max drawdown", each keeping its own width, so nothing lines up down the
+     screen and the eye has to re-find the left edge on every item. Below `sm`
+     the same figures are therefore a two-column GRID of stacked cells — label
+     over value — which is what makes them read as a table of figures instead
+     of a run-on. `w-full` so the grid owns its line rather than sizing to
+     max-content and shoving the controls beside it. */
   .stat-strip {
-    @apply flex flex-wrap items-center gap-x-6 gap-y-2;
+    @apply grid w-full grid-cols-2 gap-x-4 gap-y-3 text-lg text-ink-100 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-2;
+  }
+  /* One figure: label over value on a phone, label beside value from `sm`. */
+  .stat {
+    @apply flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-2;
   }
   .stat-strip dt {
     @apply text-xs text-ink-300;
   }
+  /* The figure carries NO size or colour of its own; it INHERITS both from the
+     strip (`text-lg text-ink-100` above), and that is deliberate.
+
+     `dd` is where callers put their exceptions — `text-2xl` on the money total,
+     `text-gain`/`text-loss` on the risk figures — and a default declared on
+     `.stat-strip dd` beats every one of them. Both rules sit in this layer, so
+     the winner is decided by specificity: an element in the selector outranks
+     the bare utility, whatever the source order (the trap the top of this file
+     warns about). Measured cost of getting it wrong: the money total rendered
+     at 18px instead of the 24px it asked for, and Sharpe, Max drawdown and
+     Largest day all rendered ink-100 `rgb(232,230,225)` despite carrying the
+     tone class. Inheriting the default costs nothing and lets the direct
+     declaration on `dd` win, because inheritance always loses to a rule that
+     names the element. */
   .stat-strip dd {
-    @apply num text-lg text-ink-100;
+    @apply num;
   }
   /* The row above the content: what the page is, and what you can do to it.
      `shrink-0` so it never gives height to the region below it. */
