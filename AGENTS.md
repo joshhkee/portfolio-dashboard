@@ -177,8 +177,11 @@ points one way.
   deliberately left for the owner's review before it goes anywhere.
 - **Merging is still never automatic.** The checkpoint is "pull request open or
   updated and mergeable", and the owner decides when it lands. The branch and
-  pull-request mechanics are in `docs/PLAN.md`; the credential steps for reading
-  the PR on this machine are in the untracked `.freebuff/run.md`.
+  pull-request mechanics are in `docs/PLAN.md`, including how to drive the
+  GitHub CLI on this machine — `gh` **is** installed, but it is off the agent
+  shell's `PATH` and unauthenticated, so a bare `gh` fails and looks like it is
+  missing. The doc has the two-line fix; do not re-conclude that there is no
+  `gh` here.
 - When a batch of work lands, update `docs/PLAN.md`'s status table and its resume
   checkpoint. Durable rules belong in this file or `docs/DESIGN.md`, not only in
   the plan: the plan records what happened, these two say what still holds.

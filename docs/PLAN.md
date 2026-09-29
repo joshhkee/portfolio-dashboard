@@ -67,9 +67,15 @@ goes anywhere. Merging stays owner-driven.
 **Open or update, then verify — the two are separate steps.** `git push`
 succeeding says nothing about whether the PR can land, because `main` moves under
 the branch every time the owner merges something. After pushing, read the PR
-back: `mergeable: true` and `mergeable_state: clean`. When the branch has no open
-PR (a fresh thread, or the previous batch already merged) the publish step
-includes *creating* it, not just updating it.
+back and confirm it is mergeable — either spelling below means yes:
+
+| where it comes from | mergeable | conflict-free state |
+|---|---|---|
+| GitHub CLI (`gh pr view --json`) | `"MERGEABLE"` | `"CLEAN"` |
+| REST API (`GET /pulls/<n>`) | `true` | `"clean"` |
+
+When the branch has no open PR (a fresh thread, or the previous batch already
+merged) the publish step includes *creating* it, not just updating it.
 
 ## Pull-request workflow — required from 2026-09-22
 
@@ -100,17 +106,47 @@ every checkpoint keeps it green:
 - `main` moves under this branch each time the owner merges a PR, so re-check
   mergeability before declaring a checkpoint done.
 
-This machine has no `gh`, so the pull request is **created, read and verified
-through the GitHub API** instead — the token retrieval steps and the exact
-requests (list open PRs, open one, re-read `mergeable`) are in the local,
-untracked **`.freebuff/run.md`**, deliberately not here: this file is committed,
-and a procedure for reading a credential has no business in a repository. If
-that file is missing on a fresh checkout, the recipe is short: the token is the
-stored `github.com` password in Git Credential Manager (`printf
-'protocol=https\nhost=github.com\n\n' | git credential fill`), and the endpoints
-are `GET /repos/{owner}/{repo}/pulls?state=open` and `POST
-/repos/{owner}/{repo}/pulls` with `{title, head, base, body}`. Never echo the
-token.
+**The GitHub CLI is installed here and is the fast path.** `gh` 2.101.0, put
+in by winget at `C:\Program Files\GitHub CLI\gh.exe`. Two quirks make it look
+absent, and between them they are why an earlier revision of this file claimed
+there was no `gh` on this machine at all:
+
+- **It is not on the harness shell's `PATH`.** It is on the machine `PATH`, so a
+  bare `gh` answers `command not found` from an agent shell while working fine
+  from a new terminal. Prepend it, or call the full path:
+  `export PATH="/c/Program Files/GitHub CLI:$PATH"`.
+- **It is not logged in, and cannot adopt the stored credential.**
+  `gh auth login --with-token` refuses it with `missing required scope
+  'read:org'` — that is `gh`'s requirement for *storing* a token, not a limit on
+  using one. Passing the same token per command as `GH_TOKEN` skips the check
+  and every PR command works:
+
+  ```bash
+  export PATH="/c/Program Files/GitHub CLI:$PATH"
+  export GH_TOKEN=$(printf 'protocol=https\nhost=github.com\n\n' \
+    | git credential fill | sed -n 's/^password=//p')   # never echo this
+
+  gh pr list --head "$(git branch --show-current)" --state all \
+    --json number,state,url                               # is one already open?
+  gh pr create --base main --title "..." --body-file -     # only if none is
+  gh pr view <n> --json number,state,mergeable,mergeStateStatus,headRefName,baseRefName,url
+  ```
+
+  Running `gh auth login` once (device flow, wants a browser, so it is the
+  owner's to do) would remove the `GH_TOKEN` line for good.
+
+Read the result carefully: `gh` reports GraphQL enums — `mergeable:
+"MERGEABLE"`, `mergeStateStatus: "CLEAN"` — and rejects `mergeableState` as an
+unknown field, while the REST API reports `mergeable: true`,
+`mergeable_state: "clean"`. Same state, different spelling; the table above is
+the decoder.
+
+The **REST API is the fallback**, for a checkout where `gh` is genuinely missing
+or cannot be supplied a token: `GET /repos/{owner}/{repo}/pulls?state=open`,
+`POST /repos/{owner}/{repo}/pulls` with `{title, head, base, body}`, and `GET
+/repos/{owner}/{repo}/pulls/<n>` for the mergeable columns. The token is the same
+stored `github.com` password (`printf 'protocol=https\nhost=github.com\n\n' |
+git credential fill`). Never echo it, into a transcript or anywhere else.
 
 ## Status
 
