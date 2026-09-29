@@ -17,7 +17,13 @@ parts in order; a part is DONE only when its checkpoint passes.
 Paste this into any coding agent: *"Read `AGENTS.md` and `docs/DESIGN.md` in this
 repo, then `docs/PLAN.md`. Follow the invariants and non-goals, then implement the
 first part whose status is not DONE. Run that part's checkpoint before moving
-on."*
+on, and publish it — commit, push, open or update the pull request, then confirm
+it is mergeable."*
+
+That last clause is not optional and not specific to the parts below: **any
+thread, opened with or without context, publishes before it reports.** The rule
+lives in `AGENTS.md` under *Working with the owner*; this file holds the
+mechanics.
 
 Each part below is sized to finish in one sitting. Nothing later depends on
 anything not listed as a prerequisite, so stopping between parts is always safe.
@@ -47,14 +53,23 @@ and confirm the branch's open pull request still reports **no conflicts** —
 the exact pushed code. Do not merge the PR yourself unless the owner asks: the
 checkpoint is "PR updated and mergeable", not "merged".
 
-**This step is automatic** (owner's standing instruction, 2026-09-25). Every
-change the owner asks for ends with these commits, a push and the pull request
-updated — not only the parts in this file, and not only when asked. The old "do
-not commit unless asked" gate is gone. Two exceptions, and the agent says which
-one it is taking when it reports back: the owner says otherwise for a particular
-change, or the change is not ready to land — checks failing, a question still
-open, or work deliberately left for the owner's review before it goes anywhere.
-Merging stays owner-driven.
+**This step is automatic** (owner's standing instruction, 2026-09-25; restated
+as the default for every thread, 2026-09-29). Every change the owner asks for
+ends with these commits, a push and the pull request updated — not only the parts
+in this file, not only when asked, and not only in a thread that inherited
+context. A thread opened cold is expected to read `AGENTS.md` and publish too.
+The old "do not commit unless asked" gate is gone. Two exceptions, and the agent
+says which one it is taking when it reports back: the owner says otherwise for a
+particular change, or the change is not ready to land — checks failing, a
+question still open, or work deliberately left for the owner's review before it
+goes anywhere. Merging stays owner-driven.
+
+**Open or update, then verify — the two are separate steps.** `git push`
+succeeding says nothing about whether the PR can land, because `main` moves under
+the branch every time the owner merges something. After pushing, read the PR
+back: `mergeable: true` and `mergeable_state: clean`. When the branch has no open
+PR (a fresh thread, or the previous batch already merged) the publish step
+includes *creating* it, not just updating it.
 
 ## Pull-request workflow — required from 2026-09-22
 
@@ -85,10 +100,17 @@ every checkpoint keeps it green:
 - `main` moves under this branch each time the owner merges a PR, so re-check
   mergeability before declaring a checkpoint done.
 
-This machine has no `gh`, so the pull request is read through the GitHub API
-instead — the token retrieval steps and the exact request are in the local,
+This machine has no `gh`, so the pull request is **created, read and verified
+through the GitHub API** instead — the token retrieval steps and the exact
+requests (list open PRs, open one, re-read `mergeable`) are in the local,
 untracked **`.freebuff/run.md`**, deliberately not here: this file is committed,
-and a procedure for reading a credential has no business in a repository.
+and a procedure for reading a credential has no business in a repository. If
+that file is missing on a fresh checkout, the recipe is short: the token is the
+stored `github.com` password in Git Credential Manager (`printf
+'protocol=https\nhost=github.com\n\n' | git credential fill`), and the endpoints
+are `GET /repos/{owner}/{repo}/pulls?state=open` and `POST
+/repos/{owner}/{repo}/pulls` with `{title, head, base, body}`. Never echo the
+token.
 
 ## Status
 

@@ -14,10 +14,14 @@ breaking it.
 
 ## Read before you start
 
-1. This file — the invariants and the verification protocol below.
+1. This file — the invariants, the verification protocol, and the **publish
+   rule** under *Working with the owner*. A thread opened with no context is
+   still expected to finish by publishing; there is no "explore only" mode to
+   opt into.
 2. `docs/DESIGN.md` if the change is visible, or touches copy.
 3. `docs/PLAN.md` if you need to know why something is the way it is, or what is
-   already planned. Its status table is the backlog.
+   already planned. Its status table is the backlog, and it carries the
+   pull-request mechanics.
 
 ## Architecture invariants
 
@@ -147,16 +151,34 @@ points one way.
 - Ask before a decision that changes what the product *means* — what a word on
   screen denotes, what a page shows, whether access is a gate or a label. For
   reversible implementation detail, decide, and say what you decided.
-- **Every change the owner asks for ends with a commit, a push, and the pull
-  request updated** — the standing instruction as of 2026-09-25. Run the four
-  checkpoint checks, then publish, without waiting to be asked. There are exactly
-  two exceptions, and the agent says which one it is taking when it reports back:
-  the owner says otherwise for a particular change, or the change is not ready to
-  land (checks failing, a question still open, or work deliberately left for the
-  owner's review before it goes anywhere).
+- **Publish before you report: commit, push, open or update the pull request,
+  then verify it is mergeable.** This is the standing instruction (2026-09-25,
+  restated as the default for every thread on 2026-09-29) and it is the default
+  end of every change, in every thread — including one opened with zero context,
+  and including one whose whole job was to look around. **Never wait to be asked
+  to publish, and never assume a cold thread is exempt.** Run the four checks in
+  *Verification* first, then:
+
+  ```bash
+  git add <the files this change touched>
+  git commit -m "<what changed and why>"
+  git push origin HEAD
+  ```
+
+  Then **verify the pull request, don't assume it**: re-read it and confirm
+  `mergeable: true` and `mergeable_state: clean`. A clean `git push` is not proof
+  of a conflict-free PR — `main` may have moved under the branch. If the batch's
+  PR was already merged, open a new one; a merged PR cannot be reopened to carry
+  later work.
+
+  Exactly two exceptions, and the agent says which one it is taking when it
+  reports back: the owner says otherwise for a particular change, or the change
+  is not ready to land — checks failing, a question still open, or work
+  deliberately left for the owner's review before it goes anywhere.
 - **Merging is still never automatic.** The checkpoint is "pull request open or
   updated and mergeable", and the owner decides when it lands. The branch and
-  pull-request workflow is in `docs/PLAN.md`.
+  pull-request mechanics are in `docs/PLAN.md`; the credential steps for reading
+  the PR on this machine are in the untracked `.freebuff/run.md`.
 - When a batch of work lands, update `docs/PLAN.md`'s status table and its resume
   checkpoint. Durable rules belong in this file or `docs/DESIGN.md`, not only in
   the plan: the plan records what happened, these two say what still holds.
