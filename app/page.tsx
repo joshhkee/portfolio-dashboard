@@ -40,10 +40,17 @@ interface MoverRow {
 /**
  * One side of the movers tile.
  *
- * Each row is a link into that region's table with the ticker preselected, so
+ * Each row is a link into the holdings table with the ticker preselected, so
  * "what moved" is a door to "what is my position in it" rather than a dead
  * readout — the same pattern the largest-positions strip uses. An empty column
  * says so with a dash instead of collapsing, so the tile keeps its shape.
+ *
+ * The href is the canonical `/positions/holdings?ticker=…` rather than the old
+ * per-region path. The region pages were collapsed into one table and
+ * `next.config.js` still forwards `/positions/us|sg|hk`, so a region href would
+ * work — via a redirect hop, and only because a config rule keeps a deleted
+ * route alive. Emitting the canonical path is what stops that rule from being
+ * load-bearing for a link the app renders on its own front page.
  */
 function MoverColumn({ label, rows }: { label: string; rows: MoverRow[] }) {
   return (
@@ -55,9 +62,7 @@ function MoverColumn({ label, rows }: { label: string; rows: MoverRow[] }) {
         rows.map((row) => (
           <Link
             key={`${row.region}-${row.ticker}`}
-            href={`/positions/${row.region.toLowerCase()}?ticker=${encodeURIComponent(
-              row.ticker
-            )}`}
+            href={`/positions/holdings?ticker=${encodeURIComponent(row.ticker)}`}
             title={`S$${formatAmount(row.valueSgd)} held · ${row.ticker} at ${currencySymbol[currencyForRegion(row.region)]}${formatAmount(row.price)}`}
             className="flex items-baseline gap-2 text-xs transition hover:text-accent motion-reduce:transition-none"
           >
@@ -293,7 +298,7 @@ export default async function TodayPage() {
         .map((p) => p.ticker)
         .slice(0, 3)
         .join(", ")}${unpriced.length > 3 ? "…" : ""}).`,
-      href: `/positions/${unpriced[0].region.toLowerCase()}`,
+      href: "/positions/holdings",
       linkLabel: "See them",
     });
   }
@@ -513,10 +518,15 @@ export default async function TodayPage() {
         </div>
 
         <div className="flex min-h-0 flex-col lg:col-span-2">
+          {/* `hiddenCount` is what the strip does NOT show, not how many it
+              does: `top` is capped at five, and passing its length made the
+              link read "All 18 (+5 more)" over five rows with thirteen hidden
+              — a number that agreed with the strip and contradicted the total
+              beside it. */}
           <TopPositions
             rows={top}
             totalCount={positions.length}
-            hiddenCount={top.length}
+            hiddenCount={Math.max(0, positions.length - top.length)}
             fill
           />
         </div>

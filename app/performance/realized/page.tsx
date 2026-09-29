@@ -52,7 +52,7 @@ export default async function CompletedTradesPage() {
         <div className="page-bar lg:grid lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center lg:gap-x-6">
         <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
         <dl className="stat-strip">
-          <div className="flex items-baseline gap-2">
+          <div className="stat">
             <dt title="US and HK trades converted at today's SGD/USD and SGD/HKD rate, not the rate on the sell date — so this is an approximation for older trades.">
               Total realized P/L (SGD)
             </dt>

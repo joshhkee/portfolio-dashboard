@@ -205,7 +205,7 @@ conventions and the architecture rules these commands are protecting.
 | `AGENTS.md` | The working agreement: architecture invariants, non-goals, verification, code layout, and the conventions a contributor or agent is expected to follow. |
 | `docs/DESIGN.md` | The design system: colour tokens and their measured contrast, typography, table rules, chart conventions, motion, and the copy/voice rules. |
 | `docs/PLAN.md` | The build history: a status table of every part of the work, per-part write-ups with the measurements behind them, and the open backlog. |
-| `.freebuff/run.md` | Machine-local operations for this checkout (dev-server port, Prisma engine lock, and how to inspect the open pull request). Untracked, not part of the project. |
+| `.freebuff/run.md` | Machine-local operations for this checkout (dev-server port, Prisma engine lock). Untracked, not part of the project. The pull-request mechanics — including how to drive the GitHub CLI here — live in `docs/PLAN.md`, so they travel with the repository rather than with one checkout. |
 
 ## Deliberately not built
 

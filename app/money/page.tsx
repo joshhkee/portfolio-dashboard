@@ -158,7 +158,7 @@ export default async function ContributionsPage() {
           the screen: it is the label of the panel below it. */}
       <div className="page-bar">
         <dl className="stat-strip">
-          <div className="flex items-baseline gap-2">
+          <div className="stat">
             <dt>Total outlay</dt>
             {/* Every contribution in this ledger is SGD, so the symbol is S$ —
                 `Money` would print a bare "$" here and read as USD beside the

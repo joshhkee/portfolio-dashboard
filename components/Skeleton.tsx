@@ -107,7 +107,7 @@ export function SkeletonStatStrip({
     <div className="page-bar">
       <div className="stat-strip">
         {Array.from({ length: stats }, (_, i) => (
-          <div key={i} className="flex items-baseline gap-2">
+          <div key={i} className="stat">
             <SkeletonBar className="h-3 w-24" />
             <SkeletonBar className="h-5 w-24" />
           </div>

@@ -17,7 +17,13 @@ parts in order; a part is DONE only when its checkpoint passes.
 Paste this into any coding agent: *"Read `AGENTS.md` and `docs/DESIGN.md` in this
 repo, then `docs/PLAN.md`. Follow the invariants and non-goals, then implement the
 first part whose status is not DONE. Run that part's checkpoint before moving
-on."*
+on, and publish it — commit, push, open or update the pull request, then confirm
+it is mergeable."*
+
+That last clause is not optional and not specific to the parts below: **any
+thread, opened with or without context, publishes before it reports.** The rule
+lives in `AGENTS.md` under *Working with the owner*; this file holds the
+mechanics.
 
 Each part below is sized to finish in one sitting. Nothing later depends on
 anything not listed as a prerequisite, so stopping between parts is always safe.
@@ -47,14 +53,37 @@ and confirm the branch's open pull request still reports **no conflicts** —
 the exact pushed code. Do not merge the PR yourself unless the owner asks: the
 checkpoint is "PR updated and mergeable", not "merged".
 
-**This step is automatic** (owner's standing instruction, 2026-09-25). Every
-change the owner asks for ends with these commits, a push and the pull request
-updated — not only the parts in this file, and not only when asked. The old "do
-not commit unless asked" gate is gone. Two exceptions, and the agent says which
-one it is taking when it reports back: the owner says otherwise for a particular
-change, or the change is not ready to land — checks failing, a question still
-open, or work deliberately left for the owner's review before it goes anywhere.
-Merging stays owner-driven.
+**This step is automatic** (owner's standing instruction, 2026-09-25; restated
+as the default for every thread, 2026-09-29). Every change the owner asks for
+ends with these commits, a push and the pull request updated — not only the parts
+in this file, not only when asked, and not only in a thread that inherited
+context. A thread opened cold is expected to read `AGENTS.md` and publish too.
+The old "do not commit unless asked" gate is gone. Two exceptions, and the agent
+says which one it is taking when it reports back: the owner says otherwise for a
+particular change, or the change is not ready to land — checks failing, a
+question still open, or work deliberately left for the owner's review before it
+goes anywhere. Merging stays owner-driven.
+
+**Open or update, then verify — the two are separate steps.** `git push`
+succeeding says nothing about whether the PR can land, because `main` moves under
+the branch every time the owner merges something. After pushing, read the PR
+back and confirm it is mergeable — either spelling below means yes:
+
+| where it comes from | mergeable | conflict-free state |
+|---|---|---|
+| GitHub CLI (`gh pr view --json`) | `"MERGEABLE"` | `"CLEAN"` |
+| REST API (`GET /pulls/<n>`) | `true` | `"clean"` |
+
+**A fresh push is not immediately mergeable-looking, and that is not a
+failure.** GitHub recomputes mergeability and Vercel rebuilds, so the first reads
+after a push come back `UNKNOWN`, then `UNSTABLE`, before settling on `CLEAN`.
+Measured on PR #19: three reads over ~20 seconds, `UNKNOWN` -> `UNSTABLE` ->
+`CLEAN`, with `mergeable: MERGEABLE` throughout the last two. `UNSTABLE` means
+"mergeable, but a check is still running" — **poll until it says `CLEAN`** rather
+than reporting the first non-clean answer as a conflict or a failure.
+
+When the branch has no open PR (a fresh thread, or the previous batch already
+merged) the publish step includes *creating* it, not just updating it.
 
 ## Pull-request workflow — required from 2026-09-22
 
@@ -85,10 +114,47 @@ every checkpoint keeps it green:
 - `main` moves under this branch each time the owner merges a PR, so re-check
   mergeability before declaring a checkpoint done.
 
-This machine has no `gh`, so the pull request is read through the GitHub API
-instead — the token retrieval steps and the exact request are in the local,
-untracked **`.freebuff/run.md`**, deliberately not here: this file is committed,
-and a procedure for reading a credential has no business in a repository.
+**The GitHub CLI is installed here and is the fast path.** `gh` 2.101.0, put
+in by winget at `C:\Program Files\GitHub CLI\gh.exe`. Two quirks make it look
+absent, and between them they are why an earlier revision of this file claimed
+there was no `gh` on this machine at all:
+
+- **It is not on the harness shell's `PATH`.** It is on the machine `PATH`, so a
+  bare `gh` answers `command not found` from an agent shell while working fine
+  from a new terminal. Prepend it, or call the full path:
+  `export PATH="/c/Program Files/GitHub CLI:$PATH"`.
+- **It is not logged in, and cannot adopt the stored credential.**
+  `gh auth login --with-token` refuses it with `missing required scope
+  'read:org'` — that is `gh`'s requirement for *storing* a token, not a limit on
+  using one. Passing the same token per command as `GH_TOKEN` skips the check
+  and every PR command works:
+
+  ```bash
+  export PATH="/c/Program Files/GitHub CLI:$PATH"
+  export GH_TOKEN=$(printf 'protocol=https\nhost=github.com\n\n' \
+    | git credential fill | sed -n 's/^password=//p')   # never echo this
+
+  gh pr list --head "$(git branch --show-current)" --state all \
+    --json number,state,url                               # is one already open?
+  gh pr create --base main --title "..." --body-file -     # only if none is
+  gh pr view <n> --json number,state,mergeable,mergeStateStatus,headRefName,baseRefName,url
+  ```
+
+  Running `gh auth login` once (device flow, wants a browser, so it is the
+  owner's to do) would remove the `GH_TOKEN` line for good.
+
+Read the result carefully: `gh` reports GraphQL enums — `mergeable:
+"MERGEABLE"`, `mergeStateStatus: "CLEAN"` — and rejects `mergeableState` as an
+unknown field, while the REST API reports `mergeable: true`,
+`mergeable_state: "clean"`. Same state, different spelling; the table above is
+the decoder.
+
+The **REST API is the fallback**, for a checkout where `gh` is genuinely missing
+or cannot be supplied a token: `GET /repos/{owner}/{repo}/pulls?state=open`,
+`POST /repos/{owner}/{repo}/pulls` with `{title, head, base, body}`, and `GET
+/repos/{owner}/{repo}/pulls/<n>` for the mergeable columns. The token is the same
+stored `github.com` password (`printf 'protocol=https\nhost=github.com\n\n' |
+git credential fill`). Never echo it, into a transcript or anywhere else.
 
 ## Status
 
