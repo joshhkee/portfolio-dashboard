@@ -74,6 +74,14 @@ back and confirm it is mergeable — either spelling below means yes:
 | GitHub CLI (`gh pr view --json`) | `"MERGEABLE"` | `"CLEAN"` |
 | REST API (`GET /pulls/<n>`) | `true` | `"clean"` |
 
+**A fresh push is not immediately mergeable-looking, and that is not a
+failure.** GitHub recomputes mergeability and Vercel rebuilds, so the first reads
+after a push come back `UNKNOWN`, then `UNSTABLE`, before settling on `CLEAN`.
+Measured on PR #19: three reads over ~20 seconds, `UNKNOWN` -> `UNSTABLE` ->
+`CLEAN`, with `mergeable: MERGEABLE` throughout the last two. `UNSTABLE` means
+"mergeable, but a check is still running" — **poll until it says `CLEAN`** rather
+than reporting the first non-clean answer as a conflict or a failure.
+
 When the branch has no open PR (a fresh thread, or the previous batch already
 merged) the publish step includes *creating* it, not just updating it.
 
