@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import { toLocalDateInputValue } from "@/lib/dates";
 
 export default function AddTransactionForm() {
@@ -77,90 +78,207 @@ export default function AddTransactionForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="panel flex flex-wrap items-end gap-3 p-4">
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Date</label>
-        <input name="date" type="date" required defaultValue={today} className="field w-36" />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Action</label>
-        <select
-          name="action"
-          required
-          className="field w-28"
-          value={action}
-          onChange={(event) => setAction(event.target.value)}
+    <>
+      {/* Mobile backdrop (< sm) */}
+      <div
+        className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-0 backdrop-blur-[2px] sm:hidden"
+        onClick={() => setOpen(false)}
+      >
+        <div
+          className="panel flex max-h-[90vh] w-full flex-col overflow-y-auto rounded-b-none border-b-0 p-5 pb-safe"
+          onClick={(e) => e.stopPropagation()}
         >
-          <option value="Buy">Buy</option>
-          <option value="Sell">Sell</option>
-        </select>
+          <div className="mx-auto -mt-2 mb-3 h-1 w-10 shrink-0 rounded-full bg-ink-700" />
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-sm font-medium text-ink-100">Log a transaction</h2>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="text-ink-300 hover:text-ink-100"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-ink-300">Date</label>
+                <input name="date" type="date" required defaultValue={today} className="field text-xs" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-ink-300">Action</label>
+                <select
+                  name="action"
+                  required
+                  className="field text-xs"
+                  value={action}
+                  onChange={(event) => setAction(event.target.value)}
+                >
+                  <option value="Buy">Buy</option>
+                  <option value="Sell">Sell</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-ink-300">Ticker</label>
+                <input name="ticker" required className="field text-xs" placeholder="VOO" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-ink-300">Region</label>
+                <select name="region" required className="field text-xs">
+                  <option value="US">US</option>
+                  <option value="SG">SG</option>
+                  <option value="HK">HK</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-ink-300">Qty</label>
+                <input
+                  name="qty"
+                  type="number"
+                  step="0.0001"
+                  min="0"
+                  required
+                  className="field text-xs"
+                  placeholder="5"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-ink-300">Price</label>
+                <input
+                  name="price"
+                  type="number"
+                  step="0.0001"
+                  min="0"
+                  required
+                  className="field text-xs"
+                  placeholder="546.00"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-ink-300">Notes</label>
+              <input name="notes" className="field text-xs" placeholder="Optional" />
+            </div>
+
+            {action === "Buy" && (
+              <label
+                className="flex items-center gap-2 text-xs text-ink-300"
+                title="A scheduled buy — the ledger will show it as DCA (month) and the average it left behind."
+              >
+                <input type="checkbox" name="dca" className="h-4 w-4 accent-accent" />
+                DCA buy
+              </label>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <button type="submit" className="btn-primary flex-1" disabled={submitting}>
+                {submitting ? "Saving…" : "Save transaction"}
+              </button>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => setOpen(false)}
+                disabled={submitting}
+              >
+                Cancel
+              </button>
+            </div>
+            {error && <p className="text-xs text-loss">{error}</p>}
+          </form>
+        </div>
       </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Ticker</label>
-        <input name="ticker" required className="field w-24" placeholder="VOO" />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Region</label>
-        <select name="region" required className="field w-24">
-          <option value="US">US</option>
-          <option value="SG">SG</option>
-          <option value="HK">HK</option>
-        </select>
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Qty</label>
-        <input
-          name="qty"
-          type="number"
-          step="0.0001"
-          min="0"
-          required
-          className="field w-24"
-          placeholder="5"
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Price</label>
-        <input
-          name="price"
-          type="number"
-          step="0.0001"
-          min="0"
-          required
-          className="field w-28"
-          placeholder="546.00"
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-ink-300">Notes</label>
-        <input name="notes" className="field w-56" placeholder="Optional" />
-      </div>
-      {/* Sits with the note field because it WRITES one: the ledger recognises a
-          DCA by the note's own leading word, so this is the note being composed,
-          not a separate field. Hidden on a sale, where the marker cannot apply. */}
-      {action === "Buy" && (
-        <label
-          className="flex h-[34px] items-center gap-2 text-xs text-ink-300"
-          title="A scheduled buy — the ledger will show it as DCA (month) and the average it left behind."
-        >
-          <input type="checkbox" name="dca" className="h-3.5 w-3.5 accent-accent" />
-          DCA buy
-        </label>
-      )}
-      <div className="flex gap-2">
-        <button type="submit" className="btn-primary" disabled={submitting}>
-          {submitting ? "Saving…" : "Save"}
-        </button>
-        <button
-          type="button"
-          className="btn-ghost"
-          onClick={() => setOpen(false)}
-          disabled={submitting}
-        >
-          Cancel
-        </button>
-      </div>
-      {error && <p className="w-full text-sm text-loss">{error}</p>}
-    </form>
+
+      {/* Desktop inline panel (>= sm) */}
+      <form onSubmit={handleSubmit} className="panel hidden sm:flex flex-wrap items-end gap-3 p-4">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-ink-300">Date</label>
+          <input name="date" type="date" required defaultValue={today} className="field w-36" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-ink-300">Action</label>
+          <select
+            name="action"
+            required
+            className="field w-28"
+            value={action}
+            onChange={(event) => setAction(event.target.value)}
+          >
+            <option value="Buy">Buy</option>
+            <option value="Sell">Sell</option>
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-ink-300">Ticker</label>
+          <input name="ticker" required className="field w-24" placeholder="VOO" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-ink-300">Region</label>
+          <select name="region" required className="field w-24">
+            <option value="US">US</option>
+            <option value="SG">SG</option>
+            <option value="HK">HK</option>
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-ink-300">Qty</label>
+          <input
+            name="qty"
+            type="number"
+            step="0.0001"
+            min="0"
+            required
+            className="field w-24"
+            placeholder="5"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-ink-300">Price</label>
+          <input
+            name="price"
+            type="number"
+            step="0.0001"
+            min="0"
+            required
+            className="field w-28"
+            placeholder="546.00"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-ink-300">Notes</label>
+          <input name="notes" className="field w-56" placeholder="Optional" />
+        </div>
+        {action === "Buy" && (
+          <label
+            className="flex h-[34px] items-center gap-2 text-xs text-ink-300"
+            title="A scheduled buy — the ledger will show it as DCA (month) and the average it left behind."
+          >
+            <input type="checkbox" name="dca" className="h-3.5 w-3.5 accent-accent" />
+            DCA buy
+          </label>
+        )}
+        <div className="flex gap-2">
+          <button type="submit" className="btn-primary" disabled={submitting}>
+            {submitting ? "Saving…" : "Save"}
+          </button>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => setOpen(false)}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+        </div>
+        {error && <p className="w-full text-sm text-loss">{error}</p>}
+      </form>
+    </>
   );
 }
