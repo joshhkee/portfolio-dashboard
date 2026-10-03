@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Source_Serif_4, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import Nav from "@/components/Nav";
+import MobileBottomNav from "@/components/MobileBottomNav";
 import CommandPalette from "@/components/CommandPalette";
 import { accountAdminContext } from "@/lib/account-admin";
 
@@ -19,6 +20,21 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Investments",
   description: "Personal portfolio ledger and dashboard",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Investments",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#121212",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 /**
@@ -57,12 +73,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
             The padding is 16px rather than the 32px this used to carry: every
             pixel here comes out of the screen's budget, and the pages supply
-            their own gaps. */}
-        <div className="flex h-dvh flex-col overflow-hidden">
+            their own gaps. Below `lg` we reserve space for the fixed bottom navigation. */}
+        <div className="flex h-dvh flex-col overflow-hidden bg-ink-950">
           <Nav account={{ username: me?.username ?? null, canManage: view.ok }} />
-          <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-6">
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-4 py-3 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:py-4 lg:pb-4">
             {children}
           </main>
+          {/* Mobile bottom navigation, fixed below `lg` */}
+          <MobileBottomNav canManage={view.ok} />
           {/* Mounted once for the whole app so Cmd/Ctrl+K works from any
               page; it renders nothing until opened. */}
           <CommandPalette />

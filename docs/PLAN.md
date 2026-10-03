@@ -200,6 +200,11 @@ git credential fill`). Never echo it, into a transcript or anywhere else.
 | 36 | Region flags back on the market headings, redrawn; a dot per sort level under the active header; exposure rearranged into charts left / tag list right, with the donut hover enlarging the sector and dimming the rest | **DONE** |
 | 37 | The donut's tooltip goes — the ring's centre becomes the readout — and the tag list's mobile rows go from four loose lines to two, with the type label against the ticker and the tag chip on the percentage's line | **DONE** |
 | 38 | Exposure fits one screen: the intro sentence goes (the ring's centre says "Holdings"), the tag list becomes a fixed-height panel scrolling under its pinned column labels, and the ring goes back to 176px so both chart cards fit the column | **DONE** |
+| 39 | Mobile PWA Shell: Web App Manifest, safe-area insets, fixed bottom navigation bar (`lg:hidden`), and streamlined mobile header | Planned (see `docs/MOBILE_OVERHAUL.md` Phase 1) |
+| 40 | Touch-First Mobile Cards: native holding and transaction list tiles below `lg` with 0px horizontal scroll | Planned (see `docs/MOBILE_OVERHAUL.md` Phase 2) |
+| 41 | Mobile Bottom Sheets: transaction history modal and slide-up forms (`AddTransactionForm`, `AddContributionForm`) | Planned (see `docs/MOBILE_OVERHAUL.md` Phase 3) |
+| 42 | Watchlist Redesign: structured buy targets, entry proximity gauges, valuation metrics (P/E, 52w range), and position sizing calculator | Planned (see `docs/FEATURE_ROADMAP.md` §2) |
+| 43 | Dividends & Total Return: `Dividend` model, yield-on-cost, forward cash income, and capital vs dividend return split | Planned (see `docs/FEATURE_ROADMAP.md` §3) |
 
 ---
 
