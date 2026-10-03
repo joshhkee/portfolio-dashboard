@@ -3,6 +3,7 @@
 import { useEffect, useMemo } from "react";
 import type { LedgerRow } from "@/lib/portfolio-engine";
 import EditableTransactionRow from "@/components/EditableTransactionRow";
+import MobileTransactionCard from "@/components/MobileTransactionCard";
 import SortableTh from "@/components/SortableTh";
 import { useTableSearch } from "@/components/TableSearch";
 import { useSortable } from "@/lib/use-sortable";
@@ -62,7 +63,8 @@ export default function TransactionsTable({
     // filter — is gone: the filter is in the page bar now, and that row's height
     // went to the rows.
     <div className="table-scroll">
-        <table className="ledger-table">
+      {/* Desktop wide table (>= lg) */}
+      <table className="ledger-table hidden lg:table">
         <thead>
           <tr>
             <SortableTh label="Date" active={sortKey === "date"} direction={sortDir} onClick={() => toggleSort("date")} />
@@ -136,7 +138,25 @@ export default function TransactionsTable({
             </tr>
           )}
         </tbody>
-        </table>
+      </table>
+
+      {/* Mobile touch-first card list (< lg). Full-width cards with 0px overflow */}
+      <div className="flex flex-col divide-y divide-ink-700/60 bg-ink-900 lg:hidden">
+        {sorted.map((t) => (
+          <MobileTransactionCard
+            key={t.id}
+            t={t}
+            name={names[`${t.region}::${t.ticker}`] ?? null}
+          />
+        ))}
+        {sorted.length === 0 && (
+          <div className="p-6 text-center text-sm text-ink-300">
+            {ledger.length === 0
+              ? "No transactions yet — log the first one above."
+              : "No transactions match your search."}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -228,16 +228,9 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
             Nothing on the watchlist yet. Track a ticker you are considering buying.
           </p>
         ) : (
-          /* `table-fixed`, and that is load-bearing rather than stylistic: the
-             expanded row contains a chart that measures its own container, and
-             in an auto-layout table that is a feedback loop — the chart sets a
-             pixel width from the cell, the cell's min-content then includes
-             that width, the table widens, and the observer measures a wider box
-             again. It ran to 2577px inside a 1360px panel, absorbed as
-             horizontal scroll. With a fixed layout the columns come from the
-             widths declared on the header row and no cell's content can move
-             them, so the chart has a stable box to fill. */
-          <table className="ledger-table table-compact table-fixed">
+          <>
+            {/* Desktop fixed table (>= md) */}
+            <table className="ledger-table table-compact table-fixed hidden md:table">
             <thead>
               {/* Every column but `Why` is pinned to a width, so the slack in a
                   full-width table lands on the one column whose contents
@@ -286,24 +279,6 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
                         </button>
                       </td>
                       <td>
-                        {/* The flag, on the ticker's own line and in place of the
-                            two-letter region code that used to sit after the
-                            name — by the owner's request. The code spent a
-                            cell's worth of width on two characters that say
-                            nothing a reader of this row does not already know (a
-                            ticker is listed in exactly one market), while the
-                            holdings pages have drawn the market as a flag for as
-                            long as they have existed. The code is not lost with
-                            it: it is the picture's accessible name and its
-                            tooltip, so the region is never carried by a 16px
-                            image alone. docs/DESIGN.md §9 records this as the
-                            one place a flag is allowed inside a table row;
-                            everywhere else it is a heading landmark (§5).
-
-                            On the ticker's line rather than after the name
-                            because `TickerName` is a block of its own — a
-                            trailing span lands on a THIRD line and adds a line
-                            of height to every row. */}
                         <span className="flex items-baseline gap-2">
                           <span className="num">{r.ticker}</span>
                           <span
@@ -315,22 +290,6 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
                             <RegionFlag region={r.region} />
                           </span>
                         </span>
-                        {/* A roomier budget than the ledger's 13rem: this table has
-                            six columns, so a long fund name has somewhere to go
-                            and truncating it next to empty space reads as a bug. */}
-                        {/* The flag replaces the two-letter region code this
-                            line used to carry, by the owner's request: the code
-                            spent ~54px of the widest column on two characters
-                            that say nothing a reader of this row does not
-                            already know (a ticker is listed in exactly one
-                            market), while the holdings pages have drawn the
-                            market as a flag for as long as they have existed.
-                            The code is not lost with it — it is the picture's
-                            accessible name and its tooltip, so the region is
-                            never carried by a 16px image alone.
-                            docs/DESIGN.md §9 records this as the one place a
-                            flag is allowed inside a table row; everywhere else
-                            it is a heading landmark (§5). */}
                         <TickerName
                           region={r.region}
                           ticker={r.ticker}
@@ -433,12 +392,6 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
                     </tr>
                     {isOpen && (
                       <tr className="bg-ink-850/60">
-                        {/* `.cell-wrap` because `.ledger-table td` is nowrap —
-                            without it the prose below cannot wrap and the
-                            detail row sets the width of the whole table. It is
-                            a real class rather than the `whitespace-normal`
-                            utility, which `.ledger-table td` outranks on
-                            specificity (see app/globals.css). */}
                         <td colSpan={8} className="cell-wrap cell-pad-start px-4 py-4">
                           {signal ? (
                             <WatchlistSignals
@@ -457,6 +410,115 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
               })}
             </tbody>
           </table>
+
+          {/* Mobile touch-first card list (< md) */}
+          <div className="flex flex-col divide-y divide-ink-700/60 md:hidden">
+            {rows.map((r) => {
+              const symbol = currencySymbol[currencyForRegion(r.region)];
+              const key = priceKey(r.region, r.ticker);
+              const signal = signals?.[key] ?? null;
+              const isOpen = expanded === r.id;
+              return (
+                <div key={r.id} className="flex flex-col gap-2.5 p-3.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="num text-base font-semibold text-ink-100">{r.ticker}</span>
+                        <RegionFlag region={r.region} />
+                      </div>
+                      {r.name && <p className="truncate text-xs text-ink-300">{r.name}</p>}
+                    </div>
+                    <div className="text-right">
+                      <p className="num text-base font-medium text-ink-100">
+                        {r.price !== null ? (
+                          <PlainMoney value={r.price} symbol={symbol} />
+                        ) : (
+                          <span className="text-ink-500">—</span>
+                        )}
+                      </p>
+                      <p className="num text-xs">
+                        {r.dayChangePct !== null ? (
+                          <Percent value={r.dayChangePct} />
+                        ) : (
+                          <span className="text-ink-500">—</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Why / Notes row on mobile */}
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    {editing === r.id ? (
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          saveNote(r.id, String(new FormData(e.currentTarget).get("notes") ?? ""));
+                        }}
+                        className="flex-1"
+                      >
+                        <input
+                          name="notes"
+                          defaultValue={r.notes ?? ""}
+                          autoFocus
+                          placeholder="What you're waiting for"
+                          className="field px-1.5 py-0.5 text-xs"
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") setEditing(null);
+                          }}
+                          onBlur={(e) => saveNote(r.id, e.currentTarget.value)}
+                        />
+                      </form>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setEditing(r.id)}
+                        className="flex min-w-0 flex-1 items-center gap-1 text-left text-xs"
+                      >
+                        <span className={`truncate ${r.notes ? "text-ink-100" : "text-ink-500 italic"}`}>
+                          {r.notes ? `“${r.notes}”` : "Add a thesis / note…"}
+                        </span>
+                        <Pencil size={10} className="shrink-0 text-ink-500" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleRemove(r.id)}
+                      disabled={busy}
+                      className="text-xs text-ink-500 hover:text-loss pl-2"
+                      title="Remove from watchlist"
+                    >
+                      <X size={14} strokeWidth={2} />
+                    </button>
+                  </div>
+
+                  {/* Mobile Entry Signals Expand / Collapse */}
+                  <div className="border-t border-ink-800/80 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setExpanded(isOpen ? null : r.id)}
+                      className="flex items-center gap-1.5 text-xs font-medium text-ink-300 hover:text-accent"
+                    >
+                      {isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                      <span>{isOpen ? "Hide entry signals" : "View entry signals & 1y range"}</span>
+                    </button>
+                    {isOpen && (
+                      <div className="mt-3 rounded-md bg-ink-850/60 p-3">
+                        {signal ? (
+                          <WatchlistSignals
+                            signals={signal}
+                            series={entrySeries[key] ?? null}
+                            symbol={symbol}
+                          />
+                        ) : (
+                          <p className="text-xs text-ink-300">Loading signals…</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
         )}
       </div>
     </div>
