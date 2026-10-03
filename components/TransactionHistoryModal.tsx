@@ -539,7 +539,7 @@ export default function TransactionHistoryModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-0 sm:items-center sm:p-4 backdrop-blur-[2px]"
       onClick={onClose}
     >
       <div
@@ -548,10 +548,13 @@ export default function TransactionHistoryModal({
         aria-modal="true"
         aria-label={`Transaction history for ${companyName || ticker}`}
         tabIndex={-1}
-        className="panel flex max-h-[85vh] w-full max-w-4xl flex-col overflow-hidden outline-none"
+        className="panel flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-b-none border-b-0 sm:rounded-b-lg sm:border-b outline-none pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-ink-700 px-5 py-4">
+        {/* Mobile slide-up drag handle indicator */}
+        <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-ink-700 sm:hidden" />
+
+        <div className="flex items-start justify-between gap-4 border-b border-ink-700 px-5 py-3 sm:py-4">
           <div>
             <p className="text-xs text-ink-300">Transaction history</p>
             <p className="text-lg font-medium text-ink-100">{companyName || ticker}</p>
@@ -562,7 +565,7 @@ export default function TransactionHistoryModal({
           </div>
           <button
             onClick={onClose}
-            className="text-ink-300 hover:text-ink-100"
+            className="rounded p-1 text-ink-300 hover:text-ink-100"
             title="Close"
             aria-label="Close"
           >
