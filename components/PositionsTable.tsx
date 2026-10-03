@@ -307,7 +307,7 @@ function RegionTable({
         </p>
       </div>
 
-      <div className="table-scroll">
+      <div className="table-scroll hidden lg:block">
         <table className="ledger-table table-region">
           <thead>
             <tr>
@@ -467,6 +467,87 @@ function RegionTable({
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile touch-first card list (< lg). Eliminates horizontal scrolling while
+          presenting every financial pair (value, shares, price, avg cost, P/L, portfolio %). */}
+      <div className="flex flex-col divide-y divide-ink-700/60 rounded-lg border border-ink-700 bg-ink-900 lg:hidden">
+        {sorted.map((r) => {
+          const isHit =
+            highlightTicker !== null &&
+            r.ticker.toLowerCase() === highlightTicker.toLowerCase();
+          return (
+            <div
+              key={`${r.region}-${r.ticker}`}
+              id={isHit ? "highlighted-holding" : undefined}
+              onClick={() =>
+                onSelect({ region: r.region, ticker: r.ticker, currentPrice: r.currentPrice })
+              }
+              className={`flex flex-col gap-2 p-3.5 transition active:bg-ink-800 ${
+                isHit ? "bg-accent/10 ring-1 ring-inset ring-accent/40" : ""
+              }`}
+              role="button"
+              tabIndex={0}
+              title="View transaction history"
+            >
+              {/* Row 1: Ticker, Name, Region on Left; Total Value and Shares on Right */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="num text-base font-semibold text-ink-100">{r.ticker}</span>
+                    <RegionFlag region={r.region} />
+                    {r.priceUnavailable && (
+                      <span
+                        className="rounded bg-ink-800 px-1 py-0.5 text-[10px] text-ink-500"
+                        title="Valued at cost basis"
+                      >
+                        at cost
+                      </span>
+                    )}
+                  </div>
+                  {r.name && (
+                    <p className="truncate text-xs text-ink-300">{r.name}</p>
+                  )}
+                </div>
+                <div className="text-right">
+                  <p className="num text-base font-medium text-ink-100">
+                    {symbol}{formatAmount(r.totalHoldings)}
+                  </p>
+                  <p className="num text-xs text-ink-500">{shares(r.qty)}</p>
+                </div>
+              </div>
+
+              {/* Row 2: Price / Avg Cost on Left; Unrealized P/L and Portfolio % on Right */}
+              <div className="flex items-baseline justify-between gap-2 border-t border-ink-800/80 pt-2 text-xs">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="num text-ink-300">
+                    {r.priceUnavailable ? "—" : `${symbol}${formatAmount(r.currentPrice)}`}
+                  </span>
+                  <span className="text-ink-500">· avg {symbol}{formatAmount(r.avgCost)}</span>
+                </div>
+                <div className="flex items-baseline gap-2 text-right">
+                  {r.priceUnavailable ? (
+                    <span className="text-ink-500">N/A</span>
+                  ) : (
+                    <span className="num font-medium">
+                      <NativeMoney value={r.unrealizedPL} symbol={symbol} showPlus />
+                      {" "}
+                      <span className="text-[11px]">(<Percent value={r.unrealizedPLPct} />)</span>
+                    </span>
+                  )}
+                  <span className="num text-ink-500">· <PlainPercent value={r.portfolioPct} /></span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {sorted.length === 0 && (
+          <div className="p-4 text-center text-sm text-ink-300">
+            {searchActive && rows.length === 0
+              ? "No holdings match your search."
+              : "No holdings in this market right now."}
+          </div>
+        )}
       </div>
     </section>
   );
