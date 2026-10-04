@@ -483,19 +483,20 @@ export default function WatchlistPanel({ initialRows }: { initialRows: Watchlist
                     <button
                       onClick={() => handleRemove(r.id)}
                       disabled={busy}
-                      className="text-xs text-ink-500 hover:text-loss pl-2"
+                      className="flex min-h-[44px] min-w-[44px] items-center justify-center text-xs text-ink-500 hover:text-loss"
                       title="Remove from watchlist"
+                      aria-label="Remove from watchlist"
                     >
-                      <X size={14} strokeWidth={2} />
+                      <X size={16} strokeWidth={2} />
                     </button>
                   </div>
 
                   {/* Mobile Entry Signals Expand / Collapse */}
-                  <div className="border-t border-ink-800/80 pt-2">
+                  <div className="border-t border-ink-800/80 pt-1">
                     <button
                       type="button"
                       onClick={() => setExpanded(isOpen ? null : r.id)}
-                      className="flex items-center gap-1.5 text-xs font-medium text-ink-300 hover:text-accent"
+                      className="flex min-h-[44px] w-full items-center gap-1.5 text-xs font-medium text-ink-300 hover:text-accent"
                     >
                       {isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                       <span>{isOpen ? "Hide entry signals" : "View entry signals & 1y range"}</span>

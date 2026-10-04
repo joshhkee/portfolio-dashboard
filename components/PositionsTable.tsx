@@ -734,18 +734,18 @@ export default function PositionsTable({
                 onClick={() => slide(-1)}
                 disabled={!arrows.prev}
                 aria-label="Previous market"
-                className="rounded-md border border-ink-700 p-1 text-ink-300 transition hover:border-ink-500 hover:text-ink-100 disabled:cursor-not-allowed disabled:text-ink-500 disabled:opacity-50 motion-reduce:transition-none"
+                className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-ink-700 p-1 text-ink-300 transition hover:border-ink-500 hover:text-ink-100 disabled:cursor-not-allowed disabled:text-ink-500 disabled:opacity-50 sm:min-h-0 sm:min-w-0 motion-reduce:transition-none"
               >
-                <ChevronLeft size={15} strokeWidth={1.75} />
+                <ChevronLeft size={16} strokeWidth={1.75} className="sm:size-[15px]" />
               </button>
               <button
                 type="button"
                 onClick={() => slide(1)}
                 disabled={!arrows.next}
                 aria-label="Next market"
-                className="rounded-md border border-ink-700 p-1 text-ink-300 transition hover:border-ink-500 hover:text-ink-100 disabled:cursor-not-allowed disabled:text-ink-500 disabled:opacity-50 motion-reduce:transition-none"
+                className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-ink-700 p-1 text-ink-300 transition hover:border-ink-500 hover:text-ink-100 disabled:cursor-not-allowed disabled:text-ink-500 disabled:opacity-50 sm:min-h-0 sm:min-w-0 motion-reduce:transition-none"
               >
-                <ChevronRight size={15} strokeWidth={1.75} />
+                <ChevronRight size={16} strokeWidth={1.75} className="sm:size-[15px]" />
               </button>
             </div>
           )}

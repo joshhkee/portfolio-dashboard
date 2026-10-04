@@ -15,6 +15,14 @@
 }
 
 @layer utilities {
+  /* Hide scrollbar utility for touch/swipe horizontal tracks */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
@@ -238,7 +246,7 @@
      of a run-on. `w-full` so the grid owns its line rather than sizing to
      max-content and shoving the controls beside it. */
   .stat-strip {
-    @apply grid w-full grid-cols-2 gap-x-4 gap-y-3 text-lg text-ink-100 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-2;
+    @apply grid w-full grid-cols-2 gap-2.5 rounded-lg border border-ink-700 bg-ink-900 p-3 text-lg text-ink-100 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-2 sm:border-0 sm:bg-transparent sm:p-0;
   }
   /* One figure: label over value on a phone, label beside value from `sm`. */
   .stat {
@@ -387,14 +395,15 @@
     @apply rounded-md border border-ink-700 px-4 py-2 text-sm font-medium text-ink-100 transition hover:border-ink-500 disabled:cursor-not-allowed disabled:opacity-50;
   }
   /* The toolbar sizes. A page bar is chrome, so its controls are 30px rather
-     than the 36px a form's primary action gets — the difference is a table row
-     on every page that has one. Colour and hierarchy are unchanged: the primary
-     action keeps the gold fill wherever it appears. */
+     than the 36px a form's primary action gets on desktop — the difference is
+     a table row on every page that has one. On mobile (< sm) they expand to
+     min-h-[44px] for finger ergonomics. Colour and hierarchy are unchanged: the
+     primary action keeps the gold fill wherever it appears. */
   .btn-primary-sm {
-    @apply rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-ink-950 transition hover:bg-accentHover disabled:cursor-not-allowed disabled:opacity-50;
+    @apply flex min-h-[44px] items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-ink-950 transition hover:bg-accentHover disabled:cursor-not-allowed disabled:opacity-50 sm:inline-flex sm:min-h-0;
   }
   .btn-ghost-sm {
-    @apply rounded-md border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-100 transition hover:border-ink-500 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply flex min-h-[44px] items-center justify-center rounded-md border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-100 transition hover:border-ink-500 disabled:cursor-not-allowed disabled:opacity-50 sm:inline-flex sm:min-h-0;
   }
   .badge-gain {
     @apply rounded-full bg-gainBg px-2 py-0.5 text-xs text-gain;

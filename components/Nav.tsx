@@ -89,9 +89,9 @@ export default function Nav({ account }: { account: NavAccount }) {
             onClick={() => window.dispatchEvent(new Event(OPEN_PALETTE_EVENT))}
             title={`Search tickers, pages and actions (${isMac ? "⌘K" : "Ctrl+K"})`}
             aria-label="Open command palette"
-            className="flex items-center gap-2 rounded-md border border-ink-600 bg-ink-800/70 p-1.5 text-sm text-ink-100 transition hover:border-ink-500 hover:bg-ink-800 sm:w-56 sm:px-2.5 sm:py-1 md:w-72 xl:w-96 motion-reduce:transition-none"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-md border border-ink-600 bg-ink-800/70 p-2 text-sm text-ink-100 transition hover:border-ink-500 hover:bg-ink-800 sm:min-h-0 sm:min-w-0 sm:w-56 sm:px-2.5 sm:py-1 md:w-72 xl:w-96 motion-reduce:transition-none"
           >
-            <Search size={15} strokeWidth={1.75} className="shrink-0 text-accent" />
+            <Search size={16} strokeWidth={1.75} className="shrink-0 text-accent sm:size-[15px]" />
             <span className="hidden sm:inline">Search…</span>
             <span className="ml-auto hidden shrink-0 text-xs text-ink-500 md:inline">
               {shortcutLabel}
@@ -108,13 +108,13 @@ export default function Nav({ account }: { account: NavAccount }) {
                   : "Accounts — no account yet"
               }
               aria-label="Accounts"
-              className={`flex items-center gap-1.5 rounded-md border p-1.5 text-xs transition sm:px-2.5 sm:py-1 motion-reduce:transition-none ${
+              className={`flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-md border p-2 text-xs transition sm:min-h-0 sm:min-w-0 sm:px-2.5 sm:py-1 motion-reduce:transition-none ${
                 isActive("/accounts")
                   ? "border-accent text-ink-100"
                   : "border-ink-700 text-ink-300 hover:border-ink-500 hover:text-ink-100"
               }`}
             >
-              <UserRound size={13} strokeWidth={1.75} />
+              <UserRound size={15} strokeWidth={1.75} className="sm:size-[13px]" />
               <span className="hidden sm:inline">{account.username ?? "Accounts"}</span>
             </Link>
           )}
@@ -124,9 +124,9 @@ export default function Nav({ account }: { account: NavAccount }) {
             onClick={handleLogout}
             title="Log out"
             aria-label="Log out"
-            className="rounded-md border border-transparent p-1.5 text-ink-300 transition hover:border-ink-700 hover:text-ink-100 sm:border-0 sm:p-0 sm:text-sm"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-transparent p-2 text-ink-300 transition hover:border-ink-700 hover:text-ink-100 sm:min-h-0 sm:min-w-0 sm:border-0 sm:p-0 sm:text-sm"
           >
-            <LogOut size={14} strokeWidth={1.75} className="sm:hidden" />
+            <LogOut size={16} strokeWidth={1.75} className="sm:hidden" />
             <span className="hidden sm:inline">Log out</span>
           </button>
         </div>

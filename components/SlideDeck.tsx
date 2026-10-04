@@ -98,49 +98,51 @@ export default function SlideDeck({
   return (
     <section className={`panel panel-fit ${className}`.trim()}>
       <div className="panel-head">
-        <div
-          ref={containerRef}
-          role="tablist"
-          aria-label={ariaLabel}
-          onKeyDown={onKeyDown}
-          className="tab-track"
-        >
-          {pill && (
-            <span
-              aria-hidden
-              className="tab-pill"
-              style={{
-                transform: `translate(${pill.x}px, ${pill.y}px)`,
-                width: pill.w,
-                height: pill.h,
-              }}
-            />
-          )}
-          {slides.map((slide, i) => (
-            <button
-              key={slide.label}
-              id={`${id}-tab-${i}`}
-              ref={itemRef(i)}
-              role="tab"
-              type="button"
-              aria-selected={i === active}
-              aria-controls={`${id}-panel-${i}`}
-              // Roving tabindex: the strip is one stop in the page's tab order
-              // and the arrows move within it, so a four-view panel does not
-              // cost four presses to walk past.
-              tabIndex={i === active ? 0 : -1}
-              onClick={() => setIndex(i)}
-              className={`tab-item text-xs ${
-                i === active
-                  ? pill
-                    ? "text-ink-950"
-                    : "bg-accent text-ink-950"
-                  : "text-ink-300 hover:bg-ink-800 hover:text-ink-100"
-              }`}
-            >
-              {slide.label}
-            </button>
-          ))}
+        <div className="min-w-0 max-w-full overflow-x-auto no-scrollbar py-0.5">
+          <div
+            ref={containerRef}
+            role="tablist"
+            aria-label={ariaLabel}
+            onKeyDown={onKeyDown}
+            className="tab-track flex-nowrap"
+          >
+            {pill && (
+              <span
+                aria-hidden
+                className="tab-pill"
+                style={{
+                  transform: `translate(${pill.x}px, ${pill.y}px)`,
+                  width: pill.w,
+                  height: pill.h,
+                }}
+              />
+            )}
+            {slides.map((slide, i) => (
+              <button
+                key={slide.label}
+                id={`${id}-tab-${i}`}
+                ref={itemRef(i)}
+                role="tab"
+                type="button"
+                aria-selected={i === active}
+                aria-controls={`${id}-panel-${i}`}
+                // Roving tabindex: the strip is one stop in the page's tab order
+                // and the arrows move within it, so a four-view panel does not
+                // cost four presses to walk past.
+                tabIndex={i === active ? 0 : -1}
+                onClick={() => setIndex(i)}
+                className={`tab-item shrink-0 whitespace-nowrap text-xs min-h-[36px] flex items-center sm:min-h-0 ${
+                  i === active
+                    ? pill
+                      ? "text-ink-950"
+                      : "bg-accent text-ink-950"
+                    : "text-ink-300 hover:bg-ink-800 hover:text-ink-100"
+                }`}
+              >
+                {slide.label}
+              </button>
+            ))}
+          </div>
         </div>
         {(current.hint || current.actions) && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

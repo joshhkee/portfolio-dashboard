@@ -114,54 +114,56 @@ export default function SectionTabs({
   return (
     <nav
       aria-label={label}
-      className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1"
+      className="flex shrink-0 items-center gap-x-3 gap-y-1 overflow-x-auto no-scrollbar py-0.5"
     >
-      <p className="text-xs font-medium uppercase tracking-wide text-ink-500">{label}</p>
+      <p className="shrink-0 text-xs font-medium uppercase tracking-wide text-ink-500">{label}</p>
       {/* A rule rather than a gap: it says the label names the group that
           follows it, instead of floating beside the first pill. */}
-      <span aria-hidden className="h-3.5 w-px bg-ink-700" />
-      <ul
-        ref={(node) => {
-          listRef.current = node;
-          containerRef.current = node;
-        }}
-        onKeyDown={onKeyDown}
-        className="tab-track"
-      >
-        {pill && (
-          <span
-            aria-hidden
-            className="tab-pill"
-            style={{
-              transform: `translate(${pill.x}px, ${pill.y}px)`,
-              width: pill.w,
-              height: pill.h,
-            }}
-          />
-        )}
-        {tabs.map((tab, i) => {
-          const isActive = active?.href === tab.href;
-          return (
-            <li key={tab.href} ref={itemRef(i)}>
-              <Link
-                href={tab.href}
-                data-tab=""
-                aria-current={isActive ? "page" : undefined}
-                className={`tab-item flex items-center gap-1.5 text-xs ${
-                  isActive
-                    ? pill
-                      ? "text-ink-950"
-                      : "bg-accent text-ink-950"
-                    : "text-ink-300 hover:bg-ink-800 hover:text-ink-100"
-                }`}
-              >
-                {tab.icon}
-                {tab.label}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+      <span aria-hidden className="h-3.5 w-px shrink-0 bg-ink-700" />
+      <div className="min-w-0 overflow-x-auto no-scrollbar py-0.5">
+        <ul
+          ref={(node) => {
+            listRef.current = node;
+            containerRef.current = node;
+          }}
+          onKeyDown={onKeyDown}
+          className="tab-track flex-nowrap"
+        >
+          {pill && (
+            <span
+              aria-hidden
+              className="tab-pill"
+              style={{
+                transform: `translate(${pill.x}px, ${pill.y}px)`,
+                width: pill.w,
+                height: pill.h,
+              }}
+            />
+          )}
+          {tabs.map((tab, i) => {
+            const isActive = active?.href === tab.href;
+            return (
+              <li key={tab.href} ref={itemRef(i)} className="shrink-0">
+                <Link
+                  href={tab.href}
+                  data-tab=""
+                  aria-current={isActive ? "page" : undefined}
+                  className={`tab-item flex min-h-[36px] items-center gap-1.5 whitespace-nowrap text-xs sm:min-h-0 ${
+                    isActive
+                      ? pill
+                        ? "text-ink-950"
+                        : "bg-accent text-ink-950"
+                      : "text-ink-300 hover:bg-ink-800 hover:text-ink-100"
+                  }`}
+                >
+                  {tab.icon}
+                  {tab.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     </nav>
   );
 }
