@@ -22,7 +22,14 @@ async function loadRows() {
   }
   await ensureTickerMeta(entries);
   return watchlistRows(
-    items.map((i) => ({ id: i.id, region: i.region, ticker: i.ticker, notes: i.notes })),
+    items.map((i) => ({
+      id: i.id,
+      region: i.region,
+      ticker: i.ticker,
+      notes: i.notes,
+      targetBuyPrice: i.targetBuyPrice,
+      targetAllocPct: i.targetAllocPct,
+    })),
     quotes,
     await getNameMap()
   );
@@ -34,7 +41,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { ticker, region, notes } = body;
+  const { ticker, region, notes, targetBuyPrice, targetAllocPct } = body;
 
   if (!ticker || typeof ticker !== "string") {
     return NextResponse.json({ error: "ticker is required" }, { status: 400 });
@@ -52,11 +59,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `${normalizedTicker} (${normalizedRegion}) is already on the watchlist` }, { status: 409 });
   }
 
+  const cleanTargetBuy =
+    typeof targetBuyPrice === "number" && targetBuyPrice > 0
+      ? targetBuyPrice
+      : typeof targetBuyPrice === "string" && Number(targetBuyPrice) > 0
+        ? Number(targetBuyPrice)
+        : null;
+
+  const cleanAlloc =
+    typeof targetAllocPct === "number" && targetAllocPct > 0
+      ? targetAllocPct
+      : typeof targetAllocPct === "string" && Number(targetAllocPct) > 0
+        ? Number(targetAllocPct)
+        : null;
+
   const item = await prisma.watchlistItem.create({
     data: {
       ticker: normalizedTicker,
       region: normalizedRegion,
       notes: notes ? String(notes).trim() || null : null,
+      targetBuyPrice: cleanTargetBuy,
+      targetAllocPct: cleanAlloc,
     },
   });
   return NextResponse.json(item, { status: 201 });
@@ -73,13 +96,33 @@ export async function PATCH(req: NextRequest) {
   if (!Number.isInteger(id) || id <= 0) {
     return NextResponse.json({ error: "id is required" }, { status: 400 });
   }
-  if (typeof body?.notes !== "string" && body?.notes !== null) {
-    return NextResponse.json({ error: "notes must be a string or null" }, { status: 400 });
+
+  const data: {
+    notes?: string | null;
+    targetBuyPrice?: number | null;
+    targetAllocPct?: number | null;
+  } = {};
+
+  if (body?.notes !== undefined) {
+    data.notes = typeof body.notes === "string" ? body.notes.trim() || null : null;
   }
 
-  const notes = typeof body.notes === "string" ? body.notes.trim() || null : null;
+  if (body?.targetBuyPrice !== undefined) {
+    const num = Number(body.targetBuyPrice);
+    data.targetBuyPrice = Number.isFinite(num) && num > 0 ? num : null;
+  }
+
+  if (body?.targetAllocPct !== undefined) {
+    const num = Number(body.targetAllocPct);
+    data.targetAllocPct = Number.isFinite(num) && num > 0 ? num : null;
+  }
+
   const updated = await prisma.watchlistItem
-    .update({ where: { id }, data: { notes }, select: { id: true, notes: true } })
+    .update({
+      where: { id },
+      data,
+      select: { id: true, notes: true, targetBuyPrice: true, targetAllocPct: true },
+    })
     .catch(() => null);
   if (!updated) return NextResponse.json({ error: "not found" }, { status: 404 });
 

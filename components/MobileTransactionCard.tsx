@@ -193,17 +193,17 @@ export default function MobileTransactionCard({
         <div className="min-w-0 flex-1 truncate text-ink-500" title={cell.text}>
           <LedgerLine parts={cell.derived.parts} note={cell.appended} />
         </div>
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex shrink-0 items-center gap-1">
           <button
             onClick={() => setEditing(true)}
-            className="text-xs text-ink-300 hover:text-accent"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center text-xs text-ink-300 hover:text-accent"
           >
             Edit
           </button>
           <button
             onClick={handleDelete}
             disabled={busy}
-            className="text-xs text-ink-300 hover:text-loss disabled:opacity-50"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center text-xs text-ink-300 hover:text-loss disabled:opacity-50"
           >
             Delete
           </button>

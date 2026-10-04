@@ -23,6 +23,10 @@ export interface WatchlistItemRow {
   /** The owner's reason for watching it. Never the instrument's name — that
    *  comes from the lookup and renders under the ticker. */
   notes: string | null;
+  /** Actionable target entry price in the instrument's native currency. */
+  targetBuyPrice?: number | null;
+  /** Target portfolio allocation weight as a fraction (e.g. 0.05 for 5%). */
+  targetAllocPct?: number | null;
 }
 
 export interface WatchlistRow extends WatchlistItemRow {
@@ -31,6 +35,17 @@ export interface WatchlistRow extends WatchlistItemRow {
   price: number | null;
   /** Latest session's move, as a fraction. */
   dayChangePct: number | null;
+  /** Target buy price in native currency. */
+  targetBuyPrice: number | null;
+  /** Target portfolio allocation weight as a fraction. */
+  targetAllocPct: number | null;
+  /**
+   * Delta between current price and target buy price:
+   * (price - targetBuyPrice) / targetBuyPrice.
+   * Null when targetBuyPrice or price is missing.
+   * <= 0 means at or below target.
+   */
+  targetProximityPct: number | null;
 }
 
 export function watchlistRows(
@@ -43,12 +58,23 @@ export function watchlistRows(
 ): WatchlistRow[] {
   return items.map((item) => {
     const key = priceKey(item.region, item.ticker);
+    const price = quotes.prices[key] ?? null;
+    const targetBuyPrice = typeof item.targetBuyPrice === "number" && item.targetBuyPrice > 0 ? item.targetBuyPrice : null;
+    const targetAllocPct = typeof item.targetAllocPct === "number" && item.targetAllocPct > 0 ? item.targetAllocPct : null;
+    const targetProximityPct =
+      price !== null && targetBuyPrice !== null && targetBuyPrice > 0
+        ? (price - targetBuyPrice) / targetBuyPrice
+        : null;
+
     return {
       ...item,
       notes: item.notes?.trim() || null,
       name: cachedNames[key] ?? quotes.meta[key]?.name ?? null,
-      price: quotes.prices[key] ?? null,
+      price,
       dayChangePct: quotes.dayChanges[key] ?? null,
+      targetBuyPrice,
+      targetAllocPct,
+      targetProximityPct,
     };
   });
 }

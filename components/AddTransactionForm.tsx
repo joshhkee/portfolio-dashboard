@@ -94,9 +94,10 @@ export default function AddTransactionForm() {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="text-ink-300 hover:text-ink-100"
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center -mr-2 text-ink-300 hover:text-ink-100"
+              aria-label="Close dialog"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           </div>
 
@@ -104,14 +105,14 @@ export default function AddTransactionForm() {
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-ink-300">Date</label>
-                <input name="date" type="date" required defaultValue={today} className="field text-xs" />
+                <input name="date" type="date" required defaultValue={today} className="field min-h-[44px] text-xs" />
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-ink-300">Action</label>
                 <select
                   name="action"
                   required
-                  className="field text-xs"
+                  className="field min-h-[44px] text-xs"
                   value={action}
                   onChange={(event) => setAction(event.target.value)}
                 >
@@ -124,11 +125,11 @@ export default function AddTransactionForm() {
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-ink-300">Ticker</label>
-                <input name="ticker" required className="field text-xs" placeholder="VOO" />
+                <input name="ticker" required className="field min-h-[44px] text-xs" placeholder="VOO" />
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-ink-300">Region</label>
-                <select name="region" required className="field text-xs">
+                <select name="region" required className="field min-h-[44px] text-xs">
                   <option value="US">US</option>
                   <option value="SG">SG</option>
                   <option value="HK">HK</option>
@@ -145,7 +146,7 @@ export default function AddTransactionForm() {
                   step="0.0001"
                   min="0"
                   required
-                  className="field text-xs"
+                  className="field min-h-[44px] text-xs"
                   placeholder="5"
                 />
               </div>
@@ -157,7 +158,7 @@ export default function AddTransactionForm() {
                   step="0.0001"
                   min="0"
                   required
-                  className="field text-xs"
+                  className="field min-h-[44px] text-xs"
                   placeholder="546.00"
                 />
               </div>
@@ -165,12 +166,12 @@ export default function AddTransactionForm() {
 
             <div className="flex flex-col gap-1">
               <label className="text-xs text-ink-300">Notes</label>
-              <input name="notes" className="field text-xs" placeholder="Optional" />
+              <input name="notes" className="field min-h-[44px] text-xs" placeholder="Optional" />
             </div>
 
             {action === "Buy" && (
               <label
-                className="flex items-center gap-2 text-xs text-ink-300"
+                className="flex min-h-[44px] items-center gap-2 text-xs text-ink-300"
                 title="A scheduled buy — the ledger will show it as DCA (month) and the average it left behind."
               >
                 <input type="checkbox" name="dca" className="h-4 w-4 accent-accent" />
@@ -179,12 +180,12 @@ export default function AddTransactionForm() {
             )}
 
             <div className="flex gap-2 pt-2">
-              <button type="submit" className="btn-primary flex-1" disabled={submitting}>
+              <button type="submit" className="btn-primary min-h-[44px] flex-1" disabled={submitting}>
                 {submitting ? "Saving…" : "Save transaction"}
               </button>
               <button
                 type="button"
-                className="btn-ghost"
+                className="btn-ghost min-h-[44px]"
                 onClick={() => setOpen(false)}
                 disabled={submitting}
               >

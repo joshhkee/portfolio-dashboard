@@ -565,7 +565,7 @@ export default function TransactionHistoryModal({
           </div>
           <button
             onClick={onClose}
-            className="rounded p-1 text-ink-300 hover:text-ink-100"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center -mr-2 rounded p-1 text-ink-300 hover:text-ink-100 sm:min-h-0 sm:min-w-0 sm:mr-0"
             title="Close"
             aria-label="Close"
           >

@@ -62,9 +62,9 @@ export default function SearchBox({
           type="button"
           onClick={() => onChange("")}
           aria-label="Clear search"
-          className="absolute right-1.5 rounded p-0.5 text-ink-500 transition hover:text-ink-100 motion-reduce:transition-none"
+          className="absolute right-1 flex min-h-[36px] min-w-[36px] items-center justify-center rounded p-1 text-ink-500 transition hover:text-ink-100 sm:min-h-0 sm:min-w-0 sm:p-0.5 motion-reduce:transition-none"
         >
-          <X size={12} strokeWidth={2} />
+          <X size={14} strokeWidth={2} />
         </button>
       )}
     </div>

@@ -149,9 +149,10 @@ export default function AddContributionForm({
             <button
               type="button"
               onClick={close}
-              className="text-ink-300 hover:text-ink-100"
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center -mr-2 text-ink-300 hover:text-ink-100"
+              aria-label="Close dialog"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           </div>
 
@@ -159,14 +160,14 @@ export default function AddContributionForm({
             <button
               type="button"
               onClick={() => setTab("group")}
-              className={`flex-1 rounded py-1.5 transition ${tab === "group" ? "bg-accent text-ink-950 font-medium" : "text-ink-300"}`}
+              className={`flex-1 rounded min-h-[40px] py-1.5 transition ${tab === "group" ? "bg-accent text-ink-950 font-medium" : "text-ink-300"}`}
             >
               Group split
             </button>
             <button
               type="button"
               onClick={() => setTab("individual")}
-              className={`flex-1 rounded py-1.5 transition ${tab === "individual" ? "bg-accent text-ink-950 font-medium" : "text-ink-300"}`}
+              className={`flex-1 rounded min-h-[40px] py-1.5 transition ${tab === "individual" ? "bg-accent text-ink-950 font-medium" : "text-ink-300"}`}
             >
               Individual deposit
             </button>
@@ -177,7 +178,7 @@ export default function AddContributionForm({
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-ink-300">Label</label>
-                  <input name="label" required defaultValue={nextMonthLabel} className="field text-xs" />
+                  <input name="label" required defaultValue={nextMonthLabel} className="field min-h-[44px] text-xs" />
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-ink-300">Month</label>
@@ -186,7 +187,7 @@ export default function AddContributionForm({
                     type="date"
                     required
                     defaultValue={nextMonthDate}
-                    className="field text-xs"
+                    className="field min-h-[44px] text-xs"
                   />
                 </div>
               </div>
@@ -197,7 +198,7 @@ export default function AddContributionForm({
                   name="paidOn"
                   type="date"
                   defaultValue={today}
-                  className="field text-xs"
+                  className="field min-h-[44px] text-xs"
                 />
               </div>
 
@@ -213,7 +214,7 @@ export default function AddContributionForm({
                         step="0.01"
                         min="0"
                         defaultValue={DEFAULT_MONTHLY_AMOUNTS[name] ?? 0}
-                        className="field text-xs"
+                        className="field min-h-[44px] text-xs"
                       />
                     </div>
                   ))}
@@ -221,10 +222,10 @@ export default function AddContributionForm({
               </div>
 
               <div className="flex gap-2 pt-3">
-                <button type="submit" className="btn-primary flex-1" disabled={submitting}>
+                <button type="submit" className="btn-primary min-h-[44px] flex-1" disabled={submitting}>
                   {submitting ? "Saving…" : "Save month"}
                 </button>
-                <button type="button" className="btn-ghost" onClick={close} disabled={submitting}>
+                <button type="button" className="btn-ghost min-h-[44px]" onClick={close} disabled={submitting}>
                   Cancel
                 </button>
               </div>
@@ -238,7 +239,7 @@ export default function AddContributionForm({
                   name="contributorName"
                   list="contributor-list-mobile"
                   required
-                  className="field text-xs"
+                  className="field min-h-[44px] text-xs"
                   placeholder="e.g. Josh"
                 />
                 <datalist id="contributor-list-mobile">
@@ -251,7 +252,7 @@ export default function AddContributionForm({
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-ink-300">Label</label>
-                  <input name="label" required className="field text-xs" placeholder="e.g. SEP (2026)" />
+                  <input name="label" required className="field min-h-[44px] text-xs" placeholder="e.g. SEP (2026)" />
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-ink-300">Amount (S$)</label>
@@ -261,7 +262,7 @@ export default function AddContributionForm({
                     step="0.01"
                     min="0"
                     required
-                    className="field text-xs"
+                    className="field min-h-[44px] text-xs"
                     placeholder="500.00"
                   />
                 </div>
@@ -275,7 +276,7 @@ export default function AddContributionForm({
                     type="date"
                     required
                     defaultValue={today}
-                    className="field text-xs"
+                    className="field min-h-[44px] text-xs"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
@@ -284,16 +285,16 @@ export default function AddContributionForm({
                     name="paidOn"
                     type="date"
                     defaultValue={today}
-                    className="field text-xs"
+                    className="field min-h-[44px] text-xs"
                   />
                 </div>
               </div>
 
               <div className="flex gap-2 pt-3">
-                <button type="submit" className="btn-primary flex-1" disabled={submitting}>
+                <button type="submit" className="btn-primary min-h-[44px] flex-1" disabled={submitting}>
                   {submitting ? "Saving…" : "Save deposit"}
                 </button>
-                <button type="button" className="btn-ghost" onClick={close} disabled={submitting}>
+                <button type="button" className="btn-ghost min-h-[44px]" onClick={close} disabled={submitting}>
                   Cancel
                 </button>
               </div>
