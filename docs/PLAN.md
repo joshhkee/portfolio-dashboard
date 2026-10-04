@@ -204,7 +204,7 @@ git credential fill`). Never echo it, into a transcript or anywhere else.
 | 40 | Touch-First Mobile Cards: native holding and transaction list tiles below `lg` with 0px horizontal scroll | **DONE** (shipped in Phase 2) |
 | 41 | Mobile Bottom Sheets: transaction history modal and slide-up forms (`AddTransactionForm`, `AddContributionForm`) | **DONE** (shipped in Phase 3) |
 | 41b | Mobile Touch Targets & Polish: 44px min tap targets, refined `.stat-strip` mobile grid in `globals.css`, and smooth horizontal scroll for `SectionTabs` and `SlideDeck` | **DONE** (shipped in Phase 4) |
-| 42 | Watchlist Redesign: structured buy targets, entry proximity gauges, valuation metrics (P/E, 52w range), and position sizing calculator | Planned (see `docs/FEATURE_ROADMAP.md` §2) |
+| 42 | Watchlist Redesign: structured buy targets, entry proximity gauges, 3-tier progressive disclosure, and position sizing calculator | **DONE** (shipped in Part 42) |
 | 43 | Dividends & Total Return: `Dividend` model, yield-on-cost, forward cash income, and capital vs dividend return split | Planned (see `docs/FEATURE_ROADMAP.md` §3) |
 
 ---

@@ -27,6 +27,9 @@ describe("watchlistRows", () => {
         name: "State Street Health Care Select Sector SPDR ETF",
         price: 148.2,
         dayChangePct: 0.0042,
+        targetBuyPrice: null,
+        targetAllocPct: null,
+        targetProximityPct: null,
       },
     ]);
   });
@@ -75,5 +78,43 @@ describe("watchlistRows", () => {
     );
     expect(rows[0].notes).toBeNull();
     expect(rows[1].notes).toBe("Rate cuts");
+  });
+
+  it("calculates target proximity percentage accurately", () => {
+    const rows = watchlistRows(
+      [
+        {
+          id: 1,
+          region: "US",
+          ticker: "NVDA",
+          notes: null,
+          targetBuyPrice: 100,
+          targetAllocPct: 0.05,
+        },
+        {
+          id: 2,
+          region: "US",
+          ticker: "AAPL",
+          notes: null,
+          targetBuyPrice: 200,
+          targetAllocPct: 0.1,
+        },
+      ],
+      {
+        prices: { "US::NVDA": 95, "US::AAPL": 210 },
+        meta: {} as MetaMap,
+        dayChanges: {} as DayChangeMap,
+      }
+    );
+
+    // NVDA: (95 - 100) / 100 = -0.05 (-5%, below target)
+    expect(rows[0].targetBuyPrice).toBe(100);
+    expect(rows[0].targetAllocPct).toBe(0.05);
+    expect(rows[0].targetProximityPct).toBeCloseTo(-0.05, 5);
+
+    // AAPL: (210 - 200) / 200 = 0.05 (+5%, above target)
+    expect(rows[1].targetBuyPrice).toBe(200);
+    expect(rows[1].targetAllocPct).toBe(0.1);
+    expect(rows[1].targetProximityPct).toBeCloseTo(0.05, 5);
   });
 });

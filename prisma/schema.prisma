@@ -98,11 +98,14 @@ model DailySnapshot {
 }
 
 model WatchlistItem {
-  id        Int      @id @default(autoincrement())
-  ticker    String
-  region    String // "US" | "SG" | "HK"
-  notes     String?
-  createdAt DateTime @default(now())
+  id             Int       @id @default(autoincrement())
+  ticker         String
+  region         String // "US" | "SG" | "HK"
+  notes          String?
+  targetBuyPrice Float?
+  targetAllocPct Float?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now()) @updatedAt
 
   @@unique([region, ticker])
 }

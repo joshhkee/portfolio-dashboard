@@ -2,12 +2,28 @@ import { prisma } from "@/lib/prisma";
 import { fetchPositionQuotes } from "@/lib/prices";
 import { ensureTickerMeta, getNameMap, type TickerMetaEntry } from "@/lib/ticker-meta";
 import { watchlistRows } from "@/lib/watchlist";
+import { getOpenPositionsFor } from "@/lib/get-positions";
+import { fetchFxRates, convertCurrency } from "@/lib/fx";
 import WatchlistPanel from "@/components/WatchlistPanel";
 
 export const dynamic = "force-dynamic";
 
+const CURRENCY_TO_REGION: Record<string, string> = { SGD: "SG", USD: "US", HKD: "HK" };
+
 export default async function WatchlistPage() {
-  const items = await prisma.watchlistItem.findMany({ orderBy: { createdAt: "asc" } });
+  const [items, positions, cashRows, rates] = await Promise.all([
+    prisma.watchlistItem.findMany({ orderBy: { createdAt: "asc" } }),
+    getOpenPositionsFor(["US", "SG", "HK"], "SGD"),
+    prisma.cashBalance.findMany(),
+    fetchFxRates(),
+  ]);
+
+  let cashTotalSgd = 0;
+  for (const row of cashRows) {
+    cashTotalSgd += convertCurrency(row.balance, CURRENCY_TO_REGION[row.currency] ?? "SG", "SGD", rates);
+  }
+  const holdingsValueSgd = positions.reduce((sum, p) => sum + p.totalHoldingsConverted, 0);
+  const totalPortfolioValueSgd = holdingsValueSgd + cashTotalSgd;
 
   // The full quote call, not the prices-only wrapper this page used to make: the
   // same single request per ticker also returns the instrument's name, the
@@ -25,7 +41,14 @@ export default async function WatchlistPage() {
   await ensureTickerMeta(metaEntries);
 
   const rows = watchlistRows(
-    items.map((i) => ({ id: i.id, region: i.region, ticker: i.ticker, notes: i.notes })),
+    items.map((i) => ({
+      id: i.id,
+      region: i.region,
+      ticker: i.ticker,
+      notes: i.notes,
+      targetBuyPrice: i.targetBuyPrice,
+      targetAllocPct: i.targetAllocPct,
+    })),
     quotes,
     await getNameMap()
   );
@@ -44,7 +67,11 @@ export default async function WatchlistPage() {
           </span>
         </h1>
       </div>
-      <WatchlistPanel initialRows={rows} />
+      <WatchlistPanel
+        initialRows={rows}
+        portfolioTotalSgd={totalPortfolioValueSgd}
+        fxRates={rates}
+      />
     </div>
   );
 }
