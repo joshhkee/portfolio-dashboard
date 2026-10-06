@@ -32,6 +32,7 @@ export interface PositionRow {
   unrealizedPL: number;
   unrealizedPLConverted: number;
   unrealizedPLPct: number;
+  dividendYieldOnCost: number | null;
   portfolioPct: number;
   priceUnavailable: boolean;
   heldSince: Date | null;
@@ -423,7 +424,7 @@ function RegionTable({
 
                   <td className="text-right">
                     {r.priceUnavailable ? (
-                      <span className="text-ink-500" title="No live quote — can't compute unrealized P/L">
+                      <span className="block text-ink-500" title="No live quote — can't compute unrealized P/L">
                         N/A
                       </span>
                     ) : (
@@ -435,6 +436,14 @@ function RegionTable({
                           <Percent value={r.unrealizedPLPct} />
                         </span>
                       </>
+                    )}
+                    {r.dividendYieldOnCost !== null && (
+                      <span
+                        className="mt-0.5 block text-[10px] text-ink-500"
+                        title="Net dividends actually received in the trailing 12 months divided by current cost. Only shown when a payment is recorded; no future payments are inferred."
+                      >
+                        TTM yield on cost · {(r.dividendYieldOnCost * 100).toFixed(2)}%
+                      </span>
                     )}
                   </td>
 
@@ -525,17 +534,24 @@ function RegionTable({
                   </span>
                   <span className="text-ink-500">· avg {symbol}{formatAmount(r.avgCost)}</span>
                 </div>
-                <div className="flex items-baseline gap-2 text-right">
-                  {r.priceUnavailable ? (
-                    <span className="text-ink-500">N/A</span>
-                  ) : (
-                    <span className="num font-medium">
-                      <NativeMoney value={r.unrealizedPL} symbol={symbol} showPlus />
-                      {" "}
-                      <span className="text-[11px]">(<Percent value={r.unrealizedPLPct} />)</span>
-                    </span>
+                <div className="flex flex-col items-end">
+                  <div className="flex items-baseline gap-2 text-right">
+                    {r.priceUnavailable ? (
+                      <span className="text-ink-500">N/A</span>
+                    ) : (
+                      <span className="num font-medium">
+                        <NativeMoney value={r.unrealizedPL} symbol={symbol} showPlus />
+                        {" "}
+                        <span className="text-[11px]">(<Percent value={r.unrealizedPLPct} />)</span>
+                      </span>
+                    )}
+                    <span className="num text-ink-500">· <PlainPercent value={r.portfolioPct} /></span>
+                  </div>
+                  {r.dividendYieldOnCost !== null && (
+                    <p className="mt-1 text-right text-[10px] text-ink-500" title="Net dividends actually received in the trailing 12 months divided by current cost.">
+                      TTM yield on cost · {(r.dividendYieldOnCost * 100).toFixed(2)}%
+                    </p>
                   )}
-                  <span className="num text-ink-500">· <PlainPercent value={r.portfolioPct} /></span>
                 </div>
               </div>
             </div>

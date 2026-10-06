@@ -72,6 +72,18 @@ export async function GET(
     return csvResponse(`contributions-${stamp}.csv`, csv);
   }
 
+  if (type === "dividends") {
+    const rows = await prisma.dividend.findMany({ orderBy: [{ date: "asc" }, { id: "asc" }] });
+    const csv = toCsv(
+      ["id", "date", "ticker", "region", "netAmount", "currency", "amountSgd", "withholding", "notes"],
+      rows.map((d) => [
+        d.id, isoDate(d.date), d.ticker, d.region, d.amount.toFixed(2), d.currency,
+        d.amountSgd.toFixed(2), d.withholding.toFixed(2), d.notes ?? "",
+      ])
+    );
+    return csvResponse(`dividends-${stamp}.csv`, csv);
+  }
+
   if (type === "completed-trades") {
     const raw = await prisma.transaction.findMany({ orderBy: [{ date: "asc" }, { id: "asc" }] });
     const { completedTrades } = computeLedger(fromDbRows(raw));

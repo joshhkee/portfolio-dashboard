@@ -128,7 +128,7 @@ Cash distributions (especially for SG bank holdings and US dividend payers) curr
      date        DateTime
      region      String   // "US" | "SG" | "HK"
      ticker      String
-     amount      Float    // Cash received in native currency
+     amount      Float    // Net cash received after withholding, in native currency
      currency    String   // "USD" | "SGD" | "HKD"
      amountSgd   Float    // Converted to SGD at date's FX rate
      withholding Float    @default(0) // Foreign withholding tax
@@ -140,8 +140,11 @@ Cash distributions (especially for SG bank holdings and US dividend payers) curr
    }
    ```
 2. **Progressive Disclosure:**
-   - **Tier 1:** Total Portfolio Annual Dividend Yield displayed quietly in the stats strip on `/performance` (e.g., `Yield: 3.2%`).
-   - **Tier 2:** In `/positions/holdings`, Dividend Yield on Cost paired quietly under unrealized return.
-   - **Tier 3:** Dedicated Dividend Log and Projected Calendar available as a lens under `/money`.
+   - **Tier 1:** Trailing-12-month net dividend yield appears quietly in the `/performance` stats strip, divided by current holdings value.
+   - **Tier 2:** In `/positions/holdings`, trailing-12-month net yield on cost appears under unrealized return when a payment is recorded for that holding.
+   - **Tier 3:** A dedicated dividend payment ledger and actual monthly receipt history are available under `/money`. Do not infer future payment dates or schedules until there is evidence to support them.
 3. **Cash Balance Auto-Sync:**
-   - Logging a dividend automatically increments the respective `CashBalance`, eliminating manual balance tinkering.
+   - Logging a dividend atomically increments the respective `CashBalance` by the net amount actually credited. Withholding is stored separately as reference and is not credited to cash.
+   - `amountSgd` records the net payment converted using the payment-date historical FX close; a missing historical rate rejects the entry rather than silently using today's rate.
+4. **Return boundary:**
+   - Dividend receipts are a separate income ledger. They do not modify transaction-derived positions, cost basis, or capital gains; recorded cash and snapshots remain their existing sources for portfolio value and total-return history.

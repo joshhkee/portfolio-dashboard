@@ -1,5 +1,7 @@
 import { getOpenPositionsFor } from "@/lib/get-positions";
 import PositionsTable from "@/components/PositionsTable";
+import { prisma } from "@/lib/prisma";
+import { dividendPositionMetrics, trailingDividendStart } from "@/lib/dividends";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +26,19 @@ export const dynamic = "force-dynamic";
  * reports in — because a total has to be one currency to mean anything.
  */
 export default async function OpenPositionsPage() {
-  const rows = await getOpenPositionsFor(["US", "SG", "HK"], "SGD");
+  const asOf = new Date();
+  const [rows, dividends] = await Promise.all([
+    getOpenPositionsFor(["US", "SG", "HK"], "SGD"),
+    prisma.dividend.findMany({
+      where: { date: { gte: trailingDividendStart(asOf), lte: asOf } },
+      select: { date: true, region: true, ticker: true, amount: true },
+    }),
+  ]);
+  const metrics = dividendPositionMetrics(dividends, rows);
+  const rowsWithDividendYield = rows.map((row) => ({
+    ...row,
+    dividendYieldOnCost: metrics[`${row.region}::${row.ticker.toUpperCase()}`]?.yieldOnCost ?? null,
+  }));
 
-  return <PositionsTable rows={rows} displayCurrency="SGD" />;
+  return <PositionsTable rows={rowsWithDividendYield} displayCurrency="SGD" />;
 }
