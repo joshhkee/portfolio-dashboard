@@ -7,7 +7,7 @@
 > Machine-local operations live in the untracked `.freebuff/run.md`. Anything
 > below that contradicts those three is history.
 >
-> Last entry: Part 38, 2026-09-25.
+> Last entry: Part 40, 2026-10-06.
 
 Segmented so each part is independently verifiable and hand-offable. Work the
 parts in order; a part is DONE only when its checkpoint passes.
@@ -179,7 +179,7 @@ git credential fill`). Never echo it, into a transcript or anywhere else.
 | 15 | IA: five objects, lenses nested, old URLs redirected | **DONE** |
 | 16 | Accounts: username + password, per-account `lastSeenAt` | **DONE** — no account created yet; make the first one at `/accounts` (Part 19) or `npm run user:add` (the shared-password gate still works) |
 | 17 | Today: hero + since-last-visit, needs-attention, schedule line, one chart, largest positions | **DONE** |
-| 18 | Activity: the four ledgers merged into one filterable timeline | TODO — proposed, not built |
+| 18 | Activity: the existing transaction, contribution, and FX ledgers merged into one filterable timeline | **DONE** (Part 40 of `FEATURE_ROADMAP.md`, at `/money/activity`) |
 | 19 | Accounts UI: add / reset / remove accounts at `/accounts` | **DONE** — the owner created their own account (`josh`); the bootstrap is closed |
 | 20 | Today fits one desktop screen: chart beside the largest positions | **DONE** — measured 0px of scroll at 1440×900, 1440×780 and 1024×800 |
 | 21 | Exposure page pass + tagging as a system (vocabulary, dropdown, suggestions, batch) | **DONE** — all 18 holdings are tagged |
@@ -206,6 +206,26 @@ git credential fill`). Never echo it, into a transcript or anywhere else.
 | 41b | Mobile Touch Targets & Polish: 44px min tap targets, refined `.stat-strip` mobile grid in `globals.css`, and smooth horizontal scroll for `SectionTabs` and `SlideDeck` | **DONE** (shipped in Phase 4) |
 | 42 | Watchlist Redesign: structured buy targets, entry proximity gauges, 3-tier progressive disclosure, and position sizing calculator | **DONE** (shipped in Part 42) |
 | 43 | Dividends & Total Return: `Dividend` model, yield-on-cost, forward cash income, and capital vs dividend return split | Planned (see `docs/FEATURE_ROADMAP.md` §3) |
+
+---
+
+## Resume checkpoint — 2026-10-06 (after Part 40)
+
+**Part 40 is complete:** `/money/activity` is a newest-first read-only projection
+of the existing transaction, contribution and CashExchange ledgers. Four filter
+chips select All, Trades, Deposits, or Exchanges. A contribution sorts by its
+recorded `paidOn` date when present; otherwise it uses the attributed `date` but
+marks the arrival date as unrecorded rather than claiming it arrived then.
+Each event carries its currency and key audit details, and links point back to
+the dedicated Transactions, Deposits, and Cash & FX views. No schema, ledger,
+balance logic, or bookkeeping route changed.
+
+Part 40 added `lib/activity.ts` as the pure merge/filter layer, plus the
+`/money/activity` page and `components/ActivityTimeline.tsx`; the Money section
+strip and command palette link to it. The focused timeline tests pin mixed-source
+ordering, unknown deposit arrival dates, and filter membership. Verify the live
+page on desktop and phone, especially that the inline filters and event details
+remain readable without horizontal overflow.
 
 ---
 
@@ -459,12 +479,12 @@ with `EPERM` while the dev server is running (the server holds
 `query_engine-windows.dll.node`). Run `npx next build` directly in that case, or
 stop the dev server first — the failure is the file lock, not the code.
 
-**Next action (owner's call):** still open — **Part 18** the merged `/activity`
-ledger, modelling the **stop-loss / take-profit levels** the notes still carry as
-text (the owner's chosen follow-up to Part 8), and the **monolith split**
-(`app/page.tsx`, `lib/portfolio-engine.ts`). Part 26 closed the last hand-typed
-name in the app: the watchlist now resolves its own names, and its notes column
-is a reason rather than a duplicate of the ticker.
+**Next action (owner's call):** modelling the **stop-loss / take-profit levels**
+the notes still carry as text (the owner's chosen follow-up to Part 8), and the
+**monolith split** (`app/page.tsx`, `lib/portfolio-engine.ts`). Part 40 closed the
+open unified-activity timeline item; Part 26 closed the last hand-typed name in
+the app: the watchlist now resolves its own names, and its notes column is a
+reason rather than a duplicate of the ticker.
 
 ---
 
@@ -1940,9 +1960,9 @@ was deleted, and all of it is in the command palette.
 and the four dashboard blocks were read back from the running page rather than
 assumed.
 
-**Still open:** Part 18, the `/activity` merged ledger (specified, not built).
-Until it exists, the newest entries live on `/positions/trades`, which is where
-the old "Recent activity" panel pointed anyway.
+**Historical note:** this checkpoint predates Part 40, which implemented the
+read-only cross-ledger timeline at `/money/activity` while retaining the
+Transactions and Cash/FX journals.
 
 ---
 
