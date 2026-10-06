@@ -27,13 +27,16 @@ breaking it.
 
 Breaking one of these is a bug even if the tests pass.
 
-1. **`Transaction` and `Contribution` are the only source of truth.** Open
-   positions, completed trades, portfolio totals and percentages are DERIVED by
-   replaying the ledger (`lib/portfolio-engine.ts`). Never store a value that can
-   be derived, because a stored copy drifts.
+1. **`Transaction` and `Contribution` are the source of truth for positions,
+   outlay and capital gains.** Open positions, completed trades, holdings totals
+   and percentages are DERIVED by replaying them (`lib/portfolio-engine.ts`).
+   The `Dividend` ledger records actual distributions for income analytics only;
+   it never changes positions, cost basis or capital gains. Never store a value
+   that can be derived, because a stored copy drifts.
 2. **`CashBalance` is the one deliberate exception.** It is real, stored,
    hand-editable, auto-adjusted by contributions, buys, sells and exchanges
-   (`lib/cash.ts`), and never recomputed from the ledger on read.
+   (`lib/cash.ts`) and net dividend receipts, and never recomputed from the
+   ledgers on read.
 3. **`DailySnapshot` rows are frozen historical facts.** `recordTodaySnapshot()`
    is idempotent per UTC day, only ever rewrites today, and must fail soft:
    snapshot recording can never break a page load.

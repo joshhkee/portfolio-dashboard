@@ -23,6 +23,7 @@ import { BENCHMARKS, getBenchmarkCloses } from "@/lib/benchmarks";
 import { alignCloses, priceKey } from "@/lib/prices";
 import PerformanceViews from "@/components/PerformanceViews";
 import type { RiskPanelProps } from "@/components/RiskPanel";
+import { trailingDividendIncome, trailingDividendStart } from "@/lib/dividends";
 
 export const dynamic = "force-dynamic";
 
@@ -48,12 +49,15 @@ const CURRENCY_TO_REGION: Record<string, string> = { SGD: "SG", USD: "US", HKD: 
 export default async function PerformancePage() {
   // Every read is a round trip to a remote pooler, so the whole set is issued
   // together rather than awaited one at a time.
-  const [contributions, cashRows, rates, snapshots, transactions] = await Promise.all([
+  const asOf = new Date();
+  const dividendStart = trailingDividendStart(asOf);
+  const [contributions, cashRows, rates, snapshots, transactions, dividends] = await Promise.all([
     prisma.contribution.findMany({ orderBy: { date: "asc" } }),
     prisma.cashBalance.findMany(),
     fetchFxRates(),
     getSnapshots(),
     prisma.transaction.findMany({ orderBy: [{ date: "asc" }, { id: "asc" }] }),
+    prisma.dividend.findMany({ where: { date: { gte: dividendStart, lte: asOf } } }),
   ]);
 
   const positions = await getOpenPositionsFor(["US", "SG", "HK"], "SGD", rates, transactions);
@@ -64,6 +68,11 @@ export default async function PerformancePage() {
     cashTotalSgd += convertCurrency(row.balance, CURRENCY_TO_REGION[row.currency], "SGD", rates);
   }
   const totalPortfolioValue = holdingsValueSgd + cashTotalSgd;
+  const dividendIncome = trailingDividendIncome(dividends, asOf);
+  const annualDividendYield =
+    holdingsValueSgd > 0 && dividendIncome.count > 0
+      ? dividendIncome.amountSgd / holdingsValueSgd
+      : null;
 
   // Money-weighted return: every contribution as money in, today's total as the
   // final value. Moves with the deposit schedule.
@@ -184,6 +193,11 @@ export default async function PerformancePage() {
                 : "—"
             }
             tone={biggestDay ? (biggestDay.value >= 0 ? "gain" : "loss") : undefined}
+          />
+          <Stat
+            label="Dividend yield"
+            title="Trailing-12-month net dividends received divided by current holdings value; cash excluded. This is historical yield, not a forecast."
+            value={annualDividendYield !== null ? <Percent value={annualDividendYield} /> : "—"}
           />
           <Stat
             label="Holdings value"

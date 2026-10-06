@@ -7,7 +7,7 @@
 > Machine-local operations live in the untracked `.freebuff/run.md`. Anything
 > below that contradicts those three is history.
 >
-> Last entry: Part 40, 2026-10-06.
+> Last entry: Roadmap Part 41 (plan Part 43), 2026-10-06.
 
 Segmented so each part is independently verifiable and hand-offable. Work the
 parts in order; a part is DONE only when its checkpoint passes.
@@ -205,11 +205,11 @@ git credential fill`). Never echo it, into a transcript or anywhere else.
 | 41 | Mobile Bottom Sheets: transaction history modal and slide-up forms (`AddTransactionForm`, `AddContributionForm`) | **DONE** (shipped in Phase 3) |
 | 41b | Mobile Touch Targets & Polish: 44px min tap targets, refined `.stat-strip` mobile grid in `globals.css`, and smooth horizontal scroll for `SectionTabs` and `SlideDeck` | **DONE** (shipped in Phase 4) |
 | 42 | Watchlist Redesign: structured buy targets, entry proximity gauges, 3-tier progressive disclosure, and position sizing calculator | **DONE** (shipped in Part 42) |
-| 43 | Dividends & Total Return: `Dividend` model, yield-on-cost, forward cash income, and capital vs dividend return split | Planned (see `docs/FEATURE_ROADMAP.md` §3) |
+| 43 (roadmap Part 41) | Dividends: net payment ledger, cash auto-sync, trailing income/yield, and actual monthly history | **DONE** (2026-10-06; PR pending merge) |
 
 ---
 
-## Resume checkpoint — 2026-10-06 (after Part 40)
+## Resume checkpoint — 2026-10-06 (after roadmap Part 41 / plan Part 43)
 
 **Part 40 is complete:** `/money/activity` is a newest-first read-only projection
 of the existing transaction, contribution and CashExchange ledgers. Four filter
@@ -228,6 +228,24 @@ row with each contributor's subtotal. The focused tests cover merge order,
 deposit aggregation, date boundaries, and filter membership. The original page
 was checked on desktop and phone with no horizontal overflow; recheck after the
 new controls land.
+
+**Roadmap Part 41 (plan Part 43) adds dividend income as a separate ledger.**
+`/money/dividends` records net cash received and withholding separately,
+converts the receipt using the payment-date FX close, atomically adjusts the
+matching cash balance, and can reverse an entry with the cash correction in one
+transaction. Trailing-12-month net yield and per-holding yield-on-cost use only
+actual recorded payments. The Money lens shows payment history by month, not a
+forecast or guessed payment calendar. This does not alter transaction-derived
+positions, cost basis or capital gains. The migration is additive and applied; no payment rows have been written to
+the shared database. Verification: 27 test files / 431 tests pass, typecheck and
+lint are clean, `npx next build` succeeds (middleware deprecation warning only),
+and Prisma validates and reports the schema up to date. Browser checks at
+1440×900 show no main-page or horizontal overflow; at 390×780 the payment form
+controls are 44px high and the document has no horizontal overflow. The TTM
+history shows the 13 calendar months intersecting the exact trailing-year
+interval, with no inferred dates. Actual create/delete API behavior and
+nonempty ledger rows were not browser-tested to avoid writing test data to the
+shared production database.
 
 ---
 

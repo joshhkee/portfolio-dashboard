@@ -25,6 +25,13 @@ const ACTIONS: Command[] = [
     href: "/money?add=1",
     keywords: "contribution outlay add money deposit",
   },
+  {
+    id: "action-record-dividend",
+    label: "Record a dividend payment",
+    group: "Actions",
+    href: "/money/dividends?add=1",
+    keywords: "dividend distribution income cash payment",
+  },
 ];
 
 /**
@@ -48,6 +55,7 @@ const PAGES: Command[] = [
   { id: "page-money", label: "Money", group: "Go to", href: "/money", keywords: "outlay contributions deposits stakeholders schedule" },
   { id: "page-cash", label: "Cash", group: "Go to", href: "/money/cash", keywords: "balances currency exchange conversions" },
   { id: "page-activity", label: "Activity", group: "Go to", href: "/money/activity", keywords: "timeline trades deposits exchanges recent history" },
+  { id: "page-dividends", label: "Dividends", group: "Go to", href: "/money/dividends", keywords: "income distributions payments yield" },
   { id: "page-watchlist", label: "Watchlist", group: "Go to", href: "/watchlist", keywords: "watching ideas" },
   // Chrome rather than an object, so it is not in the nav's object list — but it
   // is a page, and someone who wants to add a person should be able to type

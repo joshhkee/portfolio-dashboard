@@ -1,20 +1,19 @@
 // Portfolio dashboard schema.
 //
-// Design note: Transaction and Contribution are the core ledger —
-// Open Positions, Completed Trades, and portfolio totals/percentages
-// are all DERIVED from these by replaying transactions in date order
-// (see lib/portfolio-engine.ts), never stored, so they can't drift out
-// of sync with the ledger.
+// Design note: Transaction and Contribution are the source of truth for
+// positions, outlay and capital gains. Open Positions, Completed Trades,
+// and portfolio holdings totals/percentages are DERIVED from these by
+// replaying transactions in date order (see lib/portfolio-engine.ts), never
+// stored. Dividend records actual distributions for income analytics only;
+// it does not alter positions or capital gains.
 //
-// CashBalance is a deliberate exception to that rule: it's a real
-// stored, directly-editable balance, auto-adjusted whenever a
-// contribution/outlay, purchase, sale, or exchange happens, but also
-// meant to be hand-corrected when it drifts from reality (a bank
-// statement doesn't quite match, a fee wasn't logged, etc.) — it is
-// NOT recomputed from the ledger on each read the way everything else
-// is. CashExchange is a log of currency exchanges only, for the
-// Recent Activity feed and an audit trail; the balances themselves
-// still live on CashBalance.
+// CashBalance is a deliberate exception: it's a real stored, directly-editable
+// balance, auto-adjusted by contributions/outlay, purchases, sales, exchanges
+// and net dividend receipts, but also meant to be hand-corrected when it drifts
+// from reality (a bank statement doesn't quite match, a fee wasn't logged,
+// etc.). It is NOT recomputed from the ledgers on each read. CashExchange is a
+// log of currency exchanges only, for the Recent Activity feed and audit trail;
+// the balances themselves still live on CashBalance.
 
 generator client {
   provider = "prisma-client-js"
@@ -158,6 +157,26 @@ model CashExchange {
   auto         Boolean // true if the live FX rate was used, false if hand-entered
   createdAt    DateTime @default(now())
 
+  @@index([date])
+}
+
+// Net cash distributions received. `amount` and `amountSgd` are the actual
+// post-withholding cash credit; `withholding` is retained separately for
+// reference and is not added to CashBalance. This ledger records income only:
+// it does not change positions, cost basis, or transaction-derived returns.
+model Dividend {
+  id          Int      @id @default(autoincrement())
+  date        DateTime
+  region      String // "US" | "SG" | "HK"
+  ticker      String
+  amount      Float // Net cash received in native currency
+  currency    String // "USD" | "SGD" | "HKD"
+  amountSgd   Float // Net receipt converted at the payment-date FX rate
+  withholding Float    @default(0) // Tax withheld, in the same native currency
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@index([ticker, region])
   @@index([date])
 }
 
