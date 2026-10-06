@@ -222,10 +222,12 @@ balance logic, or bookkeeping route changed.
 
 Part 40 added `lib/activity.ts` as the pure merge/filter layer, plus the
 `/money/activity` page and `components/ActivityTimeline.tsx`; the Money section
-strip and command palette link to it. The focused timeline tests pin mixed-source
-ordering, unknown deposit arrival dates, and filter membership. Verify the live
-page on desktop and phone, especially that the inline filters and event details
-remain readable without horizontal overflow.
+strip and command palette link to it. Follow-up work on PR #24 adds inclusive
+calendar date presets and custom bounds, and groups a day's deposits into one
+row with each contributor's subtotal. The focused tests cover merge order,
+deposit aggregation, date boundaries, and filter membership. The original page
+was checked on desktop and phone with no horizontal overflow; recheck after the
+new controls land.
 
 ---
 

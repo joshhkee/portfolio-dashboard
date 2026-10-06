@@ -8,13 +8,27 @@ import { PlainMoney } from "@/components/SignedNumber";
 import { formatAmount, formatQty } from "@/lib/format";
 import { formatShortDate } from "@/lib/dates";
 import { currencySymbol } from "@/lib/fx";
-import { filterActivityTimeline, type ActivityEvent, type ActivityFilter } from "@/lib/activity";
+import {
+  filterActivityByDateRange,
+  filterActivityTimeline,
+  type ActivityDatePreset,
+  type ActivityEvent,
+  type ActivityFilter,
+} from "@/lib/activity";
 
 const FILTERS: { value: ActivityFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "trades", label: "Trades" },
   { value: "deposits", label: "Deposits" },
   { value: "exchanges", label: "Exchanges" },
+];
+
+const DATE_PRESETS: { value: ActivityDatePreset; label: string }[] = [
+  { value: "all", label: "Any date" },
+  { value: "7days", label: "7 days" },
+  { value: "30days", label: "30 days" },
+  { value: "90days", label: "90 days" },
+  { value: "custom", label: "Custom" },
 ];
 
 function EventDescription({ event }: { event: ActivityEvent }) {
@@ -39,11 +53,20 @@ function EventDescription({ event }: { event: ActivityEvent }) {
       <>
         <div className="flex min-w-0 items-center gap-2">
           <span className="shrink-0 rounded border border-ink-600 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ink-300">Deposit</span>
-          <span className="truncate font-medium text-ink-100">{event.label}</span>
+          <span className="truncate font-medium text-ink-100">{event.labels.join(" · ")}</span>
         </div>
-        <p className="mt-1 text-xs text-ink-300">
-          {event.contributor}{event.arrivalDateUnknown ? " · arrival date not recorded" : ""}
-        </p>
+        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-300">
+          {event.contributors.map((contributor) => (
+            <span key={contributor.name} className="whitespace-nowrap">
+              {contributor.name} <span className="num text-ink-500">S${formatAmount(contributor.amount)}</span>
+            </span>
+          ))}
+        </div>
+        {event.arrivalDateStatus !== "known" && (
+          <p className="mt-1 text-xs text-ink-500">
+            {event.arrivalDateStatus === "unknown" ? "Arrival date not recorded" : "Some arrival dates not recorded"}
+          </p>
+        )}
       </>
     );
   }
@@ -95,7 +118,13 @@ function EventIcon({ event }: { event: ActivityEvent }) {
 
 export default function ActivityTimeline({ events }: { events: ActivityEvent[] }) {
   const [filter, setFilter] = useState<ActivityFilter>("all");
-  const visible = useMemo(() => filterActivityTimeline(events, filter), [events, filter]);
+  const [datePreset, setDatePreset] = useState<ActivityDatePreset>("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const visible = useMemo(() => {
+    const byKind = filterActivityTimeline(events, filter);
+    return filterActivityByDateRange(byKind, datePreset, { from: dateFrom, to: dateTo });
+  }, [events, filter, datePreset, dateFrom, dateTo]);
 
   return (
     <div className="screen">
@@ -106,12 +135,46 @@ export default function ActivityTimeline({ events }: { events: ActivityEvent[] }
             {visible.length}{filter === "all" ? " entries" : ` ${filter}`}
           </p>
         </div>
-        <SegmentedControl
-          ariaLabel="Filter activity"
-          options={FILTERS}
-          value={filter}
-          onChange={setFilter}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <SegmentedControl
+            ariaLabel="Filter activity"
+            options={FILTERS}
+            value={filter}
+            onChange={setFilter}
+          />
+          <SegmentedControl
+            ariaLabel="Activity date range"
+            options={DATE_PRESETS}
+            value={datePreset}
+            onChange={setDatePreset}
+          />
+          {datePreset === "custom" && (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-ink-300">
+              <label className="flex min-h-[44px] items-center gap-2">
+                From
+                <input
+                  aria-label="Activity from date"
+                  type="date"
+                  value={dateFrom}
+                  max={dateTo || undefined}
+                  onChange={(event) => setDateFrom(event.target.value)}
+                  className="field min-h-[44px] text-xs"
+                />
+              </label>
+              <label className="flex min-h-[44px] items-center gap-2">
+                To
+                <input
+                  aria-label="Activity to date"
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom || undefined}
+                  onChange={(event) => setDateTo(event.target.value)}
+                  className="field min-h-[44px] text-xs"
+                />
+              </label>
+            </div>
+          )}
+        </div>
       </div>
 
       {visible.length === 0 ? (
