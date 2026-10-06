@@ -1,6 +1,6 @@
 "use client";
 
-import { Wallet, PiggyBank } from "lucide-react";
+import { Wallet, PiggyBank, Activity } from "lucide-react";
 import SectionTabs from "@/components/SectionTabs";
 
 /**
@@ -29,6 +29,11 @@ export default function MoneyLayout({ children }: { children: React.ReactNode })
             href: "/money/cash",
             label: "Cash",
             icon: <Wallet size={14} strokeWidth={1.75} />,
+          },
+          {
+            href: "/money/activity",
+            label: "Activity",
+            icon: <Activity size={14} strokeWidth={1.75} />,
           },
         ]}
       />

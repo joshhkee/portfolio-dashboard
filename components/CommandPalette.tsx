@@ -47,6 +47,7 @@ const PAGES: Command[] = [
   { id: "page-realized", label: "Realized trades", group: "Go to", href: "/performance/realized", keywords: "completed sold closed profit" },
   { id: "page-money", label: "Money", group: "Go to", href: "/money", keywords: "outlay contributions deposits stakeholders schedule" },
   { id: "page-cash", label: "Cash", group: "Go to", href: "/money/cash", keywords: "balances currency exchange conversions" },
+  { id: "page-activity", label: "Activity", group: "Go to", href: "/money/activity", keywords: "timeline trades deposits exchanges recent history" },
   { id: "page-watchlist", label: "Watchlist", group: "Go to", href: "/watchlist", keywords: "watching ideas" },
   // Chrome rather than an object, so it is not in the nav's object list — but it
   // is a page, and someone who wants to add a person should be able to type
